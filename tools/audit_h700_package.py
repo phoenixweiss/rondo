@@ -63,6 +63,10 @@ def audit(path):
                     'Ubuntu-Font-Licence.txt', 'Rondo-Asset-Policy.md', 'FCEUmm-GPLv2.txt']
         for name in required:
             require('Licenses/' + name in names, 'Missing distribution notice: ' + name)
+        if 'VERSION' in source:
+            require(info.get('version') == source['VERSION'].decode().strip(), 'Packaged version mismatch')
+            require('.bumpster/hooks/pre-bump' in source and 'tools/release.py' in source,
+                    'Missing release build controls')
         runtime = json.loads(source['docs/dependencies/runtime-sources.json'])
         core = json.loads(source['docs/dependencies/core-source.json'])
         require(runtime['ttf']['freetype_license_for_gplv2_package'] == 'GPL-2.0-or-later',

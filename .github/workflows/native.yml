@@ -16,7 +16,11 @@ on:
       - LICENSE
       - THIRD_PARTY_NOTICES.md
       - Makefile
-      - .github/workflows/native.yml
+      - VERSION
+      - CHANGELOG.md
+      - .bumpsterrc
+      - .bumpster/**
+      - .github/workflows/**
   pull_request:
     branches: [dev, main]
     paths-ignore: ['website/**']

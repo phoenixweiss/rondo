@@ -65,8 +65,16 @@ See the [runtime guide](runtime/README.md) for package audit and optional isolat
 - [Installation and rollback](docs/installation.md), [brightness and sleep](docs/device-sleep.md)
 - [Roadmap](docs/roadmap.md) and [maintainer release procedure](docs/release.md)
 
-## License and contributions
-
-Rondo code and original artwork are [MIT-licensed](LICENSE). Fonts, icons and other dependencies retain [their own terms](THIRD_PARTY_NOTICES.md).
+## Contributing
 
 Bug reports with reproduction steps are welcome. Please discuss substantial pull requests first; development currently follows the maintainer's backlog. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Author
+
+Created and maintained by [Pavel Tkachev (@phoenixweiss)](https://github.com/phoenixweiss).
+
+## License
+
+Rondo code and original artwork are MIT-licensed. Fonts, icons, runtime libraries and emulators retain [their own terms](THIRD_PARTY_NOTICES.md); the complete NES package follows GPLv2 distribution requirements.
+
+[MIT](LICENSE) © 2026 PAVEL TKACHEV

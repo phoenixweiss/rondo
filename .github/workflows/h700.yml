@@ -1,0 +1,100 @@
+name: H700 candidate and release draft
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: h700-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+      - name: Validate release tag
+        if: github.ref_type == 'tag'
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python tools/release.py validate-tag "$RELEASE_TAG"
+      - name: Install native test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libsdl2-dev libsdl2-ttf-dev
+          python -m venv .venv
+          .venv/bin/python -m pip install -r tools/requirements.txt
+      - name: Run native checks
+        run: |
+          .venv/bin/python tools/build_core.py
+          .venv/bin/python tools/check.py --work build/h700-native-check
+      - name: Build two independent packages
+        run: |
+          python tools/build_h700_runtime.py --work build/h700-first
+          python tools/build_h700_runtime.py --work build/h700-second
+      - name: Verify and collect assets
+        env:
+          REF_TYPE: ${{ github.ref_type }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          args=()
+          if [[ "$REF_TYPE" == tag ]]; then args=(--tag "$RELEASE_TAG"); fi
+          python tools/release.py bundle --first build/h700-first --second build/h700-second --output build/release-assets "${args[@]}"
+          cd build/release-assets
+          sha256sum -c SHA256SUMS.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: h700-verified-assets
+          path: build/release-assets/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Show build diagnostics on failure
+        if: failure()
+        run: find build -name '*.log' -type f -exec tail -n 40 {} \;
+
+  draft:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: h700-verified-assets
+          path: build/release-assets
+      - name: Create and verify a draft preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          cd build/release-assets
+          sha256sum -c SHA256SUMS.txt
+          gh release create "$RELEASE_TAG" ./* --verify-tag --draft --prerelease --latest=false --title "Rondo $RELEASE_TAG — early development preview" --notes-file release-notes.md
+          gh release view "$RELEASE_TAG" --json isDraft,isPrerelease,tagName,assets > ../draft.json
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          draft = json.loads(Path('../draft.json').read_text())
+          assert draft['isDraft'] and draft['isPrerelease'] and draft['tagName'] == os.environ['RELEASE_TAG']
+          assert {a['name'] for a in draft['assets']} == {p.name for p in Path('.').iterdir() if p.is_file()}
+          PY
+          gh release download "$RELEASE_TAG" --dir ../draft-readback
+          cd ../draft-readback
+          sha256sum -c SHA256SUMS.txt
+          echo 'Draft verified. Publishing it remains a separate maintainer operation.'

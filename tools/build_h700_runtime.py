@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "runtime"))
 from inputs import records, sha
 
-SOURCE_TREES = {"src", "assets", "vendor", "tests", "tools", "runtime", "docs", "licenses", ".github"}
+SOURCE_TREES = {"src", "assets", "vendor", "tests", "tools", "runtime", "docs", "licenses", ".github", ".bumpster"}
 ROOT_NAMES = {"README.md", "README_RU.md", "LICENSE", "THIRD_PARTY_NOTICES.md",
               "CONTRIBUTING.md", "CHANGELOG.md", "Makefile", ".clang-format",
               ".gitignore", ".bumpsterrc", ".editorconfig", ".gitattributes", "VERSION"}

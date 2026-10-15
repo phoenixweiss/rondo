@@ -8,3 +8,4 @@
 - Add a quiet native check command and Ubuntu/macOS CI for source validation, model/UI tests and NES save/resume scenarios.
 - Add source-built H700 runtime packaging, deterministic archives, distribution audit and isolated BaseOS verification.
 - Document architecture, development, verification stages and roadmap; configure the maintainer Bumpster branch flow.
+- Add README author/copyright footers, Bumpster release checks and a verified H700 candidate/draft workflow for the first 0.0.1 preview.

@@ -1,36 +1,38 @@
-# Release design
+# Maintainer releases
 
-Draft maintainer procedure. No release version has been selected and these operations have not been executed for Rondo.
+Rondo is early development software. The first planned preview is **0.0.1**. The tracked VERSION starts at **0.0.0** as the unreleased baseline; it is not an existing release. No release is produced by adding this configuration.
 
-## Development and publication
+## Contract
 
-Use dev for ordinary work and main for released state. Keep changes small enough to build and review independently. Documentation describes the checked-out code. A normal commit/push does not imply a version bump, release or website deployment.
+- Frontend: root VERSION, vX.Y.Z annotated tags, dev → main → dev through Bumpster, no package.json synchronization.
+- A Bumpster patch from the initial baseline produces 0.0.1. Test-kit numbers are not product versions.
+- Website: no configured package or deployment. Its independent VERSION/package.json and website/vX.Y.Z profile belong to a later task.
 
-## Read-only preparation
-
-Bumpster 1.3.0 recognizes the checked-in configuration. Inspect the repository without starting a release:
+Use Bumpster 1.3.0 or a compatible version. Read-only inspection:
 
 ```sh
 bumpster --version
 bumpster --status
 ```
 
-The configuration selects main as the release branch, dev as the development/start/return branch and disables package.json synchronization. VERSION is intentionally absent until the first version is selected. There is no binary publication workflow yet. Neither this file nor .bumpsterrc establishes a ready-to-run release: version initialization, changelog preparation, candidate checks and an artifact publication workflow must be completed first. Do not run a bump command as a readiness check.
+## Before a bump
 
-## Rondo releases
+Inspect the exact source diff, branch/tracking state, candidate native CI, corresponding sources/licenses and device acceptance notes. Prepare the project-local Python environment as described in [development](development.md). The executable .bumpster/hooks/pre-bump builds the pinned native core, runs tools/check.py and closes the Unreleased section under the new version/date. It stages CHANGELOG.md in Bumpster's version commit. VERSION is updated by Bumpster itself. A failed check aborts before changelog preparation; a partial release is diagnosed from actual Git state rather than retried blindly.
 
-Use Bumpster from a clean, synchronized dev branch. For a versioned release, the root VERSION is authoritative; root package.json synchronization is disabled because the frontend is a C++ product. Tags follow vX.Y.Z. Bumpster handles the dev → main → dev flow. The first number and first release scope need an explicit decision; local test-kit numbers are not product versions.
+Only after explicit maintainer authorization, run `bumpster --patch` from clean, synchronized dev. This is a mutating release command: it creates commits, merges branches, tags and pushes. Do not use it to test readiness. Refuse an existing version/tag rather than rewriting it. The first release notes describe a development preview, not general device compatibility.
 
-Before a release, inspect the exact candidate diff/ref, relevant native and BaseOS checks, device acceptance notes, VERSION/changelog consistency, dependency provenance, licenses and corresponding sources. Build a frontend ZIP with a manifest and checksums from that candidate. Confirm installation and rollback on the supported target. Keep commercial ROMs, private state and vendor OS images out of the artifact.
+## Candidate workflow
 
-Commit, bump, tag, push, GitHub Release creation and SD installation remain explicitly authorized maintainer operations. After publication, independently read back the tag/ref and public assets, download the actual ZIP and verify its checksums and contents. A green build alone does not establish device behavior or successful publication.
+The H700 candidate and release draft workflow can be dispatched on dev to build artifacts without creating a tag or GitHub Release. It runs on a native [Ubuntu ARM64 runner](https://docs.github.com/en/actions/reference/runners/github-hosted-runners). Source/model/UI/runner checks run first. Two independent offline H700 compilations then use the pinned SDK and verified dependency archives. tools/release.py bundle compares both results and readbacks, audits the ZIP and verifies that all source inputs match the checkout.
 
-## Future website releases
+The retained workflow artifact contains the source-complete frontend ZIP, verification.json, release-notes.md and SHA256SUMS.txt. It expires after seven days; download and preserve a candidate needed for physical testing. The ZIP is a frontend package for an existing BaseOS 1.3.0 RG34XXSP installation, not firmware or a bootable SD image. A non-tag run is clearly named development, even after VERSION is initialized.
 
-The independent website profile will be installed as .bumpster/packages/website.json when real website/VERSION and website/package.json exist and are tracked. No website profile is configured yet.
+The BaseOS rootfs is an external input and is never uploaded. Its isolated preflight is a separate local check; the hosted workflow does not claim to have run it. Physical graphics, audio, input, brightness, save/resume and suspend acceptance of the exact candidate remain separate checks. See [installation/rollback](installation.md) and [compatibility](compatibility.md).
 
-With a Bumpster version supporting package releases, website status/release commands run from the repository root using --package website. The profile selects website/VERSION, website/package.json and website/vX.Y.Z tags; it preserves the dev → main → dev flow. Frontend releases use the root VERSION and vX.Y.Z tags.
+## Tagged draft and publication
 
-Website CI validates content/locales, source, generated output and relevant browser behavior. Its release/deployment workflow responds only to the website release contract. It must not publish frontend ZIPs or bump Rondo's version. Verify the deployed version and served content separately from build and deploy-job status.
+A pushed vX.Y.Z tag starts the same build. It must be annotated, point at the checked-out commit reachable from origin/main, match VERSION and have one nonempty dated changelog section. The ZIP's embedded version must match as well. Website tags cannot enter this release path.
 
-The hosting target, domain, first website version and deployment authorization are intentionally undecided. Site generation starts in a later task.
+Only the draft job has contents:write. After a successful build it creates a draft prerelease, uploads the four verified assets, reads back draft/tag/asset metadata, downloads the assets and verifies checksums. It does not publish the draft or mark it as latest. Existing releases are never overwritten, and a failed/ambiguous upload is not automatically retried.
+
+After checking the exact draft assets and required device acceptance, authorize publication separately. Then verify the public tag/ref, Release metadata and the downloaded ZIP, including its source and license audit. A green build, a draft or a successful upload is not proof of public availability or physical device behavior.

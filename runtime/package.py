@@ -34,7 +34,8 @@ def source_archive(source, output, epoch):
                     member = tarfile.TarInfo(name)
                     member.size = len(data)
                     member.mtime = epoch
-                    member.mode = 0o755 if path.suffix == ".sh" else 0o644
+                    hook = path.relative_to(source).parts[:2] == ('.bumpster', 'hooks')
+                    member.mode = 0o755 if path.suffix == ".sh" or hook else 0o644
                     archive.addfile(member, io.BytesIO(data))
 
 
@@ -102,6 +103,11 @@ def main():
             "compiler": compiler, "inputs": sources,
             "build_flags": {"core": ["platform=unix", "ARCH=arm64", "HAVE_HDPACK=0", "HAVE_NTSC=0"],
                             "ttf": ["embedded FreeType", "--disable-harfbuzz"]}}
+    if (root / "VERSION").is_file():
+        version = (root / "VERSION").read_text().strip()
+        if not re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", version):
+            raise ValueError("Invalid VERSION")
+        info["version"] = version
     (app / "build-info.json").write_text(json.dumps(info, sort_keys=True, indent=2) + "\n")
     licenses = payload / "Licenses"
     licenses.mkdir()

@@ -23,7 +23,7 @@ The core builder downloads the exact FCEUmm revision from docs/dependencies/core
 .venv/bin/python tools/check.py
 ```
 
-This builds the native targets and runs source validation, runtime build-tool safety tests, model, compact-volume, real-core/runner and synthetic device-policy checks. SDL video/audio use dummy drivers; hardware/boot adapters are removed from the inherited test environment. It opens no window, produces no test sound and does not access an SD card. Results go to a new temporary directory printed on completion.
+This builds the native targets and runs source validation, runtime build-tool and release safety tests, model, compact-volume, real-core/runner and synthetic device-policy checks. SDL video/audio use dummy drivers; hardware/boot adapters are removed from the inherited test environment. It opens no window, produces no test sound and does not access an SD card. Results go to a new temporary directory printed on completion.
 
 The first step checks publication inputs: JSON, local documentation links, locale placeholders, pinned vendor hashes and accidental personal paths/generated directories. Run it independently with `.venv/bin/python tools/check_source.py`.
 

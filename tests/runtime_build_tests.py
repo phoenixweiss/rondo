@@ -65,6 +65,16 @@ class RuntimeBuildTests(unittest.TestCase):
         source_archive(source, b, 1792022400)
         self.assertEqual(a.read_bytes(), b.read_bytes())
 
+    def test_source_archive_preserves_executable_release_hook(self):
+        source = self.root / 'source'
+        hook = source / '.bumpster/hooks/pre-bump'
+        hook.parent.mkdir(parents=True)
+        hook.write_text('#!/bin/sh\nexit 0\n')
+        output = self.root / 'source.tar.gz'
+        source_archive(source, output, 1792022400)
+        with tarfile.open(output) as archive:
+            self.assertEqual(archive.getmember('Rondo/.bumpster/hooks/pre-bump').mode, 0o755)
+
     def test_zip_corruption_is_not_acknowledged(self):
         path = self.root / "corrupt.zip"
         with zipfile.ZipFile(path, "w") as archive:

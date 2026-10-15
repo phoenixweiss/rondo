@@ -5,7 +5,7 @@ import json
 import re
 
 ROOT = Path(__file__).resolve().parent.parent
-trees = ["src", "assets", "vendor", "tests", "tools", "runtime", "docs", "licenses", ".github"]
+trees = ["src", "assets", "vendor", "tests", "tools", "runtime", "docs", "licenses", ".github", ".bumpster"]
 files = [p for p in ROOT.iterdir() if p.is_file()]
 for tree in trees:
     if (ROOT / tree).is_dir():

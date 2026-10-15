@@ -36,6 +36,7 @@ def run(name, command, timeout=120):
 
 run("source", [sys.executable, str(ROOT / "tools/check_source.py")])
 run("runtime-build-tools", [sys.executable, str(ROOT / "tests/runtime_build_tests.py")])
+run("release-tools", [sys.executable, str(ROOT / "tests/release_tests.py")])
 run("build", ["make", "-j4", "all", "build/model-tests", "build/core-tests",
               "build/device-tests", "build/volume-ui-tests"], timeout=300)
 run("model", [str(ROOT / "build/model-tests"), str(ROOT / "assets")])
