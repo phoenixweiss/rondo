@@ -24,17 +24,13 @@
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -r tools/requirements.txt
-make -j4 all build/model-tests build/core-tests build/device-tests build/volume-ui-tests
 .venv/bin/python tools/build_core.py
-make test
-SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy build/volume-ui-tests assets build/volume-renders
-.venv/bin/python tools/check_source.py
-rondo_core=build/cores/fceumm_libretro.dylib
-[ "$(uname -s)" != Linux ] || rondo_core=build/cores/fceumm_libretro.so
-SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy .venv/bin/python tests/run_checks.py --core "$rondo_core" --work build/native-check
+.venv/bin/python tools/check.py --work build/native-check
 ```
 
-Обычная сборка создаёт build/rondo. Ядро собирается отдельно из исходников: загрузка проверяется по SHA-256, версия закреплена в docs/dependencies/core-source.json. Проверки используют dummy-драйверы видео и звука и собственный тестовый картридж. Каталог build/native-check должен быть новым. Тесты не обращаются к SD-карте и не подтверждают работу физических кнопок, яркости или сна устройства.
+Обычная сборка создаёт build/rondo. Ядро собирается отдельно из исходников: загрузка проверяется по SHA-256, версия закреплена в docs/dependencies/core-source.json. Команда проверки собирает приложение и запускает проверки исходников, модели, отрисовки, сохранения/продолжения NES и политики сна с dummy-драйверами видео и звука и собственным тестовым картриджем. Каталог build/native-check должен быть новым; без --work временный каталог создаётся автоматически. В нём сохраняются журналы, кадры и summary.json. Тесты не обращаются к SD-карте и не подтверждают работу физических кнопок, яркости или сна устройства.
+
+GitHub Actions выполняет эти проверки на Ubuntu и macOS при push в dev/main и для pull request. Workflow имеет права только на чтение; внешние actions закреплены полными хешами коммитов.
 
 ## Запуск на компьютере
 

@@ -24,17 +24,13 @@ Requires a C++17 compiler, make, pkg-config, SDL2, SDL2_ttf and Python 3.11+.
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -r tools/requirements.txt
-make -j4 all build/model-tests build/core-tests build/device-tests build/volume-ui-tests
 .venv/bin/python tools/build_core.py
-make test
-SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy build/volume-ui-tests assets build/volume-renders
-.venv/bin/python tools/check_source.py
-rondo_core=build/cores/fceumm_libretro.dylib
-[ "$(uname -s)" != Linux ] || rondo_core=build/cores/fceumm_libretro.so
-SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy .venv/bin/python tests/run_checks.py --core "$rondo_core" --work build/native-check
+.venv/bin/python tools/check.py --work build/native-check
 ```
 
-The default build produces build/rondo. The core is built separately from source: its download is SHA-256 verified and its revision is pinned in docs/dependencies/core-source.json. Checks use dummy video/audio drivers and an original test cartridge. The build/native-check directory must be new. Tests do not access an SD card or validate physical controls, brightness or suspend.
+The default build produces build/rondo. The core is built separately from source: its download is SHA-256 verified and its revision is pinned in docs/dependencies/core-source.json. The check command builds the application and runs source, model, UI rendering, NES save/resume and device-policy tests with dummy video/audio drivers and an original test cartridge. The build/native-check directory must be new; omit --work to create a temporary directory automatically. Logs, renders and summary.json are saved there. Tests do not access an SD card or validate physical controls, brightness or suspend.
+
+GitHub Actions runs these checks on Ubuntu and macOS for pushes to dev/main and pull requests. Workflow permissions are read-only; external actions are pinned to full commit hashes.
 
 ## Desktop demo
 
