@@ -144,7 +144,7 @@ def main():
         "Original Rondo source is MIT; third-party components retain their own licenses. "
         "Corresponding source archives, build scripts and notices accompany this package. "
         "The combined NES binary distribution follows GPLv2, with original Rondo code/artwork remaining MIT. "
-        "FreeType uses its GPLv2 alternative here, not FTL. This local candidate is not a public release.\n")
+        "FreeType uses its GPLv2 alternative here, not FTL. This is early development software; consult release metadata for publication status.\n")
     write_manifest(app, "manifest.sha256")
     write_manifest(payload, "PACKAGE.sha256")
     output = work / "output"

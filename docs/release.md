@@ -1,6 +1,6 @@
 # Maintainer releases
 
-Rondo is early development software. The first planned preview is **0.0.1**. The tracked VERSION starts at **0.0.0** as the unreleased baseline; it is not an existing release. No release is produced by adding this configuration.
+Rondo is early development software. The first preview version is **0.0.1**. VERSION was initialized at **0.0.0** as an unreleased baseline; Bumpster advances it for a release. The baseline is not a published release. No release is produced by adding this configuration.
 
 ## Contract
 
