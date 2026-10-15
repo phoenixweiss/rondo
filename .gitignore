@@ -1,0 +1,32 @@
+# Local maintainer materials
+AGENTS.md
+*.tmp.md
+.DS_Store
+._*
+.env
+.env.*
+!.env.example
+
+# Native build and private test outputs
+/build/
+/Packages/
+/Diagnostics/
+/Builds/
+/QA/
+__pycache__/
+*.pyc
+*.dSYM/
+*.log
+/.venv/
+
+# Device/user data; original generated fixtures are kept outside these paths.
+/RondoGames/
+/RondoState/
+/RondoRollback/
+
+# Future independently built website
+/website/node_modules/
+/website/dist/
+/website/.vite/
+/website/playwright-report/
+/website/test-results/

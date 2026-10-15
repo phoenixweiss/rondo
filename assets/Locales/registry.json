@@ -1,0 +1,18 @@
+{
+  "default": "en",
+  "fallback": "en",
+  "locales": [
+    {
+      "code": "en",
+      "native_name": "English",
+      "direction": "ltr",
+      "font_fallback": []
+    },
+    {
+      "code": "ru",
+      "native_name": "Русский",
+      "direction": "ltr",
+      "font_fallback": []
+    }
+  ]
+}
