@@ -1,0 +1,13 @@
+{
+  "nlohmann_json_license": {
+    "url": "https://raw.githubusercontent.com/nlohmann/json/v3.12.0/LICENSE.MIT",
+    "sha256": "46a65cffd1ea955132d95a8dd921640714a8d6b537d2e4e482d31145ae95b603"
+  },
+  "toolchain_image": "ghcr.io/loveretro/h700-toolchain@sha256:c9d160c407570a771683e6a471757b44f6e155a7df7d1804c70f901ee3890da3",
+  "gcc_version": "8.3.0",
+  "files": {
+    "GCC-Runtime-Exception-3.1.txt": "9d6b43ce4d8de0c878bf16b54d8e7a10d9bd42b75178153e3af6a815bdc90f74",
+    "GCC-GPLv3.txt": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+  },
+  "exception_evidence": "bits/fs_path.h in pinned SDK; static -lstdc++fs and normal GCC compilation; host OS shared runtime libraries not copied"
+}

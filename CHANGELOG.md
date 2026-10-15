@@ -3,5 +3,4 @@
 ## Unreleased
 
 - Add the catalog and persistent settings foundation.
-
-Initial source import; no product release/version is implied.
+- Add shared SDL interface components, adaptive input hints and compact volume feedback.

@@ -1,0 +1,84 @@
+{
+  "revision": 5,
+  "supersedes": "Handoff04 volume geometry and pending presentation",
+  "display": [
+    720,
+    480
+  ],
+  "panel": {
+    "x": 232,
+    "y": 76,
+    "width": 256,
+    "height": 56,
+    "radius": 9,
+    "fill": "focus_surface",
+    "border": "separator",
+    "border_width": 1
+  },
+  "icon": {
+    "x": 248,
+    "y": 90,
+    "size": 28,
+    "normal": "volume-2",
+    "confirmed_zero": "volume-x"
+  },
+  "track": {
+    "x": 292,
+    "y": 100,
+    "width": 180,
+    "height": 8,
+    "radius": 4,
+    "fill": "accent",
+    "empty_fill": "separator",
+    "outline": "secondary",
+    "outline_width": 1
+  },
+  "state_word": {
+    "x": 292,
+    "center_y": 104,
+    "size": 22,
+    "weight": 400,
+    "max_width": 180,
+    "replaces_track": true
+  },
+  "normal_label": null,
+  "percentage": false,
+  "pending_indicator": null,
+  "pending_visible_value": "last acknowledged reading; unknown if none",
+  "states": [
+    "normal",
+    "mute",
+    "minimum",
+    "maximum",
+    "pending_known",
+    "pending_unknown",
+    "error",
+    "unknown",
+    "unavailable"
+  ],
+  "duration_ms": {
+    "confirmed": 1500,
+    "mute": 1500,
+    "boundary": 1500,
+    "error": 3000,
+    "unknown": 3000,
+    "unavailable": 3000
+  },
+  "pending_until": "authoritative result or backend timeout",
+  "priority": {
+    "maximum_visible": 2,
+    "primary_system_notice_y": 76,
+    "secondary_volume_y": 228,
+    "secondary_after_tall_notice_y": 260,
+    "focus": "unchanged",
+    "no_helper_strip": true
+  },
+  "slots": "kit07 date/time row with selected saved-frame preview",
+  "default_locale": "en",
+  "catalog": "catalogs.json",
+  "component": "VolumeOverlay",
+  "reference_display": [
+    720,
+    480
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "fonts": [
+    {
+      "path": "assets/Fonts/Ubuntu-Bold.ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/main/ufl/ubuntu/Ubuntu-Bold.ttf",
+      "sha256": "679b5c1e09cab3156bb8ef529735f9382bf31ca7ac737382ab959297f8d82ad4"
+    },
+    {
+      "path": "assets/Fonts/Ubuntu-Medium.ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/main/ufl/ubuntu/Ubuntu-Medium.ttf",
+      "sha256": "3cd952b8b52581e48a8fa95b31c8829c2baa41b635042a69587d57f98092961e"
+    },
+    {
+      "path": "assets/Fonts/Ubuntu-Regular.ttf",
+      "source": "https://raw.githubusercontent.com/google/fonts/main/ufl/ubuntu/Ubuntu-Regular.ttf",
+      "sha256": "3128df86a31805618436d0ae5651ba4285d0c9de0a39057d025f64ee33bceb64"
+    }
+  ],
+  "icons_license_sha256": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57",
+  "original_identity": "Owner approved MIT for original Rondo artwork on 2026-10-15; see assets/LICENSE.md",
+  "font_version": "Ubuntu 0.83",
+  "fonts_unmodified": true
+}
