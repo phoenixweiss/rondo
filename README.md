@@ -44,6 +44,19 @@ Menus use arrows, Enter/Z to confirm, Esc/X to go back, C for favorites/info, V 
 
 Commercial ROMs, BIOS files and user saves are not included in the repository.
 
+## H700 development package
+
+Requires Docker with Linux ARM64 container support. Build twice into new directories to compare the source ID, four runtime binaries and ZIP hash:
+
+```sh
+python3 tools/build_h700_runtime.py --work build/h700-first
+python3 tools/build_h700_runtime.py --work build/h700-second
+```
+
+The package targets RG34XXSP with BaseOS 1.3.0. It includes the frontend, pinned runtime, original test cartridge, corresponding source and distribution notices. It is a frontend ZIP, not a bootable SD image or a released binary. The builder never accesses a card.
+
+See the [runtime guide](runtime/README.md) for package audit and optional isolated BaseOS verification, [compatibility](docs/compatibility.md) for verification limits and [manual installation](docs/installation.md) for backup and rollback. The combined NES distribution follows GPLv2; Rondo code and original artwork remain MIT. See the [configured shipping audit](docs/shipping-audit.md).
+
 ## License and contributions
 
 Rondo code and original artwork are [MIT-licensed](LICENSE). Fonts, icons and other dependencies retain [their own terms](THIRD_PARTY_NOTICES.md).

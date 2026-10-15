@@ -1,0 +1,12 @@
+{
+  "sdl": {
+    "url": "https://codeload.github.com/JohnnyonFlame/SDL-malifbdev-rot/tar.gz/d4a7d7503524cc469fe775242f3f925d4dd56c88",
+    "sha256": "6485a6178a4a1554a30d7f7f68b55c3af4d2a52daea489bb09d3b479626c4d1a"
+  },
+  "ttf": {
+    "url": "https://www.libsdl.org/projects/SDL_ttf/release/SDL2_ttf-2.20.2.tar.gz",
+    "sha256": "9dc71ed93487521b107a2c4a9ca6bf43fb62f6bddd5c26b055e6b91418a22053",
+    "embedded_freetype": "2.12.1",
+    "freetype_license_for_gplv2_package": "GPL-2.0-or-later"
+  }
+}
