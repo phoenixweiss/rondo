@@ -4,4 +4,4 @@ Original Rondo code/scripts are MIT. Vendored JSON, PicoSHA2, libretro and stb h
 
 Ubuntu fonts retain UFL; Lucide/Feather icons retain ISC/MIT. Original artwork is MIT under assets/LICENSE.md.
 
-No emulator core or handheld binary package is supplied in this import.
+The separately built FCEUmm core is GPLv2; a combined NES binary distribution must comply with GPLv2 and include corresponding source/build inputs. This import supplies a source builder, not an installable handheld binary package.

@@ -1,0 +1,66 @@
+#include "app.hpp"
+#include <cassert>
+#include <fstream>
+#include <iostream>
+using namespace rondo;
+struct FakeDevice : DeviceControl {
+  int level=60,sleeps=0;bool open=true,fail=false;
+  std::function<void()> before;
+  std::optional<int> brightness() override { return level; }
+  void brightness(int n) override { level=n; }
+  bool canSleep() const override { return true; }
+  std::optional<bool> lidOpen() override { return open; }
+  void sleep() override { ++sleeps;if(before)before();if(fail)throw std::runtime_error("Injected suspend failure");open=true; }
+};
+int main(int argc,char **argv) {
+  assert(argc==5);Options o;o.assets=argv[1];o.state=argv[2];o.core=argv[3];o.headless=true;o.output=o.state/"renders";
+  auto root=o.state;
+  PowerInputState key;
+  assert(key.event(1,116,0).empty());
+  assert(key.event(1,116,1).empty());assert(key.event(1,116,2).empty());
+  assert(key.event(1,116,0)=="SLEEP");assert(key.event(1,116,0).empty());
+  key.event(1,116,1);key.event(0,3,0);assert(key.event(1,116,0).empty());
+  {
+    App a(o);auto fake=std::make_unique<FakeDevice>();auto *d=fake.get();a.device=std::move(fake);a.brightness=60;
+    a.action("Y");a.action("R1");a.action("RIGHT");assert(d->level==65 && a.store.data["brightness"]==65);a.capture("brightness-inline");
+    a.requestSettings=[](Json){return false;};a.action("LEFT");assert(d->level==65 && a.brightness==65 && a.store.data["brightness"]==65);a.requestSettings={};
+    a.action("R1");a.action("RIGHT");assert(a.screen==Screen::Settings && a.store.data["volume"]==85);
+    a.action("A");assert(a.screen==Screen::Settings);a.capture("sound-inline");a.action("LEFT");assert(a.store.data["volume"]==80);
+    a.action("R1");a.action("LEFT");assert(a.store.data["lid_sleep"]==false);
+    d->open=false;a.lidCheckAt=0;a.ticks(0);assert(d->sleeps==0);
+    a.action("RIGHT");d->open=true;a.lidCheckAt=0;a.ticks(0);d->open=false;a.lidCheckAt=0;a.ticks(0);assert(d->sleeps==1);
+    a.action("SLEEP");assert(d->sleeps==2);
+    // A supervised shell without SDL must not independently suspend its child.
+    a.ui.reset();d->open=false;a.lastLidOpen=true;a.lidCheckAt=0;a.ticks(0);assert(d->sleeps==2);
+  }
+  {
+    o.state=root/"runner";Game game{"device-game","TEST","NES","Fixture",argv[4]};App a(o,true,game);
+    auto fake=std::make_unique<FakeDevice>();auto *d=fake.get();a.device=std::move(fake);
+    a.ticks(90);auto hash=a.core->stateHash();auto frames=a.core->frames;
+    d->before=[&]{assert(a.core->paused && a.core->buttons==0);};
+    a.core->buttons=1;a.action("SLEEP");assert(d->sleeps==1 && !a.core->paused && a.screen==Screen::Running);
+    assert(a.core->frames==frames && a.core->stateHash()==hash);
+    a.action("MENU");a.row=3;a.action("X");assert(!a.infoOpen); // game menu X has no hidden mutation.
+    a.action("SLEEP");assert(a.core->paused && a.row==3 && a.screen==Screen::GameMenu);
+    a.action("B");d->fail=true;a.action("SLEEP");assert(a.core->paused && a.screen==Screen::GameMenu && !a.notice.empty());
+    d->fail=false;
+    auto dir=a.store.gameDir(game);fs::rename(dir,dir.string()+".saved");std::ofstream(dir)<<"blocked";
+    int count=d->sleeps;a.action("SLEEP");assert(d->sleeps==count && a.core->paused); // SRAM failure aborts sleep.
+    fs::remove(dir);fs::rename(dir.string()+".saved",dir);
+    a.core->save(0);a.screen=Screen::LoadSlots;a.row=0;a.capture("slot-preview");auto meta=readJson(dir/"slot-0.json");assert(meta.contains("preview"));
+    auto &view=a.slotView(0);assert(view.compatible && view.pixels==a.core->frame && view.width==a.core->width && view.utc>0);
+    meta.erase("preview");auto text=meta.dump();atomicWrite(dir/"slot-1.json",{text.begin(),text.end()});
+    auto &old=a.slotView(1);assert(old.compatible && old.pixels.empty() && old.utc==view.utc);
+    meta["core"]="wrong-core";text=meta.dump();atomicWrite(dir/"slot-2.json",{text.begin(),text.end()});assert(!a.slotView(2).compatible);a.row=1;a.capture("slot-legacy");a.row=2;a.capture("slot-incompatible");a.action("X");assert(a.infoOpen);a.capture("slots-info");
+    Store reload(o.state);assert(reload.data.value("lid_sleep",true));
+  }
+  {
+    SDL_setenv("SDL_AUDIODRIVER","dummy",1);UI hidden(o.assets,true);
+    Game game{"audio-wake","TEST","NES","Fixture",argv[4]};Core c(argv[3],game,root/"audio-wake",false);
+    for(int i=0;i<60;++i)c.tick();
+    auto hash=c.stateHash();auto audio=c.audioFrames;
+    c.closeAudio();c.openAudio();assert(c.stateHash()==hash);
+    c.tick();assert(c.audioFrames>audio);
+  }
+  std::cout<<"PASS: fresh Power release, lid policy, inline volume/brightness with rollback, active-process ownership, paused core continuity, suspend failure, SRAM failure abort, preview integrity and legacy states.\n";
+}

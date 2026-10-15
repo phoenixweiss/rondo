@@ -1,25 +1,29 @@
 CXX ?= c++
+PKG_CONFIG ?= pkg-config
 BUILD ?= build
-CPPFLAGS += -Isrc -Ivendor
+CPPFLAGS += -Isrc -Ivendor $(shell $(PKG_CONFIG) --cflags sdl2 SDL2_ttf)
 CXXFLAGS ?= -O2 -g -std=c++17 -Wall -Wextra -Wpedantic
-LDLIBS += -pthread
+LDLIBS += $(shell $(PKG_CONFIG) --libs sdl2 SDL2_ttf)
 ifeq ($(shell uname),Linux)
 LDLIBS += -ldl
 endif
-COMMON = src/model.cpp src/platform.cpp
-all: $(BUILD)/model-tests
-$(BUILD)/model-tests: tests/model_tests.cpp $(COMMON) src/model.hpp src/platform.hpp
+SOURCES = src/model.cpp src/platform.cpp src/ui.cpp src/core.cpp src/app.cpp src/main.cpp
+all: $(BUILD)/rondo
+$(BUILD)/rondo: $(SOURCES) src/model.hpp src/ui.hpp src/core.hpp src/app.hpp src/platform.hpp
 	mkdir -p $(BUILD)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tests/model_tests.cpp $(COMMON) $(LDFLAGS) $(LDLIBS) -o $@
-test: all
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(SOURCES) $(LDFLAGS) $(LDLIBS) -o $@
+$(BUILD)/model-tests: tests/model_tests.cpp src/model.cpp src/platform.cpp src/model.hpp src/platform.hpp
+	mkdir -p $(BUILD)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tests/model_tests.cpp src/model.cpp src/platform.cpp $(LDFLAGS) $(LDLIBS) -o $@
+test: $(BUILD)/model-tests
 	$(BUILD)/model-tests assets
-.PHONY: all test ui-test
-PKG_CONFIG ?= pkg-config
-CPPFLAGS += $(shell $(PKG_CONFIG) --cflags sdl2 SDL2_ttf)
-LDLIBS += $(shell $(PKG_CONFIG) --libs sdl2 SDL2_ttf)
-all: $(BUILD)/volume-ui-tests
-$(BUILD)/volume-ui-tests: tests/volume_ui_tests.cpp $(COMMON) src/ui.cpp src/ui.hpp
+.PHONY: all test
+$(BUILD)/core-tests: tests/core_tests.cpp src/model.cpp src/platform.cpp src/core.cpp src/core.hpp
 	mkdir -p $(BUILD)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tests/volume_ui_tests.cpp $(COMMON) src/ui.cpp $(LDFLAGS) $(LDLIBS) -o $@
-ui-test: all
-	env -u RONDO_DEVICE_INPUT -u RONDO_BOOTLOGO_TOOL SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy $(BUILD)/volume-ui-tests assets $(BUILD)/volume-renders
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tests/core_tests.cpp src/model.cpp src/platform.cpp src/core.cpp $(LDFLAGS) $(LDLIBS) -o $@
+$(BUILD)/device-tests: tests/device_tests.cpp src/model.cpp src/platform.cpp src/ui.cpp src/core.cpp src/app.cpp
+	mkdir -p $(BUILD)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tests/device_tests.cpp src/model.cpp src/platform.cpp src/ui.cpp src/core.cpp src/app.cpp $(LDFLAGS) $(LDLIBS) -o $@
+$(BUILD)/volume-ui-tests: tests/volume_ui_tests.cpp src/model.cpp src/platform.cpp src/ui.cpp src/ui.hpp
+	mkdir -p $(BUILD)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tests/volume_ui_tests.cpp src/model.cpp src/platform.cpp src/ui.cpp $(LDFLAGS) $(LDLIBS) -o $@

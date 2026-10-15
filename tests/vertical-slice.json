@@ -1,0 +1,333 @@
+[
+  {
+    "capture": "library-en",
+    "assert_config": {
+      "locale": "en",
+      "artwork": "cover"
+    }
+  },
+  {
+    "action": "VOLUME_DOWN",
+    "capture": "volume-library",
+    "assert_config": {
+      "volume": 75
+    }
+  },
+  {
+    "wait_ms": 1501
+  },
+  {
+    "action": "X"
+  },
+  {
+    "action": "R1",
+    "capture": "favorites",
+    "assert_screen": "library"
+  },
+  {
+    "action": "L1"
+  },
+  {
+    "action": "RIGHT",
+    "capture": "library-title",
+    "assert_config": {
+      "artwork": "title"
+    }
+  },
+  {
+    "action": "Y",
+    "capture": "settings-en"
+  },
+  {
+    "action": "A",
+    "capture": "language-en"
+  },
+  {
+    "action": "DOWN"
+  },
+  {
+    "action": "B",
+    "assert_config": {
+      "locale": "en"
+    }
+  },
+  {
+    "action": "A"
+  },
+  {
+    "action": "DOWN"
+  },
+  {
+    "action": "A",
+    "capture": "settings-ru",
+    "assert_config": {
+      "locale": "ru"
+    }
+  },
+  {
+    "action": "DOWN"
+  },
+  {
+    "action": "A",
+    "capture": "timezone-regions"
+  },
+  {
+    "action": "DOWN"
+  },
+  {
+    "action": "A",
+    "capture": "timezone-list"
+  },
+  {
+    "action": "R1",
+    "capture": "timezone-page"
+  },
+  {
+    "action": "B"
+  },
+  {
+    "action": "B",
+    "assert_config": {
+      "timezone": "Etc/UTC"
+    }
+  },
+  {
+    "action": "B",
+    "capture": "library-ru"
+  },
+  {
+    "action": "A",
+    "runner_script": [
+      {
+        "action": "VOLUME_DOWN",
+        "capture": "volume-game",
+        "assert_config": {
+          "volume": 70
+        }
+      },
+      {
+        "wait_ms": 1501
+      },
+      {
+        "frames": 180,
+        "capture": "nes-running",
+        "assert_screen": "running"
+      },
+      {
+        "action": "MENU",
+        "capture": "game-menu"
+      },
+      {
+        "action": "DOWN"
+      },
+      {
+        "action": "A",
+        "capture": "save-slots",
+        "assert_screen": "save_slots"
+      },
+      {
+        "action": "A",
+        "assert_screen": "game_menu",
+        "capture": "saved"
+      },
+      {
+        "action": "B",
+        "frames": 60
+      },
+      {
+        "action": "MENU"
+      },
+      {
+        "action": "DOWN"
+      },
+      {
+        "action": "DOWN"
+      },
+      {
+        "action": "A",
+        "capture": "load-slots",
+        "assert_screen": "load_slots"
+      },
+      {
+        "action": "A",
+        "assert_screen": "load_confirm"
+      },
+      {
+        "action": "B",
+        "assert_screen": "load_slots"
+      },
+      {
+        "action": "A"
+      },
+      {
+        "action": "DOWN"
+      },
+      {
+        "action": "A",
+        "assert_screen": "running",
+        "capture": "nes-loaded"
+      },
+      {
+        "action": "MENU"
+      },
+      {
+        "action": "DOWN"
+      },
+      {
+        "action": "DOWN"
+      },
+      {
+        "action": "DOWN"
+      },
+      {
+        "action": "A",
+        "assert_screen": "game_settings"
+      },
+      {
+        "action": "RIGHT",
+        "assert_screen": "game_settings",
+        "capture": "scaling-on",
+        "assert_integer_scaling": true
+      },
+      {
+        "action": "RIGHT",
+        "assert_integer_scaling": true
+      },
+      {
+        "action": "LEFT",
+        "assert_integer_scaling": false
+      },
+      {
+        "action": "A",
+        "assert_integer_scaling": true
+      },
+      {
+        "action": "A",
+        "assert_integer_scaling": false
+      },
+      {
+        "action": "RIGHT",
+        "assert_integer_scaling": true,
+        "capture": "scaling-final",
+        "assert_notice_empty": true
+      },
+      {
+        "action": "X",
+        "assert_info": true,
+        "capture": "scaling-info"
+      },
+      {
+        "action": "LEFT",
+        "assert_info": true,
+        "assert_integer_scaling": true
+      },
+      {
+        "action": "R1",
+        "assert_screen": "game_settings",
+        "assert_info": true
+      },
+      {
+        "action": "B",
+        "assert_info": false,
+        "assert_integer_scaling": true
+      },
+      {
+        "action": "B"
+      },
+      {
+        "action": "UP"
+      },
+      {
+        "action": "UP"
+      },
+      {
+        "action": "A",
+        "assert_screen": "save_slots"
+      },
+      {
+        "action": "DOWN"
+      },
+      {
+        "action": "DOWN"
+      },
+      {
+        "action": "A",
+        "assert_screen": "game_menu"
+      },
+      {
+        "action": "DOWN"
+      },
+      {
+        "action": "DOWN"
+      },
+      {
+        "action": "DOWN"
+      },
+      {
+        "action": "A",
+        "assert_screen": "exit_confirm"
+      },
+      {
+        "action": "B",
+        "assert_screen": "game_menu"
+      },
+      {
+        "action": "A"
+      },
+      {
+        "action": "DOWN"
+      },
+      {
+        "action": "A",
+        "assert_notice_empty": true
+      }
+    ]
+  },
+  {
+    "capture": "library-after-game",
+    "assert_screen": "library"
+  },
+  {
+    "action": "A",
+    "assert_screen": "resume_choice",
+    "capture": "resume-choice"
+  },
+  {
+    "action": "A",
+    "runner_script": [
+      {
+        "frames": 30,
+        "capture": "nes-resumed",
+        "assert_screen": "running"
+      },
+      {
+        "action": "MENU"
+      },
+      {
+        "action": "DOWN"
+      },
+      {
+        "action": "DOWN"
+      },
+      {
+        "action": "DOWN"
+      },
+      {
+        "action": "DOWN"
+      },
+      {
+        "action": "A"
+      },
+      {
+        "action": "DOWN"
+      },
+      {
+        "action": "A"
+      }
+    ]
+  },
+  {
+    "capture": "library-after-resume",
+    "assert_screen": "library"
+  }
+]
