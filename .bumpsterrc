@@ -1,0 +1,10 @@
+# Maintainer release configuration. A release version is selected separately.
+GIT_MASTER_BRANCH="main"
+GIT_DEVELOP_BRANCH="dev"
+SYNC_WITH_PACKAGE_JSON="false"
+BEFORE_BUMP_BRANCH="dev"
+AFTER_BUMP_BRANCH="dev"
+ENABLE_LOGGING="false"
+LOG_FILE="bumpster.log"
+DELETE_FEATURE_BRANCH_AFTER_MERGE="false"
+ASK_BEFORE_DELETING_FEATURE_BRANCH="true"

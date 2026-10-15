@@ -57,6 +57,16 @@ python3 tools/build_h700_runtime.py --work build/h700-second
 
 Проверка пакета и необязательный изолированный прогон BaseOS описаны в [руководстве runtime](runtime/README.md). Границы проверок — в [совместимости](docs/compatibility.md), резервное копирование и откат — в [ручной установке](docs/installation.md). Совокупная NES-поставка следует GPLv2; код Rondo и оригинальная графика остаются MIT. Подробнее — в [аудите поставки](docs/shipping-audit.md).
 
+## Документация
+
+- [Разработка и управление](docs/development.md)
+- [Архитектура](docs/architecture.md) и [происхождение дизайна](docs/design-source.md)
+- [Этапы проверки](docs/stages.md) и [совместимость](docs/compatibility.md)
+- [Установка и откат](docs/installation.md), [яркость и сон](docs/device-sleep.md)
+- [Планы](docs/roadmap.md) и [процедура релиза](docs/release.md)
+
+Подробные технические документы ведутся на английском; README и интерфейс доступны на английском и русском.
+
 ## Лицензия и участие
 
 Код Rondo и оригинальная графика распространяются по [MIT](LICENSE). У шрифтов, иконок и остальных зависимостей сохраняются [свои условия](THIRD_PARTY_NOTICES.md).

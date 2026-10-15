@@ -57,6 +57,14 @@ The package targets RG34XXSP with BaseOS 1.3.0. It includes the frontend, pinned
 
 See the [runtime guide](runtime/README.md) for package audit and optional isolated BaseOS verification, [compatibility](docs/compatibility.md) for verification limits and [manual installation](docs/installation.md) for backup and rollback. The combined NES distribution follows GPLv2; Rondo code and original artwork remain MIT. See the [configured shipping audit](docs/shipping-audit.md).
 
+## Documentation
+
+- [Development and controls](docs/development.md)
+- [Architecture](docs/architecture.md) and [design provenance](docs/design-source.md)
+- [Verification stages](docs/stages.md) and [compatibility](docs/compatibility.md)
+- [Installation and rollback](docs/installation.md), [brightness and sleep](docs/device-sleep.md)
+- [Roadmap](docs/roadmap.md) and [maintainer release procedure](docs/release.md)
+
 ## License and contributions
 
 Rondo code and original artwork are [MIT-licensed](LICENSE). Fonts, icons and other dependencies retain [their own terms](THIRD_PARTY_NOTICES.md).
