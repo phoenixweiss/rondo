@@ -183,6 +183,15 @@ static void events(App &a) {
       } else
         a.stop = true;
     }
+    if(e.type==SDL_TEXTINPUT && a.screen==Screen::WifiPassword){a.ui->inputHints(true);a.wifiText(e.text.text);continue;}
+    if(e.type==SDL_KEYDOWN && a.screen==Screen::WifiPassword && !a.ui->handheldKeys->available()) {
+      a.ui->inputHints(true);
+      if(e.key.keysym.sym==SDLK_BACKSPACE)a.action("WIFI_DELETE");
+      else if(e.key.keysym.sym==SDLK_RETURN)a.action("WIFI_SUBMIT");
+      else if(e.key.keysym.sym==SDLK_ESCAPE)a.action("B");
+      else if(e.key.keysym.sym==SDLK_UP || e.key.keysym.sym==SDLK_DOWN || e.key.keysym.sym==SDLK_LEFT || e.key.keysym.sym==SDLK_RIGHT)a.action(key(e.key.keysym.sym));
+      continue;
+    }
     if (e.type == SDL_KEYDOWN) {
       if (a.ui->handheldKeys->available())
         continue; // The handheld's evdev pad must not also generate keyboard actions.

@@ -25,6 +25,8 @@ public:
   SDL_Color bg{}, cream{}, secondary{}, accent{}, focus{}, separator{};
   bool headless;
   bool keyboardHints = false;
+  std::optional<Telemetry> wifiOverride;
+  void wifiIcon(int x, int y, const Telemetry &);
   bool showBatteryPercent = true;
   void battery(const Telemetry &, bool showPercent, int x = 599);
   int status(const std::string &clock, const Telemetry &);

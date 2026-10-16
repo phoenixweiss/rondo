@@ -50,6 +50,15 @@ int main(int argc, char **argv) {
   ui.rect(0,0,720,68,ui.bg);int wifi=ui.status("12:34",telemetry);
   assert(plain-wifi==34 && pixels(clockX,29,ui.measure("12:34",21),27)==clock);
   ui.save(out/"status-wifi-on.png");
+  telemetry.wifiState="connected";
+  std::vector<std::vector<Uint32>> signals;
+  for(int dbm:{-90,-75,-60,-45,0}) {
+    telemetry.wifiSignalDbm=dbm==0?std::nullopt:std::optional<int>(dbm);
+    ui.rect(0,0,720,68,ui.bg);ui.status("12:34",telemetry);
+    signals.push_back(pixels(wifi,29,22,25));
+    ui.save(out/("status-signal-"+std::to_string(dbm)+".png"));
+  }
+  for(size_t i=0;i<signals.size();++i)for(size_t j=0;j<i;++j)assert(signals[i]!=signals[j]);
   telemetry.wifiEnabled=false;ui.showBatteryPercent=false;
   ui.rect(0,0,720,68,ui.bg);int compact=ui.status("12:34",telemetry);
   assert(compact>plain && pixels(clockX,29,ui.measure("12:34",21),27)==clock);

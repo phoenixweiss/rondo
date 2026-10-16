@@ -2,6 +2,7 @@
 // Copyright (c) 2026 PAVEL TKACHEV
 #pragma once
 #include "core.hpp"
+#include "wifi.hpp"
 #include "ui.hpp"
 #include <functional>
 #include <future>
@@ -9,6 +10,10 @@ namespace rondo {
 enum class Screen {
   Library,
   Settings,
+  Wifi,
+  WifiNetworks,
+  WifiNetwork,
+  WifiPassword,
   Language,
   Regions,
   Zones,
@@ -80,6 +85,26 @@ public:
   void requestBootLogo(bool);
   std::function<bool(Json)> requestSettings;
   App(Options, bool runner = false, const Game &entry = {});
+  ~App();
+  std::shared_ptr<WifiAdapter> wifiDevice;
+  WifiState wifi;
+  WifiNetwork wifiSelected;
+  std::future<WifiState> wifiJob;
+  std::string wifiTask, wifiPassword, wifiQueuedTask;
+  std::function<WifiState()> wifiQueued;
+  bool wifiBusy() const {return bool(wifiQueued) || (wifiJob.valid() && wifiTask!="poll");}
+  std::optional<bool> wifiToggle;
+  uint64_t wifiPollAt=0;
+  int wifiKeyRow=0,wifiKeyColumn=0,wifiListFocus=0;
+  bool wifiUpper=false,wifiSymbols=false,wifiReadback=false;
+  void wifiRun(const std::string &,std::function<WifiState()>);
+  void wifiTick();
+  void wifiAction(const std::string &);
+  void wifiDraw();
+  void wifiConnect();
+  void wifiText(const std::string &);
+  std::vector<std::vector<std::string>> wifiKeys() const;
+
   std::vector<int> visible() const;
   std::vector<std::string> regions() const;
   std::vector<Zone> locations() const;

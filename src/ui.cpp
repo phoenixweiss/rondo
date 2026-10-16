@@ -188,6 +188,25 @@ void UI::battery(const Telemetry &telemetry, bool showPercent, int x) {
   if (showPercent)
     text(known ? std::to_string(*level) + "%" : "—", x + 40, 29, 21);
 }
+void UI::wifiIcon(int x, int y, const Telemetry &telemetry) {
+  const int level = wifiSignalLevel(telemetry.wifiSignalDbm);
+  const bool connected = telemetry.wifiState == "connected";
+  for (int arc=1;arc<=3;++arc) {
+    const double radius = 1 + arc*5;
+    const auto color = connected ? (level>=arc ? cream : level<0 ? secondary : separator) : secondary;
+    for (int n=0;n<24;++n) {
+      const double a=(-134.0+88.0*n/24)*3.141592653589793/180;
+      const double b=(-134.0+88.0*(n+1)/24)*3.141592653589793/180;
+      for(int stroke=0;stroke<2;++stroke)
+        line(x+11+int(std::lround(radius*std::cos(a))),y+20+int(std::lround(radius*std::sin(a)))+stroke,
+             x+11+int(std::lround(radius*std::cos(b))),y+20+int(std::lround(radius*std::sin(b)))+stroke,color);
+    }
+  }
+  circle(x+11,y+20,1,connected?cream:secondary,true);
+  if (telemetry.wifiState=="disconnected") {
+    line(x+1,y+22,x+21,y+2,bg);line(x+1,y+23,x+21,y+3,cream);
+  } else if(telemetry.wifiState=="connecting") rect(x+18,y+19,4,4,accent,2);
+}
 int UI::status(const std::string &clock, const Telemetry &telemetry) {
   const bool known = telemetry.capacity && *telemetry.capacity >= 0 && *telemetry.capacity <= 100;
   const auto percentage = known ? std::to_string(*telemetry.capacity) + "%" : "—";
@@ -198,11 +217,7 @@ int UI::status(const std::string &clock, const Telemetry &telemetry) {
   battery(telemetry, showBatteryPercent, x);
   if (telemetry.wifiEnabled) {
     x -= 12 + 22;
-    icon("wifi", x, 29, 22);
-    if (telemetry.wifiState == "disconnected")
-      line(x, 50, x + 20, 29, secondary);
-    if (telemetry.wifiState == "connecting")
-      rect(x + 18, 48, 4, 4, accent, 2);
+    wifiIcon(x, 29, telemetry);
   }
   return x;
 }
@@ -225,7 +240,13 @@ void UI::frame(const std::string &title, const std::string &context, const std::
   else
     unsetenv("TZ");
   tzset();
-  const int statusLeft = status(clock, readTelemetry());
+  auto telemetry = readTelemetry();
+  if (wifiOverride) {
+    telemetry.wifiEnabled=wifiOverride->wifiEnabled;
+    telemetry.wifiState=wifiOverride->wifiState;
+    telemetry.wifiSignalDbm=wifiOverride->wifiSignalDbm;
+  }
+  const int statusLeft = status(clock, telemetry);
   text(title, 24, 22, 29, 700, cream, statusLeft - 48);
 
   line(24, 68, 696, 68, separator);

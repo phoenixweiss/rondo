@@ -12,7 +12,7 @@ The [core feature review](feature-review.md) compares NextUI, MinUI and muOS wit
 
 - Time-zone picker repair (F24) passed native and ARM64 checks and owner testing on RG34XXSP, including persistence after restart. Its delivery is recorded in the changelog.
 - Collect reproducible device issues, unexpected behavior and missing features. Keep observed defects separate from feature ideas and track the checks still needed.
-- Add Wi-Fi controls, network discovery, password entry, saved-network reconnection and connection-error handling. Keep credentials out of diagnostics.
+- Wi-Fi controls, network discovery, masked password entry, known-network reconnect/forget and connection errors are implemented for H700 with native tests. Verify the adapter on RG34XXSP, including reboot/sleep, before claiming physical radio support. See [Wi-Fi settings](wifi.md). Keep credentials out of diagnostics.
 - Add Bluetooth controls, discovery, pairing, connection management and device removal; verify supported profiles and devices individually.
 - Show Wi-Fi and Bluetooth status icons only while the corresponding radio is actually enabled. Distinguish enabled without a connection, connecting and connected states; verify updates after sleep and restart.
 - Battery percentage and its visibility toggle (F02) passed owner testing on RG34XXSP. Verify charging/unknown states and low-level highlight separately; native checks passed.

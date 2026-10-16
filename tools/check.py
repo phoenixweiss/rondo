@@ -39,8 +39,9 @@ run("runtime-build-tools", [sys.executable, str(ROOT / "tests/runtime_build_test
 run("release-tools", [sys.executable, str(ROOT / "tests/release_tests.py")])
 run("installer", [sys.executable, str(ROOT / "tests/installer_tests.py")])
 run("build", ["make", "-j4", "all", "build/model-tests", "build/core-tests",
-              "build/device-tests", "build/volume-ui-tests", "build/timezone-tests", "build/battery-tests"], timeout=300)
+              "build/device-tests", "build/volume-ui-tests", "build/timezone-tests", "build/battery-tests", "build/wifi-tests"], timeout=300)
 run("battery", [str(ROOT / "build/battery-tests"), str(ROOT / "assets"), str(work / "battery")])
+run("wifi", [str(ROOT / "build/wifi-tests"), str(ROOT / "assets"), str(work / "wifi")])
 run("timezone", [str(ROOT / "build/timezone-tests"), str(ROOT / "assets"), str(work / "timezone")])
 run("model", [str(ROOT / "build/model-tests"), str(ROOT / "assets")])
 run("volume", [str(ROOT / "build/volume-ui-tests"), str(ROOT / "assets"),

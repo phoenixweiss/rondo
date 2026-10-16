@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 cp -R /package/System/Rondo /baseos/tmp/app
-cp /programs/battery-tests /programs/timezone-tests /programs/device-tests /programs/h700-device-tests /baseos/tmp/
+cp /programs/battery-tests /programs/timezone-tests /programs/device-tests /programs/h700-device-tests /programs/wifi-tests /programs/h700-wifi-tests /baseos/tmp/
 mkdir -p /baseos/sys/power /baseos/sys/class/graphics/fb0 /baseos/sys/class/power_supply/axp2202-battery
 printf mem > /baseos/sys/power/state
 printf 0 > /baseos/sys/class/graphics/fb0/blank
@@ -14,7 +14,11 @@ printf N > /baseos/sys/module/rondo_lid_wake/parameters/wake_on_open
 printf 'axp2202-pek\n' > /baseos/sys/devices/platform/axp2202-pek/input/input42/name
 printf disabled > /baseos/sys/devices/platform/axp2202-pek/power/wakeup
 ln -s /sys/devices/platform/axp2202-pek/input/input42 /baseos/sys/class/input/event42/device
-touch /baseos/dev/disp
+mkdir -p /baseos/sys/class/rfkill/rfkill0 /baseos/sys/class/net/wlan0
+printf wlan > /baseos/sys/class/rfkill/rfkill0/type
+printf 1 > /baseos/sys/class/rfkill/rfkill0/soft
+printf 0 > /baseos/sys/class/rfkill/rfkill0/hard
+touch /baseos/dev/disp /baseos/dev/null
 printf 'test-only\n' > /baseos/tmp/rondo-synthetic-hardware
 export SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy RONDO_INPUT_HINTS=controller
 export LD_LIBRARY_PATH=/tmp/app/lib
@@ -25,6 +29,8 @@ chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/device-tests /tmp/app/assets /tmp
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/battery-tests /tmp/app/assets /tmp/battery-state
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/timezone-tests /tmp/app/assets /tmp/timezone-state
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/h700-device-tests
+chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/wifi-tests /tmp/app/assets /tmp/wifi-state
+chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/h700-wifi-tests
 mkdir /results/captures
-cp -R /baseos/tmp/rondo-preflight.* /baseos/tmp/device-state /baseos/tmp/timezone-state /baseos/tmp/battery-state /results/captures/
+cp -R /baseos/tmp/rondo-preflight.* /baseos/tmp/device-state /baseos/tmp/timezone-state /baseos/tmp/battery-state /baseos/tmp/wifi-state /results/captures/
 printf 'PASS: packaged BaseOS userspace and synthetic hardware tests. No physical hardware accessed.\n'

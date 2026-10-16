@@ -56,6 +56,8 @@ build/, Packages/, private test outputs, ROM collections and device state are no
 
 For country/city labels and picker behavior, see [time-zone selection](timezones.md).
 
+See [Wi-Fi settings](wifi.md) for controller/desktop password entry, private service ownership and isolated socket tests.
+
 See [battery display](battery.md) for status and settings behavior.
 
 ## H700

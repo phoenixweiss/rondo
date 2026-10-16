@@ -3,6 +3,9 @@
 #include "platform.hpp"
 #include <fstream>
 #include <algorithm>
+#include <sstream>
+#include <cctype>
+#include <cmath>
 namespace rondo {
 static std::string value(const fs::path &p) {
   std::ifstream f(p);
@@ -24,7 +27,11 @@ int brightnessPercent(int raw) {
     if(std::abs(brightnessRawLevel(step)-raw)<std::abs(brightnessRawLevel(nearest)-raw))nearest=step;
   return nearest;
 }
-Telemetry readTelemetry(const fs::path &sys) {
+int wifiSignalLevel(std::optional<int> dbm) {
+  if (!dbm || *dbm < -127 || *dbm >= 0) return -1;
+  return *dbm >= -55 ? 3 : *dbm >= -67 ? 2 : *dbm >= -80 ? 1 : 0;
+}
+Telemetry readTelemetry(const fs::path &sys, const fs::path &proc) {
   Telemetry t;
   auto battery = sys / "class/power_supply/axp2202-battery";
   try {
@@ -48,13 +55,31 @@ Telemetry readTelemetry(const fs::path &sys) {
     for (auto &entry :
          fs::directory_iterator(rfkill, fs::directory_options::skip_permission_denied, e)) {
       if (value(entry.path() / "type") == "wlan")
-        t.wifiEnabled = value(entry.path() / "soft") == "0" && value(entry.path() / "hard") == "0";
+        t.wifiEnabled = t.wifiEnabled || (value(entry.path() / "soft") == "0" && value(entry.path() / "hard") == "0");
     }
+  auto net = sys / "class/net/wlan0";
+  // An unrelated, unblocked rfkill node does not mean wlan0 is enabled.
+  try {
+    auto flags = value(net / "flags"); size_t end = 0;
+    auto bits = std::stoul(flags, &end, 0);
+    t.wifiEnabled = t.wifiEnabled && end == flags.size() && (bits & 1u);
+  } catch (...) { t.wifiEnabled = false; }
   if (t.wifiEnabled) {
-    auto net = sys / "class/net/wlan0";
     t.wifiState = value(net / "carrier") == "1"           ? "connected"
                   : value(net / "operstate") == "dormant" ? "connecting"
                                                           : "disconnected";
+  }
+  if (t.wifiState == "connected") {
+    std::ifstream wireless(proc / "net/wireless"); std::string line;
+    while (std::getline(wireless, line)) {
+      auto colon = line.find(':'); if (colon == line.npos) continue;
+      auto name = line.substr(0,colon);
+      name.erase(std::remove_if(name.begin(),name.end(),[](unsigned char c){return std::isspace(c);}),name.end());
+      if (name != "wlan0") continue;
+      std::istringstream fields(line.substr(colon+1)); std::string status; double quality=0, dbm=0;
+      if (fields >> status >> quality >> dbm && std::isfinite(dbm) && dbm >= -127 && dbm < 0)
+        t.wifiSignalDbm = int(dbm);
+    }
   }
   return t;
 }

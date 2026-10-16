@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Separate Wi-Fi discovery from radio/connection settings, show the current IP directly, use confirmed radio state in the header and indicate measured signal strength. The initial connection/reboot/sleep workflow passed owner testing; these UI refinements await device acceptance.
+
+- Add H700 Wi-Fi settings with radio readback, network discovery, masked keyboard entry, known-network reconnect/forget, IP-confirmed connection state, private WPA/DHCP processes and credential-free diagnostics. Add native protocol/UI and synthetic BaseOS adapter checks; physical radio and sleep/reconnect acceptance remain pending.
+
 ## [0.1.0] - 2026-10-16
 
 - Add centered Rondo logos with light/dark theme variants to both READMEs.

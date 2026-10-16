@@ -11,10 +11,12 @@ struct Telemetry {
   std::string batteryStatus;
   bool wifiEnabled = false;
   std::string wifiState;
+  std::optional<int> wifiSignalDbm;
 };
 int brightnessRawLevel(int percent);
 int brightnessPercent(int raw);
-Telemetry readTelemetry(const fs::path &sys = "/sys");
+int wifiSignalLevel(std::optional<int> dbm);
+Telemetry readTelemetry(const fs::path &sys = "/sys", const fs::path &proc = "/proc");
 bool bootLogoSupported();
 void applyBootLogo(bool enabled);
 std::optional<bool> readBootLogo();
