@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## [0.1.0] - 2026-10-16
+
 - Add centered Rondo logos with light/dark theme variants to both READMEs.
 
 - Add independent power-setting preferences, but keep wake-on-open unavailable on H700 after the device experiment failed hall-policy readback. Stop loading the experimental module and restore stock sleep-on-close / Power wake without changing saved preferences. Battery changes remain included.
