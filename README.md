@@ -1,6 +1,14 @@
 # Rondo
 
-[Русский](README_RU.md)
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/Assets/Identity/rondo-wordmark-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="assets/Assets/Identity/rondo-wordmark-light.svg">
+    <img src="assets/Assets/Identity/rondo-wordmark-light.svg" alt="Rondo" width="420">
+  </picture>
+</p>
+
+<p align="center"><a href="README_RU.md">Русский</a></p>
 
 A personal frontend project for the Anbernic RG34XXSP. I enjoy using this handheld and wanted a frontend that felt right for me, so I started building Rondo.
 

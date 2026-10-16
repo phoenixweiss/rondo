@@ -1,6 +1,14 @@
 # Rondo
 
-[English](README.md)
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/Assets/Identity/rondo-wordmark-dark.svg">
+    <source media="(prefers-color-scheme: light)" srcset="assets/Assets/Identity/rondo-wordmark-light.svg">
+    <img src="assets/Assets/Identity/rondo-wordmark-light.svg" alt="Rondo" width="420">
+  </picture>
+</p>
+
+<p align="center"><a href="README.md">English</a></p>
 
 Личный проект фронтенда для Anbernic RG34XXSP. Приставка мне очень понравилась, а подходящего для себя фронтенда я не нашёл — поэтому начал делать Rondo.
 
