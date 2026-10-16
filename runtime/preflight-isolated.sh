@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 cp -R /package/System/Rondo /baseos/tmp/app
-cp /programs/battery-tests /programs/timezone-tests /programs/device-tests /programs/h700-device-tests /programs/wifi-tests /programs/h700-wifi-tests /baseos/tmp/
+cp /programs/clock-tests /programs/h700-clock-tests /programs/battery-tests /programs/timezone-tests /programs/device-tests /programs/h700-device-tests /programs/wifi-tests /programs/h700-wifi-tests /baseos/tmp/
 mkdir -p /baseos/sys/power /baseos/sys/class/graphics/fb0 /baseos/sys/class/power_supply/axp2202-battery
 printf mem > /baseos/sys/power/state
 printf 0 > /baseos/sys/class/graphics/fb0/blank
@@ -20,6 +20,7 @@ printf 1 > /baseos/sys/class/rfkill/rfkill0/soft
 printf 0 > /baseos/sys/class/rfkill/rfkill0/hard
 touch /baseos/dev/disp /baseos/dev/null
 printf 'test-only\n' > /baseos/tmp/rondo-synthetic-hardware
+printf '{"synthetic":true}\n' > /baseos/tmp/clock-test-guard.json
 export SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy RONDO_INPUT_HINTS=controller
 export LD_LIBRARY_PATH=/tmp/app/lib
 unset RONDO_DEVICE_INPUT RONDO_BOOTLOGO_TOOL
@@ -31,6 +32,8 @@ chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/timezone-tests /tmp/app/assets /t
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/h700-device-tests
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/wifi-tests /tmp/app/assets /tmp/wifi-state
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/h700-wifi-tests
+chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/clock-tests /tmp/app/assets /tmp/clock-state
+chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/h700-clock-tests
 mkdir /results/captures
-cp -R /baseos/tmp/rondo-preflight.* /baseos/tmp/device-state /baseos/tmp/timezone-state /baseos/tmp/battery-state /baseos/tmp/wifi-state /results/captures/
+cp -R /baseos/tmp/rondo-preflight.* /baseos/tmp/device-state /baseos/tmp/timezone-state /baseos/tmp/battery-state /baseos/tmp/wifi-state /baseos/tmp/clock-state /results/captures/
 printf 'PASS: packaged BaseOS userspace and synthetic hardware tests. No physical hardware accessed.\n'

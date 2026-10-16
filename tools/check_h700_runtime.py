@@ -53,7 +53,7 @@ def main():
     command = ["docker", "run", "--rm", "--network", "none", "--platform", lock["platform"],
                "-v", str(rootfs) + ":/baseos:ro",
                "--tmpfs", "/baseos/tmp:rw,exec", "--tmpfs", "/baseos/sys:rw", "--tmpfs", "/baseos/dev:rw",
-               "--tmpfs", "/baseos/proc:rw",
+               "--tmpfs", "/baseos/proc:rw", "--tmpfs", "/baseos/run:rw,exec", "--tmpfs", "/baseos/data:rw",
                "-v", str(mixer) + ":/baseos/usr/sbin/alsactl:ro",
                "-v", str(work / "package") + ":/package:ro",
                "-v", str(build / "programs") + ":/programs:ro",

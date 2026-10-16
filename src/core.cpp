@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 PAVEL TKACHEV
 #include "core.hpp"
+#include <limits>
 #include "platform.hpp"
 #include <cmath>
 #include <cstring>
@@ -237,7 +238,10 @@ void Core::save(int slot) {
   std::vector<uint8_t> b(n);
   if (!serialize(b.data(), b.size()))
     throw std::runtime_error("Serialization failed");
-  Json j = {{"schema", 1},  {"core", identity},       {"rom", romHash},
+  long long sequence=0;
+  for(int i=0;i<3;++i)try {sequence=std::max(sequence,saveSequence(readJson(saveRoot/("slot-"+std::to_string(i)+".json"))));}catch(...){}
+  if(sequence>=std::numeric_limits<long long>::max()-1)throw std::runtime_error("Save sequence exhausted");
+  Json j = {{"save_sequence",sequence+1},{"schema", 1},  {"core", identity},       {"rom", romHash},
             {"payload", b}, {"sha256", hashBytes(b)}, {"utc", time(nullptr)}};
   if (width>0 && height>0 && frame.size()==size_t(width)*height) {
     auto bytes=reinterpret_cast<const uint8_t *>(frame.data());
@@ -250,7 +254,7 @@ void Core::save(int slot) {
   auto s = j.dump();
   atomicWrite(p, {s.begin(), s.end()});
   auto actual = envelope(p);
-  if (actual["sha256"] != j["sha256"])
+  if (actual["sha256"] != j["sha256"] || actual["save_sequence"] != j["save_sequence"])
     throw std::runtime_error("Save readback mismatch");
   if (j.contains("preview") && actual.at("preview")!=j.at("preview"))
     throw std::runtime_error("Save preview readback mismatch");

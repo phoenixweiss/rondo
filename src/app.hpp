@@ -2,6 +2,7 @@
 // Copyright (c) 2026 PAVEL TKACHEV
 #pragma once
 #include "core.hpp"
+#include "clock.hpp"
 #include "wifi.hpp"
 #include "ui.hpp"
 #include <functional>
@@ -10,6 +11,8 @@ namespace rondo {
 enum class Screen {
   Library,
   Settings,
+  Clock,
+  ClockEdit,
   Wifi,
   WifiNetworks,
   WifiNetwork,
@@ -86,6 +89,24 @@ public:
   std::function<bool(Json)> requestSettings;
   App(Options, bool runner = false, const Game &entry = {});
   ~App();
+  std::shared_ptr<ClockAdapter> clockDevice;
+  ClockState clockState;
+  std::future<ClockState> clockJob;
+  std::function<ClockState()> clockQueued;
+  std::string clockTask,clockQueuedTask,clockError;
+  std::optional<bool> clockToggle;
+  uint64_t clockPollAt=0,clockDeadline=0;
+  long long clockLastSync=0;
+  ClockFields clockFields;
+  bool clockLocalUpdated=false;
+  bool clockManual=false,clockJustUpdated=false,clockNetworkWasOnline=false,clockReadback=false;
+  bool clockBusy()const{return bool(clockQueued)||(clockJob.valid()&&clockTask!="poll");}
+  void clockRun(const std::string &,std::function<ClockState()>);
+  void clockTick();
+  void clockAction(const std::string &);
+  void clockDraw();
+  void clockSleep();
+  std::string clockPhase()const;
   std::shared_ptr<WifiAdapter> wifiDevice;
   WifiState wifi;
   WifiNetwork wifiSelected;

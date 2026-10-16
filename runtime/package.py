@@ -95,6 +95,7 @@ def main():
     for name in ["preflight.sh", "smoke.json"]:
         shutil.copyfile(root / "runtime/package" / name, app / "tools" / name)
     shutil.copyfile(root / "tools/boot-logo.sh", app / "tools/boot-logo.sh")
+    shutil.copyfile(root / "tools/ntp-notify.sh", app / "tools/ntp-notify.sh")
     shutil.copyfile(root / "runtime/package/launch_frontend.sh", payload / "System/launch_frontend.sh")
     compiler = subprocess.check_output([
         "/opt/aarch64-nextui-linux-gnu/bin/aarch64-nextui-linux-gnu-g++", "--version"

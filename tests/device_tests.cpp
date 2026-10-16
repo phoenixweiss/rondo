@@ -78,6 +78,12 @@ int main(int argc,char **argv) {
     meta.erase("preview");auto text=meta.dump();atomicWrite(dir/"slot-1.json",{text.begin(),text.end()});
     auto &old=a.slotView(1);assert(old.compatible && old.pixels.empty() && old.utc==view.utc);
     meta["core"]="wrong-core";text=meta.dump();atomicWrite(dir/"slot-2.json",{text.begin(),text.end()});assert(!a.slotView(2).compatible);a.row=1;a.capture("slot-legacy");a.row=2;a.capture("slot-incompatible");a.action("X");assert(a.infoOpen);a.capture("slots-info");
+    // Updating time backwards must not make Continue choose the older slot.
+    auto legacy=readJson(dir/"slot-0.json");legacy.erase("save_sequence");legacy["utc"]=static_cast<long long>(time(nullptr))+86400;
+    auto encoded=legacy.dump();atomicWrite(dir/"slot-0.json",{encoded.begin(),encoded.end()});
+    a.core->save(1);auto recent=readJson(dir/"slot-1.json");
+    assert(recent["utc"]<legacy["utc"] && saveSequence(recent)>0 && a.latestResumeSlot()==1);
+    a.core->save(0);assert(a.latestResumeSlot()==0 && saveSequence(readJson(dir/"slot-0.json"))>saveSequence(recent));
     Store reload(o.state);assert(reload.data.value("lid_sleep",true));
   }
   {

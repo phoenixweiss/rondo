@@ -2,9 +2,11 @@
 
 ## Unreleased
 
-- Separate Wi-Fi discovery from radio/connection settings, show the current IP directly, use confirmed radio state in the header and indicate measured signal strength. The initial connection/reboot/sleep workflow passed owner testing; these UI refinements await device acceptance.
+- Use matching, centered, font-independent arrow pairs, center key labels by visible bounds and share a softer outline weight/contrast across circular and rectangular footer keys.
 
-- Add H700 Wi-Fi settings with radio readback, network discovery, masked keyboard entry, known-network reconnect/forget, IP-confirmed connection state, private WPA/DHCP processes and credential-free diagnostics. Add native protocol/UI and synthetic BaseOS adapter checks; physical radio and sleep/reconnect acceptance remain pending.
+- Add offline date/time editing in the selected time zone, calendar/DST validation, explicit automatic-sync shutdown and separate system/UTC hardware-clock readback. Owner testing accepted offline setting, short power-off retention and return to automatic synchronization on RG34XXSP; this is not a long-term RTC durability test.
+- Add automatic and on-demand BaseOS network-time synchronization, confirmed status and last-sync history. Filter time-service events and preserve save ordering across backward clock corrections. Owner testing accepted the network-time candidate on RG34XXSP; the final manual-time candidate also passed owner acceptance.
+- Add H700 Wi-Fi controls, network discovery on a separate screen, masked password entry, known-network reconnect/forget and IP-confirmed connection state. Show confirmed radio visibility and measured signal strength. Owner testing accepted connection, reboot/sleep recovery and the revised menu/status display; exhaustive failure modes and signal calibration remain separate checks. Credentials stay out of diagnostics.
 
 ## [0.1.0] - 2026-10-16
 

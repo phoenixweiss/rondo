@@ -48,6 +48,9 @@ public:
   void row(const std::string &, int, bool, int = 672, const std::string &value = "",
            bool enabled = true, int h = 52, const std::string &endIcon = "", const std::string &startIcon = "");
   void circle(int, int, int, SDL_Color, bool filled = false);
+  void keycap(int x, int y, int width, bool round, SDL_Color);
+  void keyArrows(int x, int y, int width, bool vertical, SDL_Color);
+  void keyLabel(const std::string &, int x, int y, int width, int size, SDL_Color);
   void notice(const std::string &, const std::string &, bool library = false);
   void hints(const std::vector<std::pair<std::string, std::string>> &, bool disabledActions = false);
   int info(const std::string &, const std::string &, int scroll, const Json &sections = Json());

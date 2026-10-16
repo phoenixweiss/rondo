@@ -8,11 +8,18 @@ The first preview, [0.0.1](https://github.com/phoenixweiss/rondo/releases/tag/v0
 
 The [core feature review](feature-review.md) compares NextUI, MinUI and muOS with the current source, records partial support and gives stable capability IDs F01–F24. The review distinguishes open work, local implementations and released features.
 
+## Agreed next steps
+
+1. Reorganize settings into coherent groups and verify navigation/localization.
+2. Add an explicitly enabled browser file-transfer mode for local-network use.
+3. Keep network backup/save synchronization, online Rondo updates and artwork
+   retrieval in the backlog; their implementation and services are not enabled.
+
 ## First: core functionality and everyday use
 
 - Time-zone picker repair (F24) passed native and ARM64 checks and owner testing on RG34XXSP, including persistence after restart. Its delivery is recorded in the changelog.
 - Collect reproducible device issues, unexpected behavior and missing features. Keep observed defects separate from feature ideas and track the checks still needed.
-- Wi-Fi controls, network discovery, masked password entry, known-network reconnect/forget and connection errors are implemented for H700 with native tests. Verify the adapter on RG34XXSP, including reboot/sleep, before claiming physical radio support. See [Wi-Fi settings](wifi.md). Keep credentials out of diagnostics.
+- Wi-Fi controls, network discovery, masked password entry, known-network reconnect/forget and connection errors are implemented for H700 with native tests. Owner testing accepted connection, reboot/sleep recovery and the revised menu/status display; exhaustive failures and signal calibration remain separate checks. See [Wi-Fi settings](wifi.md). Keep credentials out of diagnostics.
 - Add Bluetooth controls, discovery, pairing, connection management and device removal; verify supported profiles and devices individually.
 - Show Wi-Fi and Bluetooth status icons only while the corresponding radio is actually enabled. Distinguish enabled without a connection, connecting and connected states; verify updates after sleep and restart.
 - Battery percentage and its visibility toggle (F02) passed owner testing on RG34XXSP. Verify charging/unknown states and low-level highlight separately; native checks passed.
@@ -21,7 +28,7 @@ The [core feature review](feature-review.md) compares NextUI, MinUI and muOS wit
 - Refine library headings, feedback, information screens and settings while preserving the accepted save-slot dates and previews.
 - Verify library and gameplay behavior across Power/lid sleep, repeated wake cycles, sound, brightness, input, SRAM, save slots and resume. Add diagnostics and regression coverage as each feature changes.
 - Keep installation, rollback, configuration and compatibility documentation aligned with tested behavior. A successful build is separate from physical device acceptance.
-- Add F04–F07: configurable idle timers, safe shutdown/autosave and continuation, clock/NTP/RTC controls, and verified user backup/restore and migration.
+- Add F04–F05/F07: configurable idle timers, safe shutdown/autosave and continuation, and verified user backup/restore and migration. F06 network/manual clock controls passed bounded owner acceptance; retain broader RTC and error regression work.
 
 This list grows with device testing and user feedback; it is not a complete inventory of planned functionality.
 

@@ -27,6 +27,8 @@ A personal frontend project for the Anbernic RG34XXSP. I enjoy using this handhe
 - Localized country/city time-zone selection with saved focus and quick navigation.
 - Measured battery fill, charging/unknown states and an optional percentage display.
 - Sleep on lid close and Power wake; experimental wake-on-open remains unavailable.
+- H700 Wi-Fi controls, separate network discovery, saved-network reconnect, IP and signal status.
+- Automatic/on-demand network time and offline date/time editing, with verified system/UTC hardware-clock writes.
 
 ## Development
 

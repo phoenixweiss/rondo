@@ -5,6 +5,8 @@
 #include <iostream>
 namespace rondo {
 App::~App() {
+  if(clockJob.valid())clockJob.wait();
+  if(clockState.available && clockDevice && !store.data.value("ntp_auto",true))try{clockDevice->enable(false);}catch(...){}
   clearSecret(wifiPassword);
   if (wifiDevice)
     wifiDevice->cancelled = true;

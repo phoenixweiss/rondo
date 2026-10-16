@@ -12,6 +12,7 @@
 namespace rondo {
 namespace fs = std::filesystem;
 using Json = nlohmann::json;
+long long saveSequence(const Json &);
 std::vector<uint8_t> readBytes(const fs::path &);
 std::string hashBytes(const std::vector<uint8_t> &);
 std::string hashFile(const fs::path &);

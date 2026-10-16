@@ -329,6 +329,33 @@ void UI::inputHints(bool keyboard) {
   // The separately spawned runner inherits the active input mode.
   SDL_setenv("RONDO_INPUT_HINTS", keyboard ? "keyboard" : "controller", 1);
 }
+void UI::keycap(int x, int y, int width, bool round, SDL_Color c) {
+  // One antialiased 1.25px outline for circular and rectangular footer keys.
+  auto key="keycap:"+std::to_string(width)+":"+std::to_string(round)+":"+
+           std::to_string(c.r)+":"+std::to_string(c.g)+":"+std::to_string(c.b)+":"+std::to_string(c.a);
+  if (!textures.count(key)) {
+    auto *surface=SDL_CreateRGBSurfaceWithFormat(0,width,32,32,SDL_PIXELFORMAT_RGBA32);
+    const double radius=round?15.5:5.5;
+    for(int yy=0;yy<32;++yy) for(int xx=0;xx<width;++xx) {
+      int coverage=0;
+      for(int sy=0;sy<4;++sy) for(int sx=0;sx<4;++sx) {
+        double qx=std::abs(xx+(sx+0.5)/4-width/2.0)-(width/2.0-radius-0.5);
+        double qy=std::abs(yy+(sy+0.5)/4-16)-(16-radius-0.5);
+        double distance=std::min(std::max(qx,qy),0.0)+
+                        std::hypot(std::max(qx,0.0),std::max(qy,0.0))-radius;
+        coverage+=distance<=0 && distance>=-1.25;
+      }
+      auto *pixels=reinterpret_cast<Uint32*>(static_cast<Uint8*>(surface->pixels)+yy*surface->pitch);
+      pixels[xx]=SDL_MapRGBA(surface->format,c.r,c.g,c.b,Uint8(coverage*c.a/16));
+    }
+    auto *texture=SDL_CreateTextureFromSurface(renderer,surface);
+    SDL_FreeSurface(surface);
+    SDL_SetTextureBlendMode(texture,SDL_BLENDMODE_BLEND);
+    textures[key]=texture;
+  }
+  SDL_Rect dst{x,y,width,32};
+  SDL_RenderCopy(renderer,textures.at(key),nullptr,&dst);
+}
 void UI::binaryRow(const std::string &label, int y, bool selected, std::optional<bool> value,
                    const Locale &locale, bool supported) {
   row(fit(label, 496, 23, selected ? 700 : 500), y, selected);
@@ -345,6 +372,61 @@ void UI::binaryRow(const std::string &label, int y, bool selected, std::optional
          *value == bool(i) ? bg : secondary);
   }
 }
+void UI::keyArrows(int x, int y, int width, bool vertical, SDL_Color c) {
+  auto key="keyarrows:"+std::to_string(width)+":"+std::to_string(vertical)+":"+
+           std::to_string(c.r)+":"+std::to_string(c.g)+":"+std::to_string(c.b);
+  if (!textures.count(key)) {
+    auto *surface=SDL_CreateRGBSurfaceWithFormat(0,width,32,32,SDL_PIXELFORMAT_RGBA32);
+    // Symmetric geometry around each key's centre; supersampling avoids a
+    // one-sided second stroke shifting the visible bounds right/down.
+    struct Segment {double ax,ay,bx,by;};
+    std::vector<Segment> lines;
+    for(int i=0;i<2;++i) {
+      double cx=width/2.0+(i?9:-9), direction=i?1:-1;
+      if(vertical) {
+        lines.push_back({cx-6,16-direction*3,cx,16+direction*3});
+        lines.push_back({cx,16+direction*3,cx+6,16-direction*3});
+      } else {
+        lines.push_back({cx-direction*3,10,cx+direction*3,16});
+        lines.push_back({cx+direction*3,16,cx-direction*3,22});
+      }
+    }
+    for(int yy=0;yy<32;++yy) for(int xx=0;xx<width;++xx) {
+      int coverage=0;
+      for(int sy=0;sy<4;++sy) for(int sx=0;sx<4;++sx) {
+        double px=xx+(sx+0.5)/4,py=yy+(sy+0.5)/4,distance=100;
+        for(auto segment:lines) {
+          double dx=segment.bx-segment.ax,dy=segment.by-segment.ay;
+          double t=std::clamp(((px-segment.ax)*dx+(py-segment.ay)*dy)/(dx*dx+dy*dy),0.0,1.0);
+          distance=std::min(distance,std::hypot(px-segment.ax-t*dx,py-segment.ay-t*dy));
+        }
+        coverage+=distance<=0.85;
+      }
+      auto *pixels=reinterpret_cast<Uint32*>(static_cast<Uint8*>(surface->pixels)+yy*surface->pitch);
+      pixels[xx]=SDL_MapRGBA(surface->format,c.r,c.g,c.b,Uint8(coverage*c.a/16));
+    }
+    auto *texture=SDL_CreateTextureFromSurface(renderer,surface);SDL_FreeSurface(surface);
+    SDL_SetTextureBlendMode(texture,SDL_BLENDMODE_BLEND);textures[key]=texture;
+  }
+  SDL_Rect dst{x,y,width,32};SDL_RenderCopy(renderer,textures.at(key),nullptr,&dst);
+}
+void UI::keyLabel(const std::string &label, int x, int y, int width, int size, SDL_Color c) {
+  auto *surface=TTF_RenderUTF8_Blended(font(size,700),label.c_str(),c);
+  if(!surface)return;
+  int left=surface->w,top=surface->h,right=-1,bottom=-1;
+  for(int yy=0;yy<surface->h;++yy) for(int xx=0;xx<surface->w;++xx) {
+    auto *pixels=reinterpret_cast<Uint32*>(static_cast<Uint8*>(surface->pixels)+yy*surface->pitch);
+    Uint8 r,g,b,a;SDL_GetRGBA(pixels[xx],surface->format,&r,&g,&b,&a);
+    if(a>16) {left=std::min(left,xx);right=std::max(right,xx);top=std::min(top,yy);bottom=std::max(bottom,yy);}
+  }
+  if(right>=left) {
+    auto *texture=SDL_CreateTextureFromSurface(renderer,surface);
+    SDL_Rect ink{left,top,right-left+1,bottom-top+1};
+    SDL_Rect dst{x+(width-ink.w)/2,y+(32-ink.h)/2,ink.w,ink.h};
+    SDL_RenderCopy(renderer,texture,&ink,&dst);SDL_DestroyTexture(texture);
+  }
+  SDL_FreeSurface(surface);
+}
 std::string UI::buttonLabel(const std::string &action) const {
   if (action == "LEFT/RIGHT") return "‹ / ›";
   if (!keyboardHints)
@@ -358,21 +440,22 @@ std::string UI::buttonLabel(const std::string &action) const {
 void UI::hints(const std::vector<std::pair<std::string, std::string>> &items, bool disabledActions) {
   int x = 24;
   for (auto &[action, label] : items) {
+    bool vertical = action == "UP/DOWN", horizontal = action == "LEFT/RIGHT";
     auto button = buttonLabel(action);
     auto c = disabledActions && (action == "A" || action == "LEFT/RIGHT") ? secondary : cream;
     bool round = !keyboardHints && button.size() == 1;
     int keySize = button == "L1/R1" ? 14 : 16;
-    int bw = round ? 32 : std::max(36, measure(button, keySize, 700) + 20);
+    int bw = vertical || horizontal ? 44 : round ? 32 : std::max(36, measure(button, keySize, 700) + 20);
     int lw = measure(label, 19);
     if (x + bw + 8 + lw > 696)
       break;
-    if (round) {
-      circle(x, 440, 32, c);
-    } else {
-      rect(x, 440, bw, 32, separator, 6);
-      rect(x + 1, 441, bw - 2, 30, bg, 5);
-    }
-    text(button, x + (bw - measure(button, keySize, 700)) / 2, 456 - keySize / 2 - 2, keySize, 700, c);
+    auto outline=c;
+    outline.a=200;
+    keycap(x,440,bw,round,outline);
+    if (vertical || horizontal) {
+      keyArrows(x,440,bw,vertical,c);
+    } else
+      keyLabel(button,x,440,bw,keySize,c);
     text(label, x + bw + 8, 444, 19, 500, c);
     x += bw + 8 + lw + 16;
   }

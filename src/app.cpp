@@ -52,6 +52,13 @@ App::App(Options opts, bool runner, const Game &entry)
     auto adapter=wifiDevice;bool wanted=store.data.value("wifi_enabled",false);
     wifiRun("startup",[adapter,wanted]{return adapter->enable(wanted);});
   }
+  clockDevice=clockAdapter(options.assets.parent_path()/"tools/ntp-notify.sh",!runner&&!options.headless);
+  clockState.available=clockDevice->supported();
+  try {clockLastSync=readJson(options.state/"Time/last-sync.json").value("utc",0LL);}catch(...){}
+  if(clockState.available) {
+    auto device=clockDevice;bool wanted=store.data.value("ntp_auto",true);
+    clockRun("startup",[device,wanted]{return wanted?device->restart():device->enable(false);});
+  }
   record("ready");
 }
 std::vector<int> App::visible() const {
@@ -114,6 +121,8 @@ void App::openTimezones() {
 }
 std::string App::screenName() const {
   switch (screen) {
+  case Screen::Clock: return "clock";
+  case Screen::ClockEdit: return "clock_edit";
   case Screen::Wifi: return "wifi";
   case Screen::WifiNetworks: return "wifi_networks";
   case Screen::WifiNetwork: return "wifi_network";
@@ -196,17 +205,19 @@ bool App::usableSlot(int i) const {
 }
 int App::latestResumeSlot() const {
   int selected = -1;
-  long long bestUtc = 0;
+  long long bestUtc = 0,bestSequence=0;
   fs::file_time_type bestModified = fs::file_time_type::min();
   for (int candidate = 0; candidate < 3; ++candidate)
     if (usableSlot(candidate)) {
       auto path = store.gameDir(game) / ("slot-" + std::to_string(candidate) + ".json");
       auto meta = readJson(path);
       auto utc = meta.value("utc", 0LL);
+      auto sequence=saveSequence(meta);
       auto modified = fs::last_write_time(path);
-      if (selected < 0 || utc > bestUtc || (utc == bestUtc && modified > bestModified)) {
+      if (selected < 0 || sequence>bestSequence || (sequence==bestSequence && (utc > bestUtc || (utc == bestUtc && modified > bestModified)))) {
         selected = candidate;
         bestUtc = utc;
+        bestSequence=sequence;
         bestModified = modified;
       }
     }
@@ -266,6 +277,7 @@ void App::action(const std::string &a) {
       record("info:open");
       return;
     }
+    if(screen==Screen::Clock || screen==Screen::ClockEdit){clockAction(a);record("clock:"+a);return;}
     if (screen==Screen::Wifi || screen==Screen::WifiNetworks || screen==Screen::WifiNetwork || screen==Screen::WifiPassword) {
       wifiAction(a);record("wifi:"+a);return;
     }
@@ -334,7 +346,7 @@ void App::action(const std::string &a) {
         persist(next);
       }
     } else if (screen == Screen::Settings) {
-      int count = category == 0 ? 4 : (category == 1 || category == 3) ? 2 : 1;
+      int count = category == 0 ? 5 : (category == 1 || category == 3) ? 2 : 1;
       if (a == "UP")
         row = std::max(0, row - 1);
       if (a == "DOWN")
@@ -388,7 +400,8 @@ void App::action(const std::string &a) {
         if (desired!=current) { auto next=store.data;next[setting]=desired;persist(next); }
         notice.clear();
       }
-      if(a=="A" && category==0 && row==3) {screen=Screen::Wifi;row=0;scroll=0;wifiPollAt=0;}
+      if(a=="A" && category==0 && row==4){screen=Screen::Clock;row=0;clockPollAt=0;}
+      else if(a=="A" && category==0 && row==3) {screen=Screen::Wifi;row=0;scroll=0;wifiPollAt=0;}
       else if (a == "A" && category == 0 && row < 2) {
         if (row == 0) {
           screen = Screen::Language;
@@ -636,13 +649,14 @@ void App::action(const std::string &a) {
   record(a);
 }
 std::string App::infoKey() const {
+  if(screen==Screen::Clock || screen==Screen::ClockEdit)return "clock";
   if (screen==Screen::WifiPassword) return "";
   if (screen==Screen::Wifi || screen==Screen::WifiNetworks || screen==Screen::WifiNetwork) return "wifi";
   if (screen == Screen::GameSettings) return "scaling";
   if (screen == Screen::SaveSlots || screen == Screen::LoadSlots) return "slots";
   if (screen == Screen::Regions || screen == Screen::Zones) return "timezone";
   if (screen != Screen::Settings) return "";
-  if (category == 0) return row == 0 ? "language" : row == 1 ? "timezone" : row==2 ? "boot" : "wifi";
+  if (category == 0) return row == 0 ? "language" : row == 1 ? "timezone" : row==2 ? "boot" : row==3 ? "wifi" : "clock";
   return category == 1 ? (row == 1 ? "battery" : "brightness") : category == 2 ? "sound" : row==0 ? "lid" : "lid_wake";
 }
 void App::requestBootLogo(bool desired) {
@@ -660,6 +674,7 @@ void App::requestBootLogo(bool desired) {
 }
 void App::ticks(unsigned n) {
   wifiTick();
+  clockTick();
   if (ui && !sleeping && monotonicMs()>=lidCheckAt) {
     lidCheckAt=monotonicMs()+100;
     auto open=device->lidOpen();
@@ -708,6 +723,7 @@ void App::sleep() {
   if (sleeping) return;
   if (!device->canSleep()) { notice=locale.tr("sleep.unsupported");return; }
   sleeping=true;
+  clockSleep();
   wifiQueued={};wifiQueuedTask.clear();wifiToggle.reset();
   if(wifiJob.valid()) {wifiDevice->cancelled=true;wifiJob.wait();wifiTick();}
   wifiDevice->cancelled=false;wifiPollAt=0;
@@ -875,6 +891,8 @@ void App::draw() {
                  {"Y", tr("screen.settings")},
                  {"L1/R1", tr("action.section")}});
     }
+  } else if(screen==Screen::Clock || screen==Screen::ClockEdit) {
+    clockDraw();
   } else if(screen==Screen::Wifi || screen==Screen::WifiNetworks || screen==Screen::WifiNetwork || screen==Screen::WifiPassword) {
     wifiDraw();
   } else if (screen == Screen::Settings) {
@@ -898,6 +916,7 @@ void App::draw() {
       ui->row(tr("setting.timezone"), 182, row == 1, 672, zoneLabel(zone) + "  ›");
       ui->binaryRow(tr("boot.label"), 236, row == 2, bootAcknowledged, locale, bootLogoSupported());
       ui->row("Wi-Fi",290,row==3,672,"›");
+      ui->row(tr("clock.title"),344,row==4,672,"›");
     } else if (category==3) {
       ui->binaryRow(tr("setting.lid_sleep"),128,row==0,store.data.value("lid_sleep",true),locale,device->canSleep());
       ui->binaryRow(tr("setting.lid_wake"),182,row==1,store.data.value("wake_on_lid_open",true),locale,device->canWakeOnLid());

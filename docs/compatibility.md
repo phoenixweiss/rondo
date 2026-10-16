@@ -11,7 +11,9 @@ Rondo is in early development. The initial handheld target is Anbernic RG34XXSP,
 | Brightness | Vendor255→200 remapping diagnosed from exact kernel and physical log; endpoint254 implemented and exercised in later owner testing | Not a panel luminance calibration |
 | Power/lid sleep | Owner accepted recovery candidate 2b1d4eec7f1f on 2026-10-16 after the experimental lid-wake regression was rolled back | Close to sleep; open, then press Power to wake. Wake-on-open is unavailable; the research module is not loaded |
 | Battery status | Owner confirmed measured percentage and its visibility toggle on RG34XXSP; level/charging/unknown layouts have native and ARM64 synthetic tests | Charging/low/unknown states have not each received separate physical acceptance |
-| Time-zone picker | Owner accepted localized country/city selection and persistence after restart | Clock setting, NTP and RTC management remain planned |
+| Time-zone picker | Owner accepted localized country/city selection and persistence after restart | Time-zone selection changes display, not the UTC clock |
+| Wi-Fi | Owner accepted connection, recovery after reboot/sleep, separate discovery, IP and revised status display on RG34XXSP | Not exhaustive testing of networks, authentication failures or RSSI calibration |
+| Date and time | Owner accepted automatic/on-demand network time and candidate 1c1ac5e705d3 for offline manual setting, short power-off retention and return to automatic synchronization | Native/BaseOS tests substitute clocks; owner acceptance is bounded and does not establish long-term RTC durability |
 | Compact volume | Latest prototype appearance approved by owner; native state/collision checks | Physical legibility on other screens remains unverified |
 | Other emulators | Planned GB/GBC/GBA/SNES/MD/PSX; possible PSP | Not integrated, benchmarked or cleared for distribution by this source candidate |
 | Two-card integration | Model identity tests | Live TF1/TF2 mounting/integration not established |
@@ -22,7 +24,7 @@ The independent frontend build does not require NextUI. It relies on the support
 
 ## Release verification
 
-The initial 0.0.1 preview is published. For the next release, the owner accepted the recovery candidate 2b1d4eec7f1f on the dedicated 8 GB test card. The tagged archive is assembled separately: compare all runtime executables, assets and the launcher with that device-tested candidate, and retain any metadata-only differences. Do not describe a byte-identical executable as a physical test of every file in a newly assembled archive.
+The initial 0.0.1 preview is published. For the network/time release, the owner accepted candidate 1c1ac5e705d3 on the dedicated 8 GB test card. The tagged archive is assembled separately: compare all runtime executables, assets and the launcher with that device-tested candidate, and retain any metadata-only differences. Do not describe a byte-identical executable as a physical test of every file in a newly assembled archive.
 
 | Gate | Evidence / release requirement |
 |---|---|

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 PAVEL TKACHEV
 #include "model.hpp"
+#include <limits>
 #include <algorithm>
 #include <cerrno>
 #include <cstring>
@@ -10,6 +11,13 @@
 #include <stdexcept>
 #include <unistd.h>
 namespace rondo {
+long long saveSequence(const Json &meta) {
+  if(!meta.contains("save_sequence"))return 0;
+  const auto &value=meta["save_sequence"];
+  if(!value.is_number_integer() || value<0 || value>=std::numeric_limits<long long>::max())return 0;
+  return value.get<long long>();
+}
+
 std::vector<uint8_t> readBytes(const fs::path &p) {
   std::ifstream f(p, std::ios::binary);
   if (!f)
@@ -169,7 +177,7 @@ static void validateConfig(const Json &candidate, const Json &defaults) {
   if (!candidate.is_object() || candidate.value("schema", 0) != 1)
     throw std::runtime_error("Unsupported configuration");
   for (const auto &key : {"revision", "locale", "artwork", "section", "focus", "timezone", "volume",
-                          "favorites", "game_options", "replace_boot_logo", "brightness", "lid_sleep", "wake_on_lid_open", "show_battery_percent", "wifi_enabled"})
+                          "favorites", "game_options", "replace_boot_logo", "brightness", "lid_sleep", "wake_on_lid_open", "show_battery_percent", "wifi_enabled", "ntp_auto"})
     if (candidate.contains(key) && candidate[key].type() != defaults[key].type() &&
         !(candidate[key].is_number() && defaults[key].is_number()))
       throw std::runtime_error("Invalid configuration field");
@@ -184,6 +192,7 @@ Store::Store(fs::path p) : root(std::move(p)) {
           {"wake_on_lid_open", true},
           {"show_battery_percent", true},
           {"wifi_enabled", false},
+          {"ntp_auto", true},
           {"replace_boot_logo", true},
           {"artwork", "cover"},
           {"section", "All"},
