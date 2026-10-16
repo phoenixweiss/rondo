@@ -1,6 +1,6 @@
 # Maintainer releases
 
-Rondo is early development software. The first preview version is **0.0.1**. VERSION was initialized at **0.0.0** as an unreleased baseline; Bumpster advances it for a release. The baseline is not a published release. No release is produced by adding this configuration.
+Rondo is early development software. The first preview version is **0.0.1**. VERSION was initialized at **0.0.0** as an unreleased baseline; Bumpster advances it for a release. The baseline is not a published release. The initial preview has been published; later releases follow the same checked process.
 
 ## Contract
 
@@ -19,7 +19,7 @@ bumpster --status
 
 Inspect the exact source diff, branch/tracking state, candidate native CI, corresponding sources/licenses and device acceptance notes. Prepare the project-local Python environment as described in [development](development.md). The executable .bumpster/hooks/pre-bump builds the pinned native core, runs tools/check.py and closes the Unreleased section under the new version/date. It stages CHANGELOG.md in Bumpster's version commit. VERSION is updated by Bumpster itself. A failed check aborts before changelog preparation; a partial release is diagnosed from actual Git state rather than retried blindly.
 
-Only after explicit maintainer authorization, run `bumpster --patch` from clean, synchronized dev. This is a mutating release command: it creates commits, merges branches, tags and pushes. Do not use it to test readiness. Refuse an existing version/tag rather than rewriting it. The first release notes describe a development preview, not general device compatibility.
+Only after explicit maintainer authorization, run the selected Bumpster action from clean, synchronized dev (`bumpster --minor` for 0.0.1 → 0.1.0; `--patch` for a patch). This is a mutating release command: it creates commits, merges branches, tags and pushes. Do not use it to test readiness. Refuse an existing version/tag rather than rewriting it. The first release notes describe a development preview, not general device compatibility.
 
 ## Candidate workflow
 
@@ -36,3 +36,11 @@ A pushed vX.Y.Z tag starts the same build. It must be annotated, point at the ch
 Only the draft job has contents:write. After a successful build it creates a draft prerelease, uploads the four verified assets, reads back draft/tag/asset metadata, downloads the assets and verifies checksums. It does not publish the draft or mark it as latest. Existing releases are never overwritten, and a failed/ambiguous upload is not automatically retried.
 
 After checking the exact draft assets and required device acceptance, authorize publication separately. Then verify the public tag/ref, Release metadata and the downloaded ZIP, including its source and license audit. A green build, a draft or a successful upload is not proof of public availability or physical device behavior.
+
+## Ongoing changelog and website inputs
+
+- Add an English Unreleased entry with each delivered logical change, including documentation changes. Describe actual behavior and meaningful limits; planned features stay in the roadmap/feature review. Do not claim a new device or core is supported on the strength of a build alone.
+- Keep VERSION at the last released number while developing. Do not bump for planning edits or assign future capability IDs to an invented release. Choose the next version from the actual reviewed scope, then advance it through the authorized Bumpster flow.
+- Preserve dated published sections. The existing pre-bump hook moves completed Unreleased notes to the selected version; never rewrite old notes to make a planned feature appear delivered. Release dates currently use UTC in tools/release.py.
+- Keep stable feature-review IDs in task/evidence references when useful. A capability is released only when its implementation, relevant checks and public artifact are established; track device/core limits alongside the notes.
+- The future website uses dated changelog sections, canonical Release links and checked compatibility as its release history. Label Unreleased changes as unreleased and roadmap entries as planned; do not maintain an independent manually versioned product history. The website itself has an independent version.

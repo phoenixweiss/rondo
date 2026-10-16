@@ -439,8 +439,12 @@ public:
     if (!supported) return std::nullopt;
     auto s=value("/sys/class/power_supply/axp2202-battery/hallkey");return s=="1"?std::optional<bool>(true):s=="0"?std::optional<bool>(false):std::nullopt;
   }
-  void sleep() override {
+  // The experimental module loaded on hardware, but hall readback was missing.
+  // Keep this capability unavailable until the device contract is established.
+  void sleep(bool wakeOnOpen, bool sleepWhenClosed) override {
     if (!canSleep()) throw std::runtime_error("Suspend-to-RAM unavailable");
+    if (wakeOnOpen && !canWakeOnLid()) throw std::runtime_error("Lid wake adapter unavailable");
+    std::cerr<<"[sleep] t_ms="<<monotonicMs()<<" op=prepare wake_on_open="<<wakeOnOpen<<" lid_sleep="<<sleepWhenClosed<<"\n";
     int old=rawBrightness();
     auto state="/tmp/rondo-mixer-"+std::to_string(getpid())+".state";
     bool savedMixer=mixer(state,"store");
@@ -455,9 +459,12 @@ public:
       sync();
       for (;;) {
         sysWrite("/sys/class/power_supply/axp2202-battery/os_sleep","16",false);
+        std::cerr<<"[sleep] op=suspend mode=stock-power-wake\n";
         // This write returns on resume. Never replace a failed suspend with poweroff.
         sysWrite("/sys/power/state","mem");
-        auto open=lidOpen(); if (!open || *open) break;
+        auto open=lidOpen();
+        if (!open || *open || !sleepWhenClosed) break;
+        std::cerr<<"[sleep] op=closed-lid-resuspend\n";
         usleep(250000); // Ignore pocketed POWER while the lid is still closed.
       }
     } catch (const std::exception &e) { failure=e.what(); }

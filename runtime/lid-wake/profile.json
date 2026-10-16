@@ -1,0 +1,27 @@
+{
+  "config_sha256": "565948300ae2d0f68a8ec85a18be033cde06ad4c46a988bebf708b9ce35cb119",
+  "image_sha256": "1332da28ef5dd078963c98cc4e11de816b8fddc7c7b75dab93b79eda68d01bf0",
+  "imports": {
+    "__stack_chk_fail": 3681748385,
+    "__stack_chk_guard": 2405927687,
+    "get_os_sleep_mode": 4078478061,
+    "init_uts_ns": 559205956,
+    "kstrtobool": 1965907803,
+    "memcmp": 1150996647,
+    "module_layout": 881952284,
+    "mutex_lock": 834324909,
+    "mutex_unlock": 2541541781,
+    "param_get_bool": 742002499,
+    "printk": 669098057,
+    "set_os_sleep_mode": 1437463538,
+    "strcmp": 3805619546
+  },
+  "release": "4.9.170",
+  "set_function_code": "416000f022b442f9220100b4fd7bbfa91f000071e1179f1a40400091fd03009164cafb97fd7bc1a8c0035fd6",
+  "struct_module_size": 768,
+  "target": "rg34xxsp",
+  "uts_release_offset": 134,
+  "uts_version_offset": 199,
+  "vermagic": "4.9.170 SMP preempt mod_unload modversions aarch64",
+  "version": "#9 SMP PREEMPT Tue May 26 15:49:58 CST 2026"
+}

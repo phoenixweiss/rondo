@@ -13,6 +13,10 @@ def sha(path):
     return digest.hexdigest()
 
 
+def archive_name(name, record):
+    return name + record.get("archive_suffix", ".tar.gz")
+
+
 def records(root):
     dependencies = Path(root) / "docs/dependencies"
     data = json.loads((dependencies / "runtime-sources.json").read_text())
@@ -24,7 +28,8 @@ def records(root):
         "ttf": {**data["ttf"], "directory": "SDL2_ttf-2.20.2"},
         "fceumm": {"url": "https://codeload.github.com/libretro/libretro-fceumm/tar.gz/" + revision,
                    "sha256": core["archive_sha256"],
-                   "directory": "libretro-fceumm-" + revision}
+                   "directory": "libretro-fceumm-" + revision},
+        "linux": data["linux"], "bc": data["bc"]
     }
 
 
@@ -46,6 +51,14 @@ if __name__ == "__main__":
     sources = work / "sources"
     sources.mkdir(exist_ok=False)
     for name, item in records(root).items():
-        extract(work / "archives" / (name + ".tar.gz"), sources,
+        destination = Path("/tmp/rondo-linux") if name == "linux" else sources
+        destination.mkdir(exist_ok=True)
+        extract(work / "archives" / archive_name(name, item), destination,
                 item["sha256"], item["directory"])
+        if name == "linux":
+            # Keep large header trees on the container filesystem. Only COPYING
+            # is consumed by packaging; the complete pinned archive is shipped.
+            retained = sources / item["directory"]
+            retained.mkdir()
+            (retained / "COPYING").write_bytes((destination / item["directory"] / "COPYING").read_bytes())
     print("Pinned source archives verified and extracted", flush=True)

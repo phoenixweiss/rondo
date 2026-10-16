@@ -169,7 +169,7 @@ static void validateConfig(const Json &candidate, const Json &defaults) {
   if (!candidate.is_object() || candidate.value("schema", 0) != 1)
     throw std::runtime_error("Unsupported configuration");
   for (const auto &key : {"revision", "locale", "artwork", "section", "focus", "timezone", "volume",
-                          "favorites", "game_options", "replace_boot_logo", "brightness", "lid_sleep"})
+                          "favorites", "game_options", "replace_boot_logo", "brightness", "lid_sleep", "wake_on_lid_open", "show_battery_percent"})
     if (candidate.contains(key) && candidate[key].type() != defaults[key].type() &&
         !(candidate[key].is_number() && defaults[key].is_number()))
       throw std::runtime_error("Invalid configuration field");
@@ -181,6 +181,8 @@ Store::Store(fs::path p) : root(std::move(p)) {
           {"volume", 80},
           {"brightness", 70},
           {"lid_sleep", true},
+          {"wake_on_lid_open", true},
+          {"show_battery_percent", true},
           {"replace_boot_logo", true},
           {"artwork", "cover"},
           {"section", "All"},
@@ -302,7 +304,7 @@ std::string Locale::tr(const std::string &id, const Json &args) const {
 }
 Timezones::Timezones(fs::path p) : root(std::move(p)) {
   if (valid("Etc/UTC"))
-    zones.push_back({"Etc/UTC", "UTC", "UTC"});
+    zones.push_back({"Etc/UTC", "UTC", "UTC", "UTC"});
   std::ifstream f(root / "zone.tab");
   std::string line;
   while (std::getline(f, line)) {
@@ -318,7 +320,7 @@ Timezones::Timezones(fs::path p) : root(std::move(p)) {
       continue;
     auto city = id.substr(slash + 1);
     std::replace(city.begin(), city.end(), '_', ' ');
-    zones.push_back({id, id.substr(0, slash), city});
+    zones.push_back({id, id.substr(0, slash), city, country});
   }
   std::sort(zones.begin(), zones.end(), [](auto &a, auto &b) { return a.id < b.id; });
 }

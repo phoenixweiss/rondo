@@ -9,7 +9,7 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "runtime"))
-from inputs import records, sha
+from inputs import records, sha, archive_name
 
 SOURCE_TREES = {"src", "assets", "vendor", "tests", "tools", "runtime", "docs", "licenses", ".github", ".bumpster"}
 ROOT_NAMES = {"README.md", "README_RU.md", "LICENSE", "THIRD_PARTY_NOTICES.md",
@@ -58,7 +58,7 @@ def main():
     archives = work / "archives"
     archives.mkdir()
     for name, item in records(source).items():
-        cached = cache / (item["sha256"] + ".tar.gz")
+        cached = cache / (item["sha256"] + item.get("archive_suffix", ".tar.gz"))
         if not cached.exists():
             temporary = cached.with_suffix(".download")
             print("Fetching " + name, flush=True)
@@ -73,7 +73,7 @@ def main():
                     temporary.unlink()
         if sha(cached) != item["sha256"]:
             raise ValueError("Cached checksum mismatch: " + name)
-        shutil.copyfile(cached, archives / (name + ".tar.gz"))
+        shutil.copyfile(cached, archives / archive_name(name, item))
     command = ["docker", "run", "--rm", "--network", "none", "--platform", lock["platform"],
                "-v", str(source) + ":/src:ro", "-v", str(work) + ":/work",
                "--entrypoint", "/bin/bash", lock["toolchain_image"], "/src/runtime/build-all.sh"]

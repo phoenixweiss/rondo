@@ -43,4 +43,10 @@ for forbidden in ["Packages", "Diagnostics", "Builds", "RondoGames", "RondoState
     assert not (ROOT / forbidden).exists(), f"Private/generated directory: {forbidden}"
 assert (ROOT / "LICENSE").read_text().startswith("MIT License\n")
 assert (ROOT / "THIRD_PARTY_NOTICES.md").is_file()
+
+zone_names = ROOT / "assets/Timezones/names.json"
+zone_inputs = json.loads((zone_names.parent / "sources.json").read_text())
+assert hashlib.sha256(zone_names.read_bytes()).hexdigest() == zone_inputs["output_sha256"]
+assert (zone_names.parent / "LICENSE").read_text().startswith("UNICODE LICENSE V3")
+
 print(f"PASS: {len(files)} publication input files, JSON, local links, vendor hashes and locale placeholders")

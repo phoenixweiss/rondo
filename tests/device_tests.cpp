@@ -4,13 +4,15 @@
 #include <iostream>
 using namespace rondo;
 struct FakeDevice : DeviceControl {
-  int level=60,sleeps=0;bool open=true,fail=false;
+  int level=60,sleeps=0;bool open=true,fail=false,wakeAvailable=true;
+  std::vector<std::pair<bool,bool>> policies;
   std::function<void()> before;
   std::optional<int> brightness() override { return level; }
   void brightness(int n) override { level=n; }
   bool canSleep() const override { return true; }
+  bool canWakeOnLid() const override { return wakeAvailable; }
   std::optional<bool> lidOpen() override { return open; }
-  void sleep() override { ++sleeps;if(before)before();if(fail)throw std::runtime_error("Injected suspend failure");open=true; }
+  void sleep(bool wake, bool close) override { policies.emplace_back(wake,close);++sleeps;if(before)before();if(fail)throw std::runtime_error("Injected suspend failure");open=true; }
 };
 int main(int argc,char **argv) {
   assert(argc==5);Options o;o.assets=argv[1];o.state=argv[2];o.core=argv[3];o.headless=true;o.output=o.state/"renders";
@@ -23,6 +25,10 @@ int main(int argc,char **argv) {
   {
     App a(o);auto fake=std::make_unique<FakeDevice>();auto *d=fake.get();a.device=std::move(fake);a.brightness=60;
     a.action("Y");a.action("R1");a.action("RIGHT");assert(d->level==65 && a.store.data["brightness"]==65);a.capture("brightness-inline");
+    a.action("DOWN");a.action("LEFT");assert(a.row==1 && !a.store.data["show_battery_percent"].get<bool>() && d->level==65);
+    a.capture("battery-percent-off");
+    a.requestSettings=[](Json){return false;};a.action("RIGHT");assert(!a.store.data["show_battery_percent"].get<bool>() && d->level==65);
+    a.requestSettings={};a.action("RIGHT");assert(a.store.data["show_battery_percent"].get<bool>());a.action("UP");
     a.requestSettings=[](Json){return false;};a.action("LEFT");assert(d->level==65 && a.brightness==65 && a.store.data["brightness"]==65);a.requestSettings={};
     a.action("R1");a.action("RIGHT");assert(a.screen==Screen::Settings && a.store.data["volume"]==85);
     a.action("A");assert(a.screen==Screen::Settings);a.capture("sound-inline");a.action("LEFT");assert(a.store.data["volume"]==80);
@@ -32,6 +38,26 @@ int main(int argc,char **argv) {
     a.action("SLEEP");assert(d->sleeps==2);
     // A supervised shell without SDL must not independently suspend its child.
     a.ui.reset();d->open=false;a.lastLidOpen=true;a.lidCheckAt=0;a.ticks(0);assert(d->sleeps==2);
+  }
+  {
+    o.state=root/"lid-options";App a(o);auto fake=std::make_unique<FakeDevice>();auto *d=fake.get();a.device=std::move(fake);
+    assert(a.store.data["lid_sleep"]==true && a.store.data["wake_on_lid_open"]==true);
+    a.action("Y");for(int i=0;i<3;++i)a.action("R1");
+    a.action("DOWN");assert(a.row==1);a.action("LEFT");assert(a.store.data["wake_on_lid_open"]==false && a.store.data["lid_sleep"]==true);
+    a.requestSettings=[](Json){return false;};a.action("RIGHT");assert(a.store.data["wake_on_lid_open"]==false);a.requestSettings={};a.notice.clear();
+    for(const auto *language:{"en","ru"}) { a.locale.select(o.assets,language);a.capture(std::string("lid-options-")+language);a.action("X");a.capture(std::string("lid-wake-info-")+language);a.action("B"); }
+    for(bool close:{false,true})for(bool wake:{false,true}) {
+      auto next=a.store.data;next["lid_sleep"]=close;next["wake_on_lid_open"]=wake;a.persist(next);
+      int before=d->sleeps;d->open=false;a.lastLidOpen=true;a.lidCheckAt=0;a.ticks(0);
+      assert(d->sleeps==before+int(close));
+      a.action("SLEEP");assert(d->policies.back()==std::make_pair(wake,close));
+    }
+    Store restart(o.state);assert(restart.data["wake_on_lid_open"]==true && restart.data["lid_sleep"]==true);
+    auto bad=Json{{"schema",1},{"wake_on_lid_open","true"}}.dump();
+    atomicWrite(root/"invalid-lid/config.json",{bad.begin(),bad.end()});
+    Store invalid(root/"invalid-lid");assert(!invalid.warning.empty() && invalid.data["wake_on_lid_open"].is_boolean());
+    d->wakeAvailable=false;a.row=1;a.action("LEFT");assert(a.store.data["wake_on_lid_open"]==true);
+    a.capture("lid-adapter-unavailable");a.action("SLEEP");assert(d->policies.back()==std::make_pair(false,true));
   }
   {
     o.state=root/"runner";Game game{"device-game","TEST","NES","Fixture",argv[4]};App a(o,true,game);
@@ -62,5 +88,5 @@ int main(int argc,char **argv) {
     c.closeAudio();c.openAudio();assert(c.stateHash()==hash);
     c.tick();assert(c.audioFrames>audio);
   }
-  std::cout<<"PASS: fresh Power release, lid policy, inline volume/brightness with rollback, active-process ownership, paused core continuity, suspend failure, SRAM failure abort, preview integrity and legacy states.\n";
+  std::cout<<"PASS: fresh Power release, independent lid defaults/four combinations/persistence/failure/unavailable fallback, lid policy, inline volume/brightness with rollback, active-process ownership, paused core continuity, suspend failure, SRAM failure abort, preview integrity and legacy states.\n";
 }

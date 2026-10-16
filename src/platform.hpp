@@ -82,8 +82,9 @@ public:
   virtual std::optional<int> brightness() { return std::nullopt; }
   virtual void brightness(int) { throw std::runtime_error("Display adapter unavailable"); }
   virtual bool canSleep() const { return false; }
+  virtual bool canWakeOnLid() const { return false; }
   virtual std::optional<bool> lidOpen() { return std::nullopt; }
-  virtual void sleep() { throw std::runtime_error("Sleep adapter unavailable"); }
+  virtual void sleep(bool = false, bool = true) { throw std::runtime_error("Sleep adapter unavailable"); }
 };
 std::unique_ptr<DeviceControl> deviceControl(bool enabled);
 }

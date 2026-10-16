@@ -42,11 +42,8 @@ failure.write_text(json.dumps([{'action':'A'},{'assert_screen':'recovery','captu
 subprocess.run([str(ROOT/'build/rondo'),'--assets',str(ROOT/'assets'),'--state',str(work/'broken-state'),'--core',str(args.core.resolve()),'--volume',f'broken={work}/broken-card','--headless','--script',str(failure),'--output',str(out)],check=True,stdout=(work/'runner-failure.log').open('w'),stderr=subprocess.STDOUT,timeout=30)
 # Timezone applies an IANA ID via the process-local adapter; never changes macOS timezone.
 zoneState=work/'zone-state';zoneState.mkdir();(zoneState/'config.json').write_text(json.dumps({'schema':1,'timezone':'Europe/Moscow'}))
-region_order=[]
-for identifier in sorted(['Etc/UTC']+[line.split()[2] for line in Path('/usr/share/zoneinfo/zone.tab').read_text().splitlines() if line and not line.startswith('#')]):
-    r='UTC' if identifier=='Etc/UTC' else identifier.split('/')[0]
-    if r not in region_order:region_order.append(r)
-commands=[{'action':'Y'},{'action':'DOWN'},{'action':'A'}]+[{'action':'DOWN'}]*region_order.index('UTC')+[{'action':'A','assert_screen':'global_settings','assert_config':{'timezone':'Etc/UTC'},'capture':'timezone-applied'}]
+# The picker now opens at the saved country. Up reaches the pinned UTC entry.
+commands=[{'action':'Y'},{'action':'DOWN'},{'action':'A'}]+[{'action':'UP'}]*300+[{'action':'A','assert_screen':'global_settings','assert_config':{'timezone':'Etc/UTC'},'capture':'timezone-applied'}]
 failure.write_text(json.dumps(commands))
 subprocess.run([str(ROOT/'build/rondo'),'--assets',str(ROOT/'assets'),'--state',str(zoneState),'--headless','--script',str(failure),'--output',str(out)],check=True,stdout=(work/'timezone.log').open('w'),stderr=subprocess.STDOUT,timeout=30)
 result={'native_build':True,'real_fceumm_state_roundtrip':True,'sram_restart':True,'shell_runner_sessions':2,'durable_restart':True,'runner_load_failure_recovered':True,'settings_write_failure_visible':True,'timezone_apply':True,'volume_master_persists_across_shell_runner':True,'software_mute_verified':True,'library_files_preserved':len(before),'render_backend':'SDL2 software surface, same UI as interactive window','audio_device_tested':False,'device_tested':False,'sd_modified':False}

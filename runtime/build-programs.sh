@@ -15,3 +15,11 @@ $CXX -std=c++17 -O2 -Wall -Wextra -I/src/src -I/src/vendor \
 $CXX -std=c++17 -O2 -Wall -Wextra -I/src/src -I/src/vendor -I/work/sdk/include/SDL2 \
  /src/tests/device_tests.cpp /src/src/model.cpp /src/src/platform.cpp /src/src/ui.cpp /src/src/core.cpp /src/src/app.cpp \
  -L/work/sdk/lib -lSDL2 -lSDL2_ttf -ldl -lpthread -lstdc++fs -o /work/programs/device-tests
+
+$CXX -std=c++17 -O2 -Wall -Wextra -I/src/src -I/src/vendor -I/work/sdk/include/SDL2 \
+ /src/tests/timezone_tests.cpp /src/src/model.cpp /src/src/platform.cpp /src/src/ui.cpp /src/src/core.cpp /src/src/app.cpp \
+ -L/work/sdk/lib -lSDL2 -lSDL2_ttf -ldl -lpthread -lstdc++fs -o /work/programs/timezone-tests
+
+$CXX -std=c++17 -O2 -Wall -Wextra -I/src/src -I/src/vendor -I/work/sdk/include/SDL2 \
+ /src/tests/battery_tests.cpp /src/src/model.cpp /src/src/platform.cpp /src/src/ui.cpp \
+ -L/work/sdk/lib -lSDL2 -lSDL2_ttf -ldl -lpthread -lstdc++fs -o /work/programs/battery-tests

@@ -150,9 +150,64 @@ void UI::icon(const std::string &name, int x, int y, int size) {
   }
   image(assets / "IconsPNG" / (name + ".png"), x, y, size, size, true);
 }
+void UI::battery(const Telemetry &telemetry, bool showPercent, int x) {
+  const int y = 34, w = 27, h = 14;
+  const auto level = telemetry.capacity;
+  const bool known = level && *level >= 0 && *level <= 100;
+  const auto color = known && *level <= 15 ? accent : cream;
+  rect(x, y, w, h, color, 3);
+  rect(x + 2, y + 2, w - 4, h - 4, bg, 1);
+  rect(x + w + 1, y + 4, 3, h - 8, color, 1);
+  if (known && *level > 0)
+    rect(x + 3, y + 3, std::max(1, (w - 6) * *level / 100), h - 6, color, 1);
+  if (!known) {
+    line(x + 6, y + 10, x + 20, y + 3, cream);
+    line(x + 6, y + 11, x + 20, y + 4, cream);
+  }
+  if (telemetry.batteryStatus == "Charging") {
+    // Cut the large charging mark out of the fill and outline for constant contrast.
+    const SDL_Point bolt[] = {{x + 18, y - 5}, {x + 7, y + 8}, {x + 14, y + 8},
+                              {x + 9, y + 19}, {x + 22, y + 4}, {x + 15, y + 4}};
+    std::vector<SDL_Rect> spans;
+    for (int row = y - 5; row <= y + 19; ++row) {
+      std::vector<int> edges;
+      for (int i = 0; i < 6; ++i) {
+        const auto &a = bolt[i], &b = bolt[(i + 1) % 6];
+        if ((a.y <= row && b.y > row) || (b.y <= row && a.y > row))
+          edges.push_back(a.x + (row - a.y) * (b.x - a.x) / (b.y - a.y));
+      }
+      std::sort(edges.begin(), edges.end());
+      for (size_t i = 1; i < edges.size(); i += 2)
+        spans.push_back({edges[i - 1], row, edges[i] - edges[i - 1] + 1, 1});
+    }
+    for (const auto &span : spans)
+      rect(span.x - 2, span.y - 2, span.w + 4, 5, bg);
+    for (const auto &span : spans)
+      rect(span.x, span.y, span.w, span.h, cream);
+  }
+  if (showPercent)
+    text(known ? std::to_string(*level) + "%" : "—", x + 40, 29, 21);
+}
+int UI::status(const std::string &clock, const Telemetry &telemetry) {
+  const bool known = telemetry.capacity && *telemetry.capacity >= 0 && *telemetry.capacity <= 100;
+  const auto percentage = known ? std::to_string(*telemetry.capacity) + "%" : "—";
+  int x = width - 24 - measure(clock, 21);
+  text(clock, x, 29, 21);
+  const int batteryWidth = showBatteryPercent ? 40 + measure(percentage, 21) : 31;
+  x -= 12 + batteryWidth;
+  battery(telemetry, showBatteryPercent, x);
+  if (telemetry.wifiEnabled) {
+    x -= 12 + 22;
+    icon("wifi", x, 29, 22);
+    if (telemetry.wifiState == "disconnected")
+      line(x, 50, x + 20, 29, secondary);
+    if (telemetry.wifiState == "connecting")
+      rect(x + 18, 48, 4, 4, accent, 2);
+  }
+  return x;
+}
 void UI::frame(const std::string &title, const std::string &context, const std::string &zone) {
   rect(0, 0, width, height, bg);
-  text(title, 24, 22, 29, 700, cream, 414);
   // Only the clock is available on the host; unknown battery, no invented
   // Wi-Fi.
   Timezones zones;
@@ -170,17 +225,8 @@ void UI::frame(const std::string &title, const std::string &context, const std::
   else
     unsetenv("TZ");
   tzset();
-  text(clock, 510, 29, 21);
-  auto telemetry = readTelemetry();
-  icon(telemetry.batteryStatus == "Charging" ? "battery-charging" : "battery", 599, 28, 26);
-  text(telemetry.capacity ? std::to_string(*telemetry.capacity) + "%" : "—", 639, 29, 21);
-  if (telemetry.wifiEnabled) {
-    icon("wifi", 570, 29, 22);
-    if (telemetry.wifiState == "disconnected")
-      line(570, 50, 590, 29, secondary);
-    if (telemetry.wifiState == "connecting")
-      rect(588, 48, 4, 4, accent, 2);
-  }
+  const int statusLeft = status(clock, readTelemetry());
+  text(title, 24, 22, 29, 700, cream, statusLeft - 48);
 
   line(24, 68, 696, 68, separator);
   line(24, 432, 696, 432, separator);

@@ -11,7 +11,7 @@ import stat
 import subprocess
 import tarfile
 import zipfile
-from inputs import records, sha
+from inputs import records, sha, archive_name
 from notices import bundle
 
 
@@ -82,12 +82,14 @@ def main():
     payload = work / "package"
     payload.mkdir(exist_ok=False)
     app = payload / "System/Rondo"
-    for directory in ["bin", "cores", "lib", "tools"]:
+    for directory in ["bin", "cores", "lib", "tools", "modules"]:
         (app / directory).mkdir(parents=True, exist_ok=True)
     for name in ["rondo", "fceumm_libretro.so"]:
         shutil.copyfile(work / "programs" / name, app / ("bin" if name == "rondo" else "cores") / name)
     for name in ["libSDL2-2.0.so.0", "libSDL2_ttf-2.0.so.0"]:
         shutil.copyfile(work / "sdk/lib" / name, app / "lib" / name)
+    shutil.copyfile(work / "lid-module/rondo_lid_wake.ko", app / "modules/rondo_lid_wake.ko")
+    shutil.copyfile(work / "lid-module/lid-module-verification.json", app / "modules/verification.json")
     shutil.copytree(root / "assets", app / "assets")
     shutil.copytree(root / "runtime/fixtures", app / "Demo/card-a")
     for name in ["preflight.sh", "smoke.json"]:
@@ -119,6 +121,8 @@ def main():
         (work / "sources" / sources["fceumm"]["directory"] / "Copying", "FCEUmm-GPLv2.txt")
     ]:
         shutil.copyfile(src, licenses / name)
+    shutil.copyfile(work / "sources/linux-4.9.170/COPYING", licenses / "Linux-GPLv2.txt")
+    shutil.copyfile(work / "sources/bc-1.07.1/COPYING", licenses / "BC-Build-Tool-GPLv3.txt")
     bundle(root, {name: work / "sources" / item["directory"] for name, item in sources.items()}, licenses)
     header = (work / "sources" / sources["ttf"]["directory"] /
               "external/freetype/include/freetype/freetype.h").read_text()
@@ -130,8 +134,9 @@ def main():
     material = payload / "Sources"
     material.mkdir()
     source_archive(root, material / "rondo-source.tar.gz", epoch)
-    for name in sources:
-        shutil.copyfile(work / "archives" / (name + ".tar.gz"), material / (name + ".tar.gz"))
+    for name, record in sources.items():
+        filename = archive_name(name, record)
+        shutil.copyfile(work / "archives" / filename, material / filename)
     (material / "source-inputs.json").write_text(json.dumps(source_inputs, sort_keys=True, indent=2) + "\n")
     (payload / "README.md").write_text(
         "# Rondo — RG34XXSP development package\n\n"

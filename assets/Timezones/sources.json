@@ -1,0 +1,15 @@
+{
+  "project": "Unicode CLDR JSON",
+  "revision": "91c267402229a59e3ef2774544f001bf959e8809",
+  "base_url": "https://raw.githubusercontent.com/unicode-org/cldr-json/91c267402229a59e3ef2774544f001bf959e8809/",
+  "inputs_sha256": {
+    "cldr-json/cldr-bcp47/bcp47/timezone.json": "e9ba00dc084c02f427660e5009724159478efac4e1663d2d0cacab17d733a7af",
+    "cldr-json/cldr-dates-full/main/en/timeZoneNames.json": "db04305a4bac1389b965e71974adf174adc4130f38b86dfcf1f4e2eec343a174",
+    "cldr-json/cldr-localenames-full/main/en/territories.json": "158c1d575308f7e46912edbeda435c8fe2ef5dad280798231f3a432e406b1807",
+    "cldr-json/cldr-dates-full/main/ru/timeZoneNames.json": "26af85321234e9eb99415585859f55b5a8ae2429d1a4b21aa74740ba4ede74b7",
+    "cldr-json/cldr-localenames-full/main/ru/territories.json": "305ba1f9eecb1b0151ab081a111aaa8a5898d38c9d57bfbfa125734e508a2389",
+    "LICENSE": "220ba0e1c43b99530d2d5bdb892a99dca0989414f51ab695ecd90163eaa1ec3b"
+  },
+  "output_sha256": "77b7fcd561a9e66bd19d79ab5067064d45c83e44e28c312785dab188d38a45f2",
+  "generator": "tools/build_timezone_names.py"
+}

@@ -4,6 +4,7 @@ Original Rondo code, scripts, synthetic test fixtures and original artwork are M
 
 | Component | Exact input | Terms retained |
 |---|---|---|
+| Unicode CLDR localized countries/cities | assets/Timezones/sources.json | Unicode License v3, assets/Timezones/LICENSE; offline derived labels, pinned generator |
 | nlohmann/json 3.12.0, including Hoehrmann/Loitsch code | vendor/sources.json | MIT; licenses/nlohmann-json-MIT.txt and preserved header attribution |
 | libretro API header | vendor/sources.json | MIT grant in header; not a license for all cores |
 | PicoSHA2 1.0.1 | vendor/sources.json | MIT grant in header |
@@ -27,3 +28,5 @@ System libraries are supplied by the owner's BaseOS installation and are not cop
 Only NES/FCEUmm is integrated. GB/GBC/GBA/SNES/MD/PSX/PSP are future work. Review the exact revision and build configuration of each new core before shipping it. Snes9x/PicoDrive have noncommercial conditions that cannot be removed by Rondo's MIT license.
 
 See the [configured shipping audit](docs/shipping-audit.md) for the scope, runtime dependency boundary and remaining release acceptance steps.
+
+The experimental RG34XXSP lid-wake module uses Linux 4.9.170 headers and the audited vendor symbol ABI. The module source is MIT and its kernel module declares Dual MIT/GPL compatibility; the binary package retains GPLv2-compatible distribution terms. Linux corresponding source, configuration and module build scripts accompany H700 packages. GNU BC 1.07.1 (GPLv3 or later) is a build-only tool; its executable is not installed on the handheld.

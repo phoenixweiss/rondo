@@ -35,6 +35,11 @@ public:
   Store store;
   Locale locale;
   Timezones zones;
+  Json timezoneNames;
+  std::string countryLabel(const std::string &) const;
+  std::string zoneLabel(const std::string &) const;
+  std::string timezoneSortKey(const std::string &) const;
+  void openTimezones();
   std::unique_ptr<UI> ui;
   std::unique_ptr<DeviceControl> device;
   std::optional<int> brightness;

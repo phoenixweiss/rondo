@@ -27,3 +27,11 @@ $(BUILD)/device-tests: tests/device_tests.cpp src/model.cpp src/platform.cpp src
 $(BUILD)/volume-ui-tests: tests/volume_ui_tests.cpp src/model.cpp src/platform.cpp src/ui.cpp src/ui.hpp
 	mkdir -p $(BUILD)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tests/volume_ui_tests.cpp src/model.cpp src/platform.cpp src/ui.cpp $(LDFLAGS) $(LDLIBS) -o $@
+
+$(BUILD)/timezone-tests: tests/timezone_tests.cpp src/model.cpp src/platform.cpp src/ui.cpp src/core.cpp src/app.cpp src/model.hpp src/app.hpp
+	mkdir -p $(BUILD)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tests/timezone_tests.cpp src/model.cpp src/platform.cpp src/ui.cpp src/core.cpp src/app.cpp $(LDFLAGS) $(LDLIBS) -o $@
+
+$(BUILD)/battery-tests: tests/battery_tests.cpp src/model.cpp src/platform.cpp src/ui.cpp src/ui.hpp
+	mkdir -p $(BUILD)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) tests/battery_tests.cpp src/model.cpp src/platform.cpp src/ui.cpp $(LDFLAGS) $(LDLIBS) -o $@

@@ -54,6 +54,10 @@ The compiled program uses checked-in runtime assets, so icon regeneration is opt
 
 build/, Packages/, private test outputs, ROM collections and device state are not product source. Check vendor/sources.json and docs/dependencies for pinned inputs. See THIRD_PARTY_NOTICES.md before distributing a binary.
 
+For country/city labels and picker behavior, see [time-zone selection](timezones.md).
+
+See [battery display](battery.md) for status and settings behavior.
+
 ## H700
 
 tools/build_h700.sh is a compile-only gate using the pinned Docker SDK. For a complete source-built SDL/Mali runtime, FCEUmm and frontend ZIP, use `python3 tools/build_h700_runtime.py --work build/h700-first`. See the [runtime build guide](../runtime/README.md) for two-run reproducibility checks and optional isolated BaseOS preflight. This frontend package is not an SD image. Firmware/rootfs files remain external test inputs.

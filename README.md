@@ -16,6 +16,9 @@ A personal frontend project for the Anbernic RG34XXSP. I enjoy using this handhe
 - SRAM persistence, manual save slots with game previews and resume from a saved state.
 - A library, favorites, settings and game menu.
 - Model tests, UI rendering checks and headless launch/save/resume scenarios.
+- Localized country/city time-zone selection with saved focus and quick navigation.
+- Measured battery fill, charging/unknown states and an optional percentage display.
+- Sleep on lid close and Power wake; experimental wake-on-open remains unavailable.
 
 ## Development
 
@@ -46,7 +49,7 @@ Commercial ROMs, BIOS files and user saves are not included in the repository.
 
 ## H700 development package
 
-Requires Docker with Linux ARM64 container support. Build twice into new directories to compare the source ID, four runtime binaries and ZIP hash:
+Requires Docker with Linux ARM64 container support. Build twice into new directories to compare the source ID, shipped binaries and ZIP hash:
 
 ```sh
 python3 tools/build_h700_runtime.py --work build/h700-first

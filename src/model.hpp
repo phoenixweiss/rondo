@@ -48,7 +48,7 @@ public:
   std::string tr(const std::string &, const Json &args = Json::object()) const;
 };
 struct Zone {
-  std::string id, region, city;
+  std::string id, region, city, country;
 };
 class Timezones {
 public:

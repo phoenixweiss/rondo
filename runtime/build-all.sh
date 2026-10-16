@@ -8,6 +8,7 @@ umask 022
 python3 /src/runtime/inputs.py
 /bin/bash /src/runtime/build-libraries.sh
 /bin/bash /src/runtime/build-programs.sh
+/bin/bash /src/runtime/build-lid-module.sh
 prefix=/opt/aarch64-nextui-linux-gnu/bin/aarch64-nextui-linux-gnu
 mkdir /work/evidence
 for name in rondo fceumm_libretro.so; do

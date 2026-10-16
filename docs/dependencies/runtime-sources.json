@@ -8,5 +8,17 @@
     "sha256": "9dc71ed93487521b107a2c4a9ca6bf43fb62f6bddd5c26b055e6b91418a22053",
     "embedded_freetype": "2.12.1",
     "freetype_license_for_gplv2_package": "GPL-2.0-or-later"
+  },
+  "linux": {
+    "url": "https://cdn.kernel.org/pub/linux/kernel/v4.x/linux-4.9.170.tar.xz",
+    "sha256": "33887b40fc8e0b71f423bb7afe112a4ae190378145f4a3f3892c563b7e43131d",
+    "directory": "linux-4.9.170",
+    "archive_suffix": ".tar.xz"
+  },
+  "bc": {
+    "url": "https://ftp.gnu.org/gnu/bc/bc-1.07.1.tar.gz",
+    "sha256": "62adfca89b0a1c0164c2cdca59ca210c1d44c3ffc46daf9931cf4942664cb02a",
+    "directory": "bc-1.07.1",
+    "build_only": true
   }
 }

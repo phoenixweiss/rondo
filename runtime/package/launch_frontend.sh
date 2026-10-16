@@ -11,6 +11,9 @@ export RONDO_BOOTLOGO_TOOL="$APP/tools/boot-logo.sh"
 mkdir -p "$SD/RondoState"
 LOG="$SD/RondoState/launcher.log"
 printf '\n--- Rondo startup %s launcher_pid=%s ---\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$$" >> "$LOG"
+# Physical testing rejected the experimental hall-wake adapter. Do not load it.
+# A cold boot restores the vendor Power-wake path without changing saved settings.
+printf 'Lid-wake experiment disabled after device failure; using stock Power wake.\n' >> "$LOG"
 VOLUME="RONDO-DEMO=$APP/Demo/card-a"
 [ ! -d "$SD/RondoGames/NES" ] || VOLUME="RONDO-TEST=$SD/RondoGames"
 # Use the explicit test-library directory when present; otherwise the original demo.

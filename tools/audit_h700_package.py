@@ -36,6 +36,8 @@ def audit(path):
                 binaries[name] = digest(data)
         expected = {'System/Rondo/' + p for p in ['bin/rondo', 'cores/fceumm_libretro.so',
                     'lib/libSDL2-2.0.so.0', 'lib/libSDL2_ttf-2.0.so.0']}
+        if 'System/Rondo/modules/rondo_lid_wake.ko' in names:
+            expected.add('System/Rondo/modules/rondo_lid_wake.ko')
         require(set(binaries) == expected, 'Unexpected installed ELF set')
         prefix = 'System/Rondo/'
         app = {n[len(prefix):] for n in names if n.startswith(prefix)}
@@ -80,6 +82,20 @@ def audit(path):
         with tarfile.open(fileobj=io.BytesIO(package.read('Sources/ttf.tar.gz'))) as archive:
             gpl = archive.extractfile('SDL2_ttf-2.20.2/external/freetype/docs/GPLv2.TXT').read()
             require(gpl == package.read('Licenses/FreeType-GPLv2.txt'), 'Wrong FreeType license text')
+        if 'runtime/lid-wake/profile.json' in source:
+            from lid_module import validate
+            module_profile = json.loads(source['runtime/lid-wake/profile.json'])
+            validate(package.read(prefix + 'modules/rondo_lid_wake.ko'), module_profile)
+            for component in ['linux', 'bc']:
+                record = runtime[component]
+                filename = component + record.get('archive_suffix', '.tar.gz')
+                archive_bytes = package.read('Sources/' + filename)
+                require(digest(archive_bytes) == record['sha256'], 'Module build source mismatch')
+                with tarfile.open(fileobj=io.BytesIO(archive_bytes)) as archive:
+                    license_bytes = archive.extractfile(record['directory'] + '/COPYING').read()
+                    notice = 'Linux-GPLv2.txt' if component == 'linux' else 'BC-Build-Tool-GPLv3.txt'
+                    require(package.read('Licenses/' + notice) == license_bytes, 'Incorrect module build license text')
+            require('Licenses/Linux-GPLv2.txt' in names and 'Licenses/BC-Build-Tool-GPLv3.txt' in names, 'Missing module build notices')
         license_inputs = json.loads(source['docs/dependencies/license-inputs.json'])
         for name, checksum in license_inputs['files'].items():
             require(digest(package.read('Licenses/' + name)) == checksum, 'SDK license hash mismatch')

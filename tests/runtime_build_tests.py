@@ -10,7 +10,7 @@ import unittest
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "runtime"))
-from inputs import extract, sha
+from inputs import extract, sha, archive_name
 from package import source_archive, verify_zip
 
 
@@ -29,6 +29,10 @@ class RuntimeBuildTests(unittest.TestCase):
             member.size = 4
             archive.addfile(member, io.BytesIO(b"test"))
         return path
+
+    def test_pinned_archive_extension_is_preserved(self):
+        self.assertEqual(archive_name('linux', {'archive_suffix': '.tar.xz'}), 'linux.tar.xz')
+        self.assertEqual(archive_name('bc', {}), 'bc.tar.gz')
 
     def test_rejects_corrupt_download_before_extraction(self):
         archive = self.archive("pkg/file")

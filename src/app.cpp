@@ -7,6 +7,7 @@ namespace rondo {
 App::App(Options opts, bool runner, const Game &entry)
     : options(std::move(opts)), store(options.state), locale(options.assets) {
   locale.select(options.assets, store.data.value("locale", "en"));
+  timezoneNames = readJson(options.assets / "Timezones/names.json");
   notice = store.warning.empty() ? "" : locale.tr("notice.config_recovered");
   if (!store.warning.empty()) std::cerr << "Configuration: " << store.warning << "\n";
   artwork = store.data.value("artwork", "cover");
@@ -58,21 +59,52 @@ std::vector<int> App::visible() const {
   }
   return v;
 }
+std::string App::countryLabel(const std::string &id) const {
+  if (id == "UTC") return "UTC";
+  const auto &names = timezoneNames.at(locale.current == "ru" ? "ru" : "en");
+  return names.at("countries").value(id, id);
+}
+std::string App::zoneLabel(const std::string &id) const {
+  if (id == "Etc/UTC") return "UTC";
+  const auto &names = timezoneNames.at(locale.current == "ru" ? "ru" : "en");
+  auto fallback = id.substr(id.find_last_of('/') + 1);
+  std::replace(fallback.begin(), fallback.end(), '_', ' ');
+  return names.at("cities").value(id, fallback);
+}
+std::string App::timezoneSortKey(const std::string &label) const {
+  return timezoneNames.at(locale.current == "ru" ? "ru" : "en").at("sort").value(label, label);
+}
 std::vector<std::string> App::regions() const {
-  std::vector<std::string> r;
-  for (auto &z : zones.zones) {
-    std::string region = z.region;
-    if (std::find(r.begin(), r.end(), region) == r.end())
-      r.push_back(region);
-  }
-  return r;
+  std::vector<std::string> out;
+  for (auto &z : zones.zones)
+    if (std::find(out.begin(), out.end(), z.country) == out.end()) out.push_back(z.country);
+  std::sort(out.begin(), out.end(), [&](const auto &a, const auto &b) {
+    if (a == "UTC" || b == "UTC") return a == "UTC" && b != "UTC";
+    return std::make_pair(timezoneSortKey(countryLabel(a)), a) < std::make_pair(timezoneSortKey(countryLabel(b)), b);
+  });
+  return out;
 }
 std::vector<Zone> App::locations() const {
   std::vector<Zone> out;
   for (auto &z : zones.zones)
-    if (z.region == region)
-      out.push_back(z);
+    if (z.country == region) out.push_back(z);
+  std::sort(out.begin(), out.end(), [&](const auto &a, const auto &b) {
+    return std::make_pair(timezoneSortKey(zoneLabel(a.id)), a.id) < std::make_pair(timezoneSortKey(zoneLabel(b.id)), b.id);
+  });
   return out;
+}
+void App::openTimezones() {
+  screen = Screen::Regions;
+  row = 0;
+  scroll = 0;
+  const auto current = store.data.value("timezone", "Etc/UTC");
+  const auto countries = regions();
+  for (const auto &z : zones.zones)
+    if (z.id == current) {
+      auto found = std::find(countries.begin(), countries.end(), z.country);
+      if (found != countries.end()) row = int(found - countries.begin());
+      break;
+    }
 }
 std::string App::screenName() const {
   switch (screen) {
@@ -289,7 +321,7 @@ void App::action(const std::string &a) {
         persist(next);
       }
     } else if (screen == Screen::Settings) {
-      int count = category == 0 ? 3 : 1;
+      int count = category == 0 ? 3 : (category == 1 || category == 3) ? 2 : 1;
       if (a == "UP")
         row = std::max(0, row - 1);
       if (a == "DOWN")
@@ -316,7 +348,7 @@ void App::action(const std::string &a) {
         if (desired!=store.data.value("volume",80)) { next["volume"]=desired;persist(next); }
         notice.clear();
       }
-      if ((a == "LEFT" || a == "RIGHT") && category == 1 && brightness) {
+      if ((a == "LEFT" || a == "RIGHT") && category == 1 && row == 0 && brightness) {
         int old=*brightness, desired=std::clamp(old+(a=="RIGHT"?5:-5),0,100);
         if (desired!=old) {
           device->brightness(desired); brightness=device->brightness();
@@ -326,10 +358,21 @@ void App::action(const std::string &a) {
         }
         notice.clear();
       }
-      if (category==3 && device->canSleep() && (a=="LEFT" || a=="RIGHT" || a=="A")) {
-        bool current=store.data.value("lid_sleep",true);
+      if (category == 1 && row == 1 && (a == "A" || a == "LEFT" || a == "RIGHT")) {
+        bool current = store.data.value("show_battery_percent", true);
+        bool desired = a == "LEFT" ? false : a == "RIGHT" ? true : !current;
+        if (desired != current) {
+          auto next = store.data;
+          next["show_battery_percent"] = desired;
+          persist(next);
+        }
+        notice.clear();
+      }
+      if (category==3 && (row==0 ? device->canSleep() : device->canWakeOnLid()) && (a=="LEFT" || a=="RIGHT" || a=="A")) {
+        const auto setting=row==0?"lid_sleep":"wake_on_lid_open";
+        bool current=store.data.value(setting,true);
         bool desired=a=="LEFT"?false:a=="RIGHT"?true:!current;
-        if (desired!=current) { auto next=store.data;next["lid_sleep"]=desired;persist(next); }
+        if (desired!=current) { auto next=store.data;next[setting]=desired;persist(next); }
         notice.clear();
       }
       if (a == "A" && category == 0 && row != 2) {
@@ -341,11 +384,9 @@ void App::action(const std::string &a) {
               row = i;
         } else {
           if (zones.zones.empty())
-            notice = "Time zone data unavailable";
+            notice = locale.tr("timezone.unavailable");
           else {
-            screen = Screen::Regions;
-            row = 0;
-            scroll = 0;
+            openTimezones();
           }
         }
       }
@@ -392,6 +433,24 @@ void App::action(const std::string &a) {
         row = std::max(0, row - 5);
       if (a == "R1")
         row = std::min(count - 1, row + 5);
+      if ((a == "LEFT" || a == "RIGHT") && count > 0) {
+        auto initial = [&](int index) {
+          auto text = timezoneSortKey(screen == Screen::Regions ? countryLabel(r[index]) : zoneLabel(l[index].id));
+          auto first = static_cast<unsigned char>(text[0]);
+          size_t size = first < 0x80 ? 1 : first < 0xe0 ? 2 : first < 0xf0 ? 3 : 4;
+          return text.substr(0, size);
+        };
+        int direction = a == "RIGHT" ? 1 : -1;
+        const auto letter = initial(row);
+        int target = row;
+        while (target + direction >= 0 && target + direction < count) {
+          target += direction;
+          if (initial(target) != letter) break;
+        }
+        if (direction < 0)
+          while (target > 0 && initial(target - 1) == initial(target)) --target;
+        row = target;
+      }
       if (a == "B") {
         if (screen == Screen::Zones) {
           screen = Screen::Regions;
@@ -568,7 +627,7 @@ std::string App::infoKey() const {
   if (screen == Screen::Regions || screen == Screen::Zones) return "timezone";
   if (screen != Screen::Settings) return "";
   if (category == 0) return row == 0 ? "language" : row == 1 ? "timezone" : "boot";
-  return category == 1 ? "brightness" : category == 2 ? "sound" : "lid";
+  return category == 1 ? (row == 1 ? "battery" : "brightness") : category == 2 ? "sound" : row==0 ? "lid" : "lid_wake";
 }
 void App::requestBootLogo(bool desired) {
   if (bootPending() || (bootAcknowledged && *bootAcknowledged == desired)) return;
@@ -637,7 +696,8 @@ void App::sleep() {
     while (bootPending()) { ticks(0);SDL_Delay(5); }
     if (core) { core->paused=true;core->buttons=0;core->silence();core->flushSram();core->closeAudio(); }
     record("sleep:prepared");
-    device->sleep();
+    device->sleep(store.data.value("wake_on_lid_open",true) && device->canWakeOnLid(),
+                  store.data.value("lid_sleep",true));
     if(ui) {
       ui->handheldKeys=std::make_unique<H700Keys>();ui->volumeKeys=std::make_unique<VolumeKeys>();
       ui->powerKeys=std::make_unique<PowerKeys>();SDL_FlushEvents(SDL_FIRSTEVENT,SDL_LASTEVENT);
@@ -690,6 +750,7 @@ void App::capture(const std::string &name) {
   record("capture:" + name);
 }
 void App::draw() {
+  ui->showBatteryPercent = store.data.value("show_battery_percent", true);
   auto tr = [this](auto key) { return locale.tr(key); };
   auto zone = store.data.value("timezone", "Etc/UTC");
   if (screen == Screen::Running) {
@@ -787,7 +848,7 @@ void App::draw() {
     }
   } else if (screen == Screen::Settings) {
     std::vector<std::string> cat = {"section.general", "section.display", "section.sound",
-                                    "section.controls"};
+                                    "section.power"};
     ui->frame(tr("screen.settings"), "", zone);
     int x = 24;
     for (int i = 0; i < 4; i++) {
@@ -803,25 +864,28 @@ void App::draw() {
         if (l["code"] == locale.current)
           name = l["native_name"];
       ui->row(tr("screen.language"), 128, row == 0, 672, name + "  ›");
-      ui->row(tr("setting.timezone"), 182, row == 1, 672, zone + "  ›");
+      ui->row(tr("setting.timezone"), 182, row == 1, 672, zoneLabel(zone) + "  ›");
       ui->binaryRow(tr("boot.label"), 236, row == 2, bootAcknowledged, locale, bootLogoSupported());
     } else if (category==3) {
-      ui->binaryRow(tr("setting.lid_sleep"),128,true,store.data.value("lid_sleep",true),locale,device->canSleep());
+      ui->binaryRow(tr("setting.lid_sleep"),128,row==0,store.data.value("lid_sleep",true),locale,device->canSleep());
+      ui->binaryRow(tr("setting.lid_wake"),182,row==1,store.data.value("wake_on_lid_open",true),locale,device->canWakeOnLid());
     } else {
       bool supported=category==2 || brightness.has_value();
       std::string value=category==2?std::to_string(store.data.value("volume",80))+"%":brightness?std::to_string(*brightness)+"%":"—";
-      ui->row(tr(category==1?"setting.brightness":"setting.volume"),128,true,672,value,supported);
+      ui->row(tr(category==1?"setting.brightness":"setting.volume"),128,row==0,672,value,supported);
+      if (category == 1)
+        ui->binaryRow(tr("setting.battery_percent"),182,row==1,store.data.value("show_battery_percent",true),locale);
     }
     if (category==0 && row!=2)
       ui->hints({{"A",tr("action.change")},{"B",tr("action.back")},{"L1/R1",tr("action.section")},{"X",tr("footer.info")}});
     else {
       std::vector<std::pair<std::string,std::string>> hints;
-      if ((category==0 && row==2) || category==3) hints.push_back({"A",tr("footer.toggle")});
+      if ((category==0 && row==2) || category==3 || (category==1 && row==1)) hints.push_back({"A",tr("footer.toggle")});
       hints.push_back({"LEFT/RIGHT",tr("footer.value")});hints.push_back({"B",tr("action.back")});
-      if(category==1 || category==2) hints.push_back({"L1/R1",tr("action.section")});
+      if((category==1 && row==0) || category==2) hints.push_back({"L1/R1",tr("action.section")});
       hints.push_back({"X",tr("footer.info")});
       ui->hints(hints,(category==0 && (!bootLogoSupported() || bootPending() || !bootAcknowledged)) ||
-                      (category==1 && !brightness) || (category==3 && !device->canSleep()));
+                      (category==1 && row==0 && !brightness) || (category==3 && !(row==0?device->canSleep():device->canWakeOnLid())));
     }
   } else if (screen == Screen::Language) {
     ui->frame(tr("screen.language"), tr("editor.path_general"), zone);
@@ -832,7 +896,7 @@ void App::draw() {
     ui->hints({{"A", tr("action.apply")}, {"B", tr("action.cancel")}});
   } else if (screen == Screen::Regions || screen == Screen::Zones) {
     ui->frame(tr("setting.timezone"),
-              screen == Screen::Regions ? tr("timezone.pick_region") : region, zone);
+              screen == Screen::Regions ? tr("timezone.pick_country") : countryLabel(region), zone);
     auto rs = regions();
     auto ls = locations();
     int count = screen == Screen::Regions ? rs.size() : ls.size();
@@ -850,29 +914,13 @@ void App::draw() {
       int y = 128 + i * 54 - int(scroll);
       if (y + 52 <= 128 || y >= 380)
         continue;
-      std::string label = screen == Screen::Regions ? rs[i] : ls[i].city;
-      if (screen == Screen::Zones) {
-        auto code = ls[i].id.substr(ls[i].id.find_last_of('/') + 1);
-        std::transform(code.begin(), code.end(), code.begin(), ::tolower);
-        auto key = "timezone.city." + code;
-        auto translated = locale.tr(key);
-        if (translated != key)
-          label = translated;
-      }
-
-      if (screen == Screen::Regions &&
-          locale.tr("timezone.region." + std::string(rs[i] == "America"   ? "america"
-                                                     : rs[i] == "Europe"  ? "europe"
-                                                     : rs[i] == "Asia"    ? "asia"
-                                                     : rs[i] == "Africa"  ? "africa"
-                                                     : rs[i] == "Pacific" ? "pacific"
-                                                                          : ""))
-                  .find("timezone.region.") != 0) {
-        auto code = rs[i];
-        std::transform(code.begin(), code.end(), code.begin(), ::tolower);
-        label = locale.tr("timezone.region." + code);
-      }
-      ui->row(label, y, i == row, 672, screen == Screen::Zones ? zones.offset(ls[i].id, now) : "›");
+      const auto label = screen == Screen::Regions ? countryLabel(rs[i]) : zoneLabel(ls[i].id);
+      bool saved = screen == Screen::Regions ? false : ls[i].id == zone;
+      if (screen == Screen::Regions)
+        for (const auto &z : zones.zones) if (z.id == zone && z.country == rs[i]) saved = true;
+      ui->row(label, y, i == row, 672,
+              screen == Screen::Zones ? zones.offset(ls[i].id, now) : "›",
+              true, 52, "", saved ? "check" : "");
     }
     SDL_RenderSetClipRect(ui->renderer, nullptr);
     ui->rect(16, 380, 672, 52, ui->bg);
@@ -880,7 +928,7 @@ void App::draw() {
 
     ui->hints({{"A", tr(screen == Screen::Regions ? "action.open" : "action.apply")},
                {"B", tr("action.back")},
-               {"L1/R1", tr("action.page")},{"X",tr("footer.info")}});
+               {"LEFT/RIGHT",tr("timezone.letter")},{"X",tr("footer.info")}});
   } else if (screen == Screen::GameMenu) {
     ui->frame(tr("screen.game_menu"), game.title, zone);
     std::vector<std::string> labels = {"action.resume", "action.save_state", "action.load_state",
@@ -948,8 +996,11 @@ void App::draw() {
     ui->notice(notice,notice==tr("notice.saved")?"save":"settings",screen==Screen::Library);
   if (infoOpen) {
     auto key = infoKey();
-    auto body = tr("info." + key + ".body");
+    auto body = key == "timezone"
+        ? locale.tr("info.timezone.body", {{"pages", ui->buttonLabel("L1/R1")}})
+        : tr("info." + key + ".body");
     if (key=="brightness" && !brightness) body+="\n"+tr("binary.unsupported");
+    if (key=="lid_wake" && !device->canWakeOnLid()) body+="\n"+tr("binary.unsupported");
     if (key=="lid" && !device->canSleep()) body+="\n"+tr("binary.unsupported");
     if (screen==Screen::Zones) { auto locations=this->locations();if(row<int(locations.size()))body+="\n"+locations[row].id; }
     auto error = key == "boot" ? bootLastError : key == "scaling" ? scalingLastError : "";
