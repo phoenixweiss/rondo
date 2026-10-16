@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## [0.2.0] - 2026-10-16
+
 - Use matching, centered, font-independent arrow pairs, center key labels by visible bounds and share a softer outline weight/contrast across circular and rectangular footer keys.
 
 - Add offline date/time editing in the selected time zone, calendar/DST validation, explicit automatic-sync shutdown and separate system/UTC hardware-clock readback. Owner testing accepted offline setting, short power-off retention and return to automatic synchronization on RG34XXSP; this is not a long-term RTC durability test.
