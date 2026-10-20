@@ -276,6 +276,8 @@ static Json supervise(App &a, const Json &runnerScript) {
                                    a.volumeFeedback.json().dump(),
                                    "--channel",
                                    std::to_string(channel[1])};
+  auto gbCore=a.options.coreFor("GB");
+  if(!gbCore.empty()) {args.push_back("--gb-core");args.push_back(gbCore.string());}
   if (a.options.headless)
     args.push_back("--headless");
   if (a.resume)
@@ -410,6 +412,8 @@ int main(int argc, char **argv) {
         opts.state = fs::absolute(value());
       else if (flag == "--core")
         opts.core = fs::absolute(value());
+      else if (flag == "--gb-core")
+        opts.gbCore = fs::absolute(value());
       else if (flag == "--output")
         opts.output = fs::absolute(value());
       else if (flag == "--script")
@@ -449,7 +453,7 @@ int main(int argc, char **argv) {
         return 0;
       } else if (flag == "--help") {
         std::cout << "rondo --volume CARD_ID=ROMS_PATH --state NEW_STATE_PATH "
-                     "--core FCEUMM_LIBRARY [--headless --script SCRIPT.json "
+                     "--core FCEUMM_LIBRARY [--gb-core GAMBATTE_LIBRARY] [--headless --script SCRIPT.json "
                      "--output DIR]\n";
         return 0;
       } else

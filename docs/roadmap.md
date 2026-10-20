@@ -10,13 +10,10 @@ The [core feature review](feature-review.md) compares NextUI, MinUI and muOS wit
 
 ## Agreed next steps
 
-1. Resolve the current shell slowdown and Bluetooth regression; measure input,
-   frame time, CPU/RAM and full-library behavior on RG34XXSP. Retain performance
-   budgets as a criterion for future features.
-2. Verify the settings organization and title search on the console.
-3. Add an explicitly enabled browser file-transfer mode for local-network use.
-4. Keep network backup/save synchronization, online Rondo updates and artwork
-   retrieval in the backlog; their implementation and services are not enabled.
+1. Continue game-system integration with GBA, then SNES, MD and PSX (CHD only), retaining NES/GB/GBC regression checks and individual license/performance/device acceptance gates.
+2. Design a console-first library list with full system names before replacing the accepted handheld layout.
+3. Keep slight interface/game stutter in the optimization backlog. Compare disabled, normal and detailed diagnostic logging under matched conditions; logging is a hypothesis, not a demonstrated cause.
+4. Browser file transfer, network backup/save synchronization, online updates and artwork retrieval remain deferred; the website follows core functionality.
 
 ## First: core functionality and everyday use
 
@@ -47,7 +44,7 @@ This list grows with device testing and user feedback; it is not a complete inve
 
 ## Next: game systems and library support
 
-- Investigate GB/GBC, GBA, SNES, MD and PSX (CHD only) individually, covering licensing, builds, controls, performance, SRAM, save states, resume and sleep on the console. Retain NES regression checks.
+- GB/GBC play, saves, continuation and sleep passed bounded owner testing on RG34XXSP. Investigate GBA, SNES, MD and PSX (CHD only) individually, covering licensing, builds, controls, performance, SRAM, save states, resume and sleep on the console. Retain NES regression checks.
 - Investigate two-card library behavior, duplicate handling, missing cards and state-storage placement.
 - Investigate wider H700 hardware support separately before promising compatibility. PSP is outside the project scope.
 

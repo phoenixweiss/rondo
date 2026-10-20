@@ -17,7 +17,7 @@ Rondo is in early development. The initial handheld target is Anbernic RG34XXSP,
 | Compact volume | Latest prototype appearance approved by owner; native state/collision checks | Physical legibility on other screens remains unverified |
 | Bluetooth (experimental) | Micro D paired/connected on RG34XXSP; the previous multi-second HID-battery stalls were absent in a cold-start test | Buttons do not work; SDL reports no external device. Audio/PIN are not implemented; no working wireless controller claim |
 | Shutdown / restart menu | Native confirmation, teardown and mocked launcher/sync tests pass | Physical H700 shutdown/reboot and FAT durability still need acceptance |
-| Other emulators | Planned GB/GBC/GBA/SNES/MD/PSX (CHD only) | Not integrated, benchmarked or cleared for distribution by this source candidate |
+| Other emulators | Planned GBA/SNES/MD/PSX (CHD only) | Not integrated, benchmarked or cleared for distribution by this source candidate |
 | Two-card integration | Model identity tests | Live TF1/TF2 mounting/integration not established |
 
 Saves and preferences are treated conservatively, but a successful atomic write test is not proof of durability under every power-loss or FAT failure. Back up important state before testing development builds.
@@ -41,3 +41,5 @@ The 0.4.0 sprint (Recent games, automatic exit saves/startup continuation, displ
 preferences, menu blanking and corner feedback) was accepted by the owner on
 RG34XXSP before the final color-sample and input-release fixes. Those two fixes
 have native and isolated BaseOS coverage; physical recheck is still pending.
+
+GB/GBC: Gambatte is integrated. Native and isolated BaseOS tests cover cartridge SRAM/RTC, manual/automatic states, startup continuation and aspect/integer scaling. The owner accepted GB/GBC play, saves, continuation and sleep on RG34XXSP with candidate 10f1d3f502e6. Slight interface/game stutter remains in the optimization backlog; a contribution from detailed logging is unproven. This bounded acceptance does not establish measured sustained performance or compatibility with every game.

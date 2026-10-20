@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## [0.5.0] - 2026-10-21
+
+- Add Game Boy and Game Boy Color through a pinned, source-built Gambatte core, with independent cartridge SRAM/RTC, manual slots, automatic exit saves and startup continuation.
+- Preserve the GB/GBC image aspect ratio; integer scaling uses 3× at 720×480. Existing NES scaling and save identities remain unchanged.
+- Include Gambatte source, license and provenance in reproducible H700 packages; add isolated native/BaseOS GB/GBC save/resume coverage. The owner accepted GB/GBC play, saves, continuation and sleep on RG34XXSP.
+
+### Verification and known limitations
+
+- All 32 owner-provided GB/GBC ROMs passed automated native launch, manual-save and automatic-resume checks; commercial ROMs and artwork are not part of this release.
+- The owner reports slight stutter in the interface and games. Performance optimization is in the backlog; detailed logging is a suspected contributor, not an established cause.
+- Bluetooth remains experimental: the tested 8BitDo Micro in D mode pairs/connects but does not provide working gamepad input. Battery-gauge jumps and wake-on-lid-open remain unresolved.
+
 ## [0.4.0] - 2026-10-21
 
 ### Library and display

@@ -1,4 +1,4 @@
-"""Audit the configured NES distribution from the ZIP's own frozen inputs."""
+"""Audit the configured NES/GB/GBC distribution from the ZIP's own frozen inputs."""
 from pathlib import Path
 import argparse
 import hashlib
@@ -36,6 +36,8 @@ def audit(path):
                 binaries[name] = digest(data)
         expected = {'System/Rondo/' + p for p in ['bin/rondo', 'cores/fceumm_libretro.so',
                     'lib/libSDL2-2.0.so.0', 'lib/libSDL2_ttf-2.0.so.0']}
+        if 'System/Rondo/cores/gambatte_libretro.so' in names:
+            expected.add('System/Rondo/cores/gambatte_libretro.so')
         if 'System/Rondo/modules/rondo_lid_wake.ko' in names:
             expected.add('System/Rondo/modules/rondo_lid_wake.ko')
         require(set(binaries) == expected, 'Unexpected installed ELF set')
@@ -73,12 +75,22 @@ def audit(path):
         core = json.loads(source['docs/dependencies/core-source.json'])
         require(runtime['ttf']['freetype_license_for_gplv2_package'] == 'GPL-2.0-or-later',
                 'FreeType GPLv2 alternative not selected')
+        gb = json.loads(source['docs/dependencies/gb-core-source.json']) if 'docs/dependencies/gb-core-source.json' in source else None
+        if gb:
+            require('System/Rondo/cores/gambatte_libretro.so' in names, 'Missing GB/GBC core')
+            require('Licenses/Gambatte-GPLv2.txt' in names, 'Missing Gambatte license')
+            data=package.read('Sources/gambatte.tar.gz')
+            require(digest(data)==gb['archive_sha256'], 'Gambatte source hash mismatch')
+            with tarfile.open(fileobj=io.BytesIO(data)) as archive:
+                license_bytes=archive.extractfile('gambatte-libretro-'+gb['revision']+'/COPYING').read()
+            require(license_bytes==package.read('Licenses/Gambatte-GPLv2.txt'), 'Gambatte license mismatch')
         upstream = {}
         for name, checksum in [('sdl', runtime['sdl']['sha256']), ('ttf', runtime['ttf']['sha256']),
                                ('fceumm', core['archive_sha256'])]:
             data = package.read('Sources/' + name + '.tar.gz')
             require(digest(data) == checksum, 'Upstream archive hash mismatch: ' + name)
             upstream[name] = checksum
+        if gb: upstream['gambatte']=gb['archive_sha256']
         with tarfile.open(fileobj=io.BytesIO(package.read('Sources/ttf.tar.gz'))) as archive:
             gpl = archive.extractfile('SDL2_ttf-2.20.2/external/freetype/docs/GPLv2.TXT').read()
             require(gpl == package.read('Licenses/FreeType-GPLv2.txt'), 'Wrong FreeType license text')

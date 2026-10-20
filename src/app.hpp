@@ -47,7 +47,15 @@ enum class Screen {
   Recovery
 };
 struct Options {
-  fs::path assets, state, core, executable, script, output;
+  fs::path assets, state, core, gbCore, executable, script, output;
+  fs::path coreFor(const std::string &system) const {
+    if(system=="NES")return core;
+    if(system=="GB" || system=="GBC") {
+      if(!gbCore.empty())return gbCore;
+      if(!core.empty())return core.parent_path()/("gambatte_libretro"+core.extension().string());
+    }
+    return {};
+  }
   std::vector<Volume> volumes;
   bool headless = false;
 };

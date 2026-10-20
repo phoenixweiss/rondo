@@ -1,0 +1,9 @@
+# Game Boy and Game Boy Color
+
+Rondo routes `.gb` and `.gbc` games to the pinned Gambatte libretro core. NES continues to use FCEUmm. `--core` selects FCEUmm; `--gb-core` can override Gambatte. By default Gambatte is resolved next to the NES core with the same platform library extension. A missing core opens the recoverable dependency screen.
+
+GB/GBC retain their 160×144 aspect ratio. At 720×480, aspect fit uses approximately 533×480 and integer scaling uses 480×432 (3×), with the selected border color. Global/per-game scaling and border preferences apply as usual.
+
+Each game's existing identity convention isolates `sram.bin`, optional `rtc.bin`, three manual slots and the separate automatic save under its state directory. RTC is persisted only when the cartridge exposes it. Do not move or rename games casually: identities include volume and relative path. Slot metadata checks the selected core and ROM hashes; incompatible states are not silently loaded. Save RAM/RTC are written at the existing persistence boundaries, including suspend and orderly exit. Force power-off can lose unsaved progress.
+
+The native checks use original MIT technical cartridges under runtime/test-fixtures/gb; these are never added to the user's library. Commercial ROMs, artwork and their private acceptance results are not part of the repository or public package. The owner accepted GB/GBC play, saves, continuation and sleep on RG34XXSP with candidate 10f1d3f502e6. Slight interface/game stutter remains; detailed logging is a hypothesis to investigate, not a proven cause. This bounded test does not establish full-game compatibility or measured sustained performance. GBA, link-cable networking and alternative GB palettes are outside this implementation.

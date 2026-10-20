@@ -67,13 +67,12 @@ Core::Core(const fs::path &path, const Game &game, const fs::path &saves, bool s
     sampleRate = av.timing.sample_rate;
     if (!std::isfinite(fps) || fps < 1 || fps > 240)
       throw std::runtime_error("Invalid core frame rate");
-    if (fs::exists(saveRoot / "sram.bin")) {
-      auto b = readBytes(saveRoot / "sram.bin");
-      auto size = memorySize(RETRO_MEMORY_SAVE_RAM);
-      if (size && b.size() == size)
-        memcpy(memoryData(RETRO_MEMORY_SAVE_RAM), b.data(), size);
-      else if (size)
-        throw std::runtime_error("Incompatible SRAM size");
+    for(auto memory:{std::pair<unsigned,const char *>{RETRO_MEMORY_SAVE_RAM,"sram.bin"},
+                     {RETRO_MEMORY_RTC,"rtc.bin"}}) {
+      if(!fs::exists(saveRoot/memory.second))continue;
+      auto bytes=readBytes(saveRoot/memory.second);auto size=memorySize(memory.first);
+      if(size && bytes.size()==size && memoryData(memory.first))memcpy(memoryData(memory.first),bytes.data(),size);
+      else if(size)throw std::runtime_error("Incompatible persistent memory size");
     }
     audioEnabled = !silent;
     openAudio();
@@ -310,12 +309,13 @@ bool Core::compatibleFile(const fs::path &path) const {
   }
 }
 void Core::flushSram() {
-  auto n = memorySize(RETRO_MEMORY_SAVE_RAM);
-  if (n) {
-    auto *p = static_cast<uint8_t *>(memoryData(RETRO_MEMORY_SAVE_RAM));
-    if (!p)
-      throw std::runtime_error("SRAM inaccessible");
-    atomicWrite(saveRoot / "sram.bin", {p, p + n});
+  for(auto memory:{std::pair<unsigned,const char *>{RETRO_MEMORY_SAVE_RAM,"sram.bin"},
+                   {RETRO_MEMORY_RTC,"rtc.bin"}}) {
+    auto n=memorySize(memory.first);
+    if(!n)continue;
+    auto *p=static_cast<uint8_t *>(memoryData(memory.first));
+    if(!p)throw std::runtime_error("Persistent core memory inaccessible");
+    atomicWrite(saveRoot/memory.second,{p,p+n});
   }
 }
 std::string Core::stateHash() {

@@ -158,8 +158,9 @@ std::vector<Game> scan(const std::vector<Volume> &volumes) {
       auto rel = path.lexically_relative(v.root);
       std::string folder = rel.begin()->string();
       std::string system = systems.count(folder) ? systems.at(folder) : folder;
-      if (ext == ".nes")
-        system = "NES";
+      if (ext == ".nes")system = "NES";
+      else if(ext==".gb")system="GB";
+      else if(ext==".gbc")system="GBC";
       auto identity = v.id + "\n" + rel.generic_string();
       std::vector<uint8_t> bytes(identity.begin(), identity.end());
       std::string title = path.stem().string();

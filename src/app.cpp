@@ -30,7 +30,7 @@ App::App(Options opts, bool runner, const Game &entry)
     requestBootLogo(store.data.value("replace_boot_logo", true));
   if (runner) {
     game = entry;
-    core = std::make_unique<Core>(options.core, game, store.gameDir(game), options.headless);
+    core = std::make_unique<Core>(options.coreFor(game.system), game, store.gameDir(game), options.headless);
     core->volume = previewVolume;
     screen = Screen::Running;
   } else {
@@ -335,7 +335,7 @@ static bool anySlots(App &a) {
 bool App::usableSlot(int i) const {
   if(core)return i==3?core->compatibleAutomatic():core->compatible(i);
   try {
-    auto coreHash=hashFile(options.core),romHash=hashFile(game.path);
+    auto coreHash=hashFile(options.coreFor(game.system)),romHash=hashFile(game.path);
     const std::vector<std::string> paths=i==3?std::vector<std::string>{"autosave.json","autosave.json.previous"}:
       std::vector<std::string>{"slot-"+std::to_string(i)+".json"};
     for(const auto &name:paths)try {
@@ -349,7 +349,7 @@ bool App::usableSlot(int i) const {
 int App::latestResumeSlot() const {
   int selected=-1;long long bestSequence=-1,bestUtc=0;
   try {
-    auto coreHash=core?core->identity:hashFile(options.core),romHash=core?core->romHash:hashFile(game.path);
+    auto coreHash=core?core->identity:hashFile(options.coreFor(game.system)),romHash=core?core->romHash:hashFile(game.path);
     for(int candidate=0;candidate<4;++candidate) {
       const auto paths=candidate==3?std::vector<std::string>{"autosave.json","autosave.json.previous"}:
         std::vector<std::string>{"slot-"+std::to_string(candidate)+".json"};
@@ -483,7 +483,7 @@ void App::action(const std::string &a) {
         game = games[v[selected]];
         if (!game.available || !fs::is_regular_file(game.path)) {
           notice = locale.tr("recent.unavailable");
-        } else if (game.system != "NES" || !fs::is_regular_file(options.core)) {
+        } else if (!fs::is_regular_file(options.coreFor(game.system))) {
           screen = Screen::Recovery;
           notice = locale.tr("error.core_unavailable");
         } else if (latestResumeSlot()>=0) {
@@ -1022,7 +1022,7 @@ void App::offerStartupResume() {
   if(history.empty())return;
   auto id=history[0].at("id").get<std::string>();
   auto found=std::find_if(games.begin(),games.end(),[&](const Game &candidate){return candidate.id==id && candidate.available;});
-  if(found==games.end() || found->system!="NES" || !fs::is_regular_file(found->path))return;
+  if(found==games.end() || !fs::is_regular_file(options.coreFor(found->system)) || !fs::is_regular_file(found->path))return;
   game=*found;
   if(latestResumeSlot()>=0) {screen=Screen::StartupResume;row=0;}
 }
@@ -1235,6 +1235,10 @@ void App::draw() {
   if (screen == Screen::Running) {
     ui->rect(0, 0, 720, 480, gameBackground());
     int w = 720, h = 480;
+    if(game.system=="GB" || game.system=="GBC") {
+      double scale=std::min(720.0/core->width,480.0/core->height);
+      w=int(core->width*scale);h=int(core->height*scale);
+    }
     if (store.integerScaling(game.id)) {
       int scale = std::max(1, std::min(720 / core->width, 480 / core->height));
       w = core->width * scale;

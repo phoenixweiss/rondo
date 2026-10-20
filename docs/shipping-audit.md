@@ -1,4 +1,4 @@
-# Configured NES shipping audit
+# Configured emulator shipping audit
 
 Reviewed 2026-10-15. Scope: the source-built RG34XXSP/BaseOS 1.3.0 package, pinned SDL fork d4a7d750, SDL2_ttf 2.20.2 with FreeType 2.12.1, FCEUmm ac0d00a7 and GCC 8.3.0 from the digest-pinned ARM64 SDK. This is a component/source/distribution review of this configuration, not certification of other cores, firmware or future versions.
 
@@ -39,3 +39,7 @@ Run tools/audit_h700_package.py against the built ZIP. It checks complete manife
 No unresolved license/asset-policy decision remains for the documented NES configuration after the listed corrections. This is not a claim that all future upstream code is automatically cleared. Changed revisions/options, new libraries/cores, added firmware or altered fonts require another review. The final public artifact must pass these gates again after its actual version/ref is selected. Physical installation/acceptance of that final package and actual hosted CI/release verification remain release gates, not completed by this audit.
 
 Primary references: [GPLv2](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html), [FSF plugin guidance](https://www.gnu.org/licenses/gpl-faq.html#GPLPlugins), [FreeType license choice](https://freetype.org/license.html), [GCC runtime exception](https://gcc.gnu.org/onlinedocs/libstdc++/manual/license.html), [Ubuntu Font Licence](https://canonical.com/legal/font-licence), [Lucide's full ISC/MIT notice](https://github.com/lucide-icons/lucide/blob/main/LICENSE). The exact local source and license hashes are authoritative for this reviewed build.
+
+## GB/GBC candidate (2026-10-21)
+
+Gambatte d9d6cd06382d1ced30de34d56d3609452323dab1 is pinned by revision and archive SHA-256 in docs/dependencies/gb-core-source.json. The package carries its complete unmodified source archive and COPYING as Licenses/Gambatte-GPLv2.txt; per-file notices are retained. This GPLv2 core follows the same combined-distribution policy as FCEUmm. It is built with platform=unix, HAVE_NETWORK=0 and an empty GIT_VERSION; link-cable networking is outside this configuration. No BIOS or commercial ROM is supplied. Original MIT GB/GBC technical fixtures are source/CI material and are not installed in the user's game library. Package auditing checks the exact core binary, archive and license against the frozen source metadata. Physical hardware remains a separate acceptance gate.

@@ -22,6 +22,7 @@ def records(root):
     data = json.loads((dependencies / "runtime-sources.json").read_text())
     core = json.loads((dependencies / "core-source.json").read_text())
     revision = core["revision"]
+    gb = json.loads((dependencies / "gb-core-source.json").read_text())
     return {
         "sdl": {**data["sdl"], "directory": "SDL-malifbdev-rot-" +
                 data["sdl"]["url"].rsplit("/", 1)[1]},
@@ -29,6 +30,8 @@ def records(root):
         "fceumm": {"url": "https://codeload.github.com/libretro/libretro-fceumm/tar.gz/" + revision,
                    "sha256": core["archive_sha256"],
                    "directory": "libretro-fceumm-" + revision},
+        "gambatte": {"url": gb["repository"].replace("github.com/","codeload.github.com/")+"/tar.gz/"+gb["revision"],
+                     "sha256":gb["archive_sha256"],"directory":"gambatte-libretro-"+gb["revision"]},
         "linux": data["linux"], "bc": data["bc"]
     }
 

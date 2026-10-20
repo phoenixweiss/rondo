@@ -8,7 +8,12 @@ cd /work/sources/libretro-fceumm-ac0d00a7fc01166f84c7bac01d1084ebfd2b865e
 make -j"$jobs" platform=unix ARCH=arm64 CC="$CC" CXX="$CXX" HAVE_HDPACK=0 HAVE_NTSC=0 > /work/core-build.log 2>&1
 mkdir -p /work/programs
 cp fceumm_libretro.so /work/programs/
+cd "/work/sources/$(python3 -c 'import json; print("gambatte-libretro-"+json.load(open("/src/docs/dependencies/gb-core-source.json"))["revision"])')"
+make -f Makefile.libretro -j"$jobs" platform=unix CC="$CC" CXX="$CXX" HAVE_NETWORK=0 GIT_VERSION= > /work/gb-core-build.log 2>&1
+cp gambatte_libretro.so /work/programs/
 make -C /src -j"$jobs" h700-programs BUILD=/work/programs PKG_CONFIG=true \
  CXX="$CXX" CXXFLAGS='-std=c++17 -O2 -Wall -Wextra' \
  CPPFLAGS='-I/src/src -I/src/vendor -I/work/sdk/include/SDL2' \
  LDLIBS='-L/work/sdk/lib -lSDL2 -lSDL2_ttf -ldl -lpthread -lstdc++fs'
+
+cp -R /src/runtime/test-fixtures /work/programs/test-fixtures
