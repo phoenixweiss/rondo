@@ -232,6 +232,14 @@ void Core::silence() {
 }
 bool Core::canSave() const { return serializeSize && serializeSize() > 0; }
 void Core::save(int slot) {
+  if(slot<0 || slot>2)throw std::runtime_error("Invalid manual slot");
+  saveTo(saveRoot/("slot-"+std::to_string(slot)+".json"),true);
+}
+void Core::saveAutomatic() {
+  flushSram();
+  saveTo(saveRoot/"autosave.json",false);
+}
+void Core::saveTo(const fs::path &p, bool flush) {
   auto n = serializeSize();
   if (!n || n > 32 * 1024 * 1024)
     throw std::runtime_error("Save states unavailable");
@@ -240,6 +248,8 @@ void Core::save(int slot) {
     throw std::runtime_error("Serialization failed");
   long long sequence=0;
   for(int i=0;i<3;++i)try {sequence=std::max(sequence,saveSequence(readJson(saveRoot/("slot-"+std::to_string(i)+".json"))));}catch(...){}
+  for(const auto *name:{"autosave.json","autosave.json.previous"})
+    try {sequence=std::max(sequence,saveSequence(readJson(saveRoot/name)));}catch(...){}
   if(sequence>=std::numeric_limits<long long>::max()-1)throw std::runtime_error("Save sequence exhausted");
   Json j = {{"save_sequence",sequence+1},{"schema", 1},  {"core", identity},       {"rom", romHash},
             {"payload", b}, {"sha256", hashBytes(b)}, {"utc", time(nullptr)}};
@@ -248,8 +258,7 @@ void Core::save(int slot) {
     j["preview"]={{"width",width},{"height",height},{"pixels",frame},
                   {"sha256",hashBytes({bytes,bytes+frame.size()*sizeof(uint32_t)})}};
   }
-  auto p = saveRoot / ("slot-" + std::to_string(slot) + ".json");
-  if (fs::exists(p))
+  if (fs::exists(p) && (p.filename()!="autosave.json" || compatibleFile(p)))
     atomicWrite(p.string() + ".previous", readBytes(p));
   auto s = j.dump();
   atomicWrite(p, {s.begin(), s.end()});
@@ -258,7 +267,7 @@ void Core::save(int slot) {
     throw std::runtime_error("Save readback mismatch");
   if (j.contains("preview") && actual.at("preview")!=j.at("preview"))
     throw std::runtime_error("Save preview readback mismatch");
-  flushSram();
+  if(flush)flushSram();
 }
 void Core::deleteSlot(int slot) {
   if (slot < 0 || slot > 2) throw std::runtime_error("Invalid save slot");
@@ -269,7 +278,19 @@ void Core::deleteSlot(int slot) {
   if (fs::exists(path)) throw std::runtime_error("Save deletion readback mismatch");
 }
 void Core::loadState(int slot) {
-  auto j = envelope(saveRoot / ("slot-" + std::to_string(slot) + ".json"));
+  loadFrom(saveRoot/("slot-"+std::to_string(slot)+".json"));
+}
+void Core::loadAutomatic() { loadFrom(automaticPath()); }
+fs::path Core::automaticPath() const {
+  for(const auto *name:{"autosave.json","autosave.json.previous"})
+    if(compatibleFile(saveRoot/name))return saveRoot/name;
+  throw std::runtime_error("Automatic state unavailable");
+}
+bool Core::compatibleAutomatic() const {
+  try {automaticPath();return true;}catch(...){return false;}
+}
+void Core::loadFrom(const fs::path &path) {
+  auto j = envelope(path);
   if (j.at("core") != identity || j.at("rom") != romHash)
     throw std::runtime_error("State belongs to another ROM or core");
   auto b = j.at("payload").get<std::vector<uint8_t>>();
@@ -278,8 +299,11 @@ void Core::loadState(int slot) {
   silence();
 }
 bool Core::compatible(int slot) const {
+  return compatibleFile(saveRoot/("slot-"+std::to_string(slot)+".json"));
+}
+bool Core::compatibleFile(const fs::path &path) const {
   try {
-    auto j = envelope(saveRoot / ("slot-" + std::to_string(slot) + ".json"));
+    auto j = envelope(path);
     return j.at("core") == identity && j.at("rom") == romHash;
   } catch (...) {
     return false;

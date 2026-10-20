@@ -30,6 +30,26 @@ class RuntimeBuildTests(unittest.TestCase):
             archive.addfile(member, io.BytesIO(b"test"))
         return path
 
+    def test_native_and_packaged_scaling_sequences_agree(self):
+        import json
+        root = Path(__file__).resolve().parent.parent
+        def sequence(value):
+            if isinstance(value, list):
+                for i, item in enumerate(value):
+                    if isinstance(item, dict) and item.get("capture") == "scaling-on":
+                        return [(step["action"], step["assert_integer_scaling"])
+                                for step in value[i:i+6]]
+                    result = sequence(item)
+                    if result is not None: return result
+            elif isinstance(value, dict):
+                for item in value.values():
+                    result = sequence(item)
+                    if result is not None: return result
+        native = sequence(json.loads((root/"tests/vertical-slice.json").read_text()))
+        packaged = sequence(json.loads((root/"runtime/package/smoke.json").read_text()))
+        self.assertIsNotNone(native)
+        self.assertEqual(native, packaged)
+
     def test_pinned_archive_extension_is_preserved(self):
         self.assertEqual(archive_name('linux', {'archive_suffix': '.tar.xz'}), 'linux.tar.xz')
         self.assertEqual(archive_name('bc', {}), 'bc.tar.gz')

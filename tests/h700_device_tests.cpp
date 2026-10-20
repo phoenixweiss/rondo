@@ -47,6 +47,10 @@ int main() {
   auto log=diagnostic.str();assert(log.find("percent=100 requested_raw=254")!=std::string::npos);
   assert(log.find("ioctl_rc=0 errno=0")!=std::string::npos && log.find("actual_raw=200 ok=0")!=std::string::npos);
   reject=true;bool failed=false;try{d->brightness(60);}catch(...){failed=true;}assert(failed && raw==254);
+  assert(d->canBlank());d->blank(true);assert(raw==0 && get("/sys/class/graphics/fb0/blank")=="1");
+  d->blank(false);assert(raw==254 && get("/sys/class/graphics/fb0/blank")=="0");
+  reject=true;bool blankFailed=false;try{d->blank(true);}catch(...){blankFailed=true;}
+  assert(blankFailed && raw==254 && get("/sys/class/graphics/fb0/blank")=="0");
   d->brightness(70);d->sleep();assert(raw==96 && memWrites==1);
   assert(get("/sys/class/graphics/fb0/blank")=="0");
   assert(get("/sys/class/power_supply/axp2202-battery/work_led")=="1");

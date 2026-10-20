@@ -35,10 +35,12 @@ App::App(Options opts, bool runner, const Game &entry)
     screen = Screen::Running;
   } else {
     games = scan(options.volumes);
-    sections = {"All", "Favorites"};
+    sections = {"All", "Favorites", "Recent"};
     for (auto &g : games)
       if (std::find(sections.begin(), sections.end(), g.system) == sections.end())
         sections.push_back(g.system);
+    auto unavailable=recentUnavailable(store.data.at("recent_games"),games);
+    games.insert(games.end(),unavailable.begin(),unavailable.end());
     if (std::find(sections.begin(), sections.end(), section) == sections.end())
       section = "All";
     auto v = visible();
@@ -47,6 +49,8 @@ App::App(Options opts, bool runner, const Game &entry)
       if (games[v[i]].id == id)
         selected = int(i);
   }
+  lastActivity=monotonicMs();
+  if(!runner)offerStartupResume();
   volumeFeedback.confirmed = store.data.value("volume", 80);
   wifiDevice=wifiAdapter(options.state,!runner && !options.headless);
   wifi.available=wifiDevice->supported();wifi.phase=wifi.available?"initializing":"unavailable";
@@ -142,7 +146,7 @@ void App::searchAction(const std::string &action) {
 }
 void App::searchDraw() {
   auto tr=[&](const std::string &key){return locale.tr(key);};
-  ui->frame(tr("search.title"),section=="All"?tr("section.all"):section=="Favorites"?tr("screen.favorites"):section,store.data.value("timezone","Etc/UTC"));
+  ui->frame(tr("search.title"),section=="All"?tr("section.all"):section=="Favorites"?tr("screen.favorites"):section=="Recent"?tr("section.recent_title"):section,store.data.value("timezone","Etc/UTC"));
   ui->row(searchDraft.empty()?tr("search.placeholder"):searchDraft,128,false,672,"",true,48);
   auto keys=searchKeys();
   for(int y=0;y<5;++y)for(size_t x=0;x<keys[y].size();++x) {
@@ -159,10 +163,21 @@ void App::searchDraw() {
 std::vector<int> App::visible() const {
   std::vector<int> v;
   auto favorites = store.data.value("favorites", Json::array());
+  if (section == "Recent") {
+    for (const auto &entry : store.data.at("recent_games")) {
+      const auto &id=entry.at("id").get_ref<const std::string &>();
+      for (size_t i=0;i<games.size();++i)
+        if (games[i].id==id && (searchQuery.empty() ||
+            (i<searchNames.size() && searchNames[i].find(searchQuery)!=std::string::npos))) {
+          v.push_back(int(i));break;
+        }
+    }
+    return v;
+  }
   for (size_t i = 0; i < games.size(); i++) {
     auto &g = games[i];
     bool fav = std::find(favorites.begin(), favorites.end(), g.id) != favorites.end();
-    if ((section == "All" || (section == "Favorites" && fav) || section == g.system) &&
+    if (g.available && (section == "All" || (section == "Favorites" && fav) || section == g.system) &&
         (searchQuery.empty() || (i<searchNames.size() && searchNames[i].find(searchQuery)!=std::string::npos)))
       v.push_back(i);
   }
@@ -235,12 +250,15 @@ std::string App::screenName() const {
   case Screen::SettingsSection: return "settings_section";
   case Screen::LogClear: return "log_clear";
   case Screen::SystemConfirm: return "system_confirm";
+  case Screen::SystemProgress: return "system_progress";
+  case Screen::SavingAutomatic: return "saving_automatic";
   case Screen::Language:
     return "language";
   case Screen::Regions:
     return "timezone_regions";
   case Screen::Zones:
     return "timezone_list";
+  case Screen::StartupResume: return "startup_resume";
   case Screen::ResumeChoice:
     return "resume_choice";
   case Screen::Launching:
@@ -315,37 +333,42 @@ static bool anySlots(App &a) {
   return false;
 }
 bool App::usableSlot(int i) const {
-  if (core)
-    return core->compatible(i);
+  if(core)return i==3?core->compatibleAutomatic():core->compatible(i);
   try {
-    auto j = readJson(store.gameDir(game) / ("slot-" + std::to_string(i) + ".json"));
-    auto b = j.at("payload").get<std::vector<uint8_t>>();
-    return j.at("core") == hashFile(options.core) && j.at("rom") == hashFile(game.path) &&
-           j.at("sha256") == hashBytes(b);
-  } catch (...) {
-    return false;
-  }
+    auto coreHash=hashFile(options.core),romHash=hashFile(game.path);
+    const std::vector<std::string> paths=i==3?std::vector<std::string>{"autosave.json","autosave.json.previous"}:
+      std::vector<std::string>{"slot-"+std::to_string(i)+".json"};
+    for(const auto &name:paths)try {
+      auto meta=readJson(store.gameDir(game)/name);
+      if(meta.at("core")==coreHash && meta.at("rom")==romHash &&
+         meta.at("sha256")==hashBytes(meta.at("payload").get<std::vector<uint8_t>>()))return true;
+    }catch(...){}
+  }catch(...){}
+  return false;
 }
 int App::latestResumeSlot() const {
-  int selected = -1;
-  long long bestUtc = 0,bestSequence=0;
-  fs::file_time_type bestModified = fs::file_time_type::min();
-  for (int candidate = 0; candidate < 3; ++candidate)
-    if (usableSlot(candidate)) {
-      auto path = store.gameDir(game) / ("slot-" + std::to_string(candidate) + ".json");
-      auto meta = readJson(path);
-      auto utc = meta.value("utc", 0LL);
-      auto sequence=saveSequence(meta);
-      auto modified = fs::last_write_time(path);
-      if (selected < 0 || sequence>bestSequence || (sequence==bestSequence && (utc > bestUtc || (utc == bestUtc && modified > bestModified)))) {
-        selected = candidate;
-        bestUtc = utc;
-        bestSequence=sequence;
-        bestModified = modified;
-      }
+  int selected=-1;long long bestSequence=-1,bestUtc=0;
+  try {
+    auto coreHash=core?core->identity:hashFile(options.core),romHash=core?core->romHash:hashFile(game.path);
+    for(int candidate=0;candidate<4;++candidate) {
+      const auto paths=candidate==3?std::vector<std::string>{"autosave.json","autosave.json.previous"}:
+        std::vector<std::string>{"slot-"+std::to_string(candidate)+".json"};
+      for(const auto &name:paths)try {
+        auto meta=readJson(store.gameDir(game)/name);
+        if(meta.at("core")!=coreHash || meta.at("rom")!=romHash ||
+           meta.at("sha256")!=hashBytes(meta.at("payload").get<std::vector<uint8_t>>()))continue;
+        auto sequence=saveSequence(meta),utc=meta.value("utc",0LL);
+        if(selected<0 || sequence>bestSequence || (sequence==bestSequence && utc>bestUtc)) {
+          selected=candidate;bestSequence=sequence;bestUtc=utc;
+        }
+        // Automatic loading uses the first valid generation, matching Core.
+        if(candidate==3)break;
+      }catch(...){}
     }
+  }catch(...){}
   return selected;
 }
+
 void App::applyZone(const std::string &id) {
   std::string previous = store.data.value("timezone", "Etc/UTC");
   zones.applyHost(id);
@@ -362,12 +385,23 @@ void App::applyZone(const std::string &id) {
     throw;
   }
 }
+uint16_t App::gameButtons(uint16_t held) {
+  if(screen!=Screen::Running || (core && core->paused))return 0;
+  if(gameInputBlocked) {
+    if(held==0)gameInputBlocked=false;
+    return 0;
+  }
+  return held;
+}
 void App::action(const std::string &a) {
+  if (stop || screen == Screen::SystemProgress || screen==Screen::SavingAutomatic) return;
+  if(activity())return;
   for (auto id : {"notice.language_changed", "notice.favorite_added", "notice.favorite_removed",
                   "notice.saved", "notice.loaded"})
     if (notice == locale.tr(id))
       notice.clear();
   const std::string priorNotice = notice;
+  const auto inputOrigin=screen;
   try {
     if (a == "SLEEP") { sleep(); record(a); return; }
     if (a == "VOLUME_UP" || a == "VOLUME_DOWN") {
@@ -447,10 +481,12 @@ void App::action(const std::string &a) {
       }
       if (a == "A" && !v.empty()) {
         game = games[v[selected]];
-        if (game.system != "NES" || !fs::is_regular_file(options.core)) {
+        if (!game.available || !fs::is_regular_file(game.path)) {
+          notice = locale.tr("recent.unavailable");
+        } else if (game.system != "NES" || !fs::is_regular_file(options.core)) {
           screen = Screen::Recovery;
           notice = locale.tr("error.core_unavailable");
-        } else if (anySlots(*this)) {
+        } else if (latestResumeSlot()>=0) {
           screen = Screen::ResumeChoice;
           row = 0;
         } else {
@@ -474,7 +510,16 @@ void App::action(const std::string &a) {
         returnToSettings();
       } else if (a == "A" && row == 1) {
         // Failure must leave the application running; no shutdown code escapes.
-        if (core) core->flushSram();
+        screen = Screen::SystemProgress;
+        notice.clear();
+        try {
+          draw(); // Submit feedback before filesystem flush and application teardown.
+          saveOnExit();
+        } catch (...) {
+          screen = Screen::SystemConfirm;
+          notice = locale.tr("error.operation");
+          throw;
+        }
         systemExitCode = restartRequested ? 65 : 64;
         stop = true;
       }
@@ -509,7 +554,7 @@ void App::action(const std::string &a) {
         if (category == 6) clockPollAt = 0;
       }
     } else if (screen == Screen::SettingsSection) {
-      int count = category == 4 ? 3 : (category == 0 || category == 3 || category == 5) ? 2 : 1;
+      int count = category==3 ? 6 : (category == 4 || category == 1) ? 3 : (category == 0 || category == 5) ? 2 : 1;
       if (a == "UP") row = std::max(0, row - 1);
       if (a == "DOWN") row = std::min(count - 1, row + 1);
       if (a == "B") { returnToSettings(); return; }
@@ -548,6 +593,20 @@ void App::action(const std::string &a) {
         }
         notice.clear();
       }
+      if (category == 1 && row > 0 && (a == "A" || a == "LEFT" || a == "RIGHT")) {
+        auto next = store.data;
+        if (row == 1) {
+          bool current = next.value("integer_scaling", false);
+          next["integer_scaling"] = a == "LEFT" ? false : a == "RIGHT" ? true : !current;
+        } else {
+          const std::vector<std::string> colors{"black", "charcoal", "navy", "theme"};
+          auto current = next.value("game_background", "black");
+          int i = int(std::find(colors.begin(), colors.end(), current) - colors.begin());
+          next["game_background"] = colors[(i + (a == "LEFT" ? 3 : 1)) % 4];
+        }
+        if (next != store.data) persist(next);
+        notice.clear();
+      }
       if (category == 3 && row == 0 && (a == "A" || a == "LEFT" || a == "RIGHT")) {
         bool current = store.data.value("show_battery_percent", true);
         bool desired = a == "LEFT" ? false : a == "RIGHT" ? true : !current;
@@ -562,6 +621,19 @@ void App::action(const std::string &a) {
         bool current = store.data.value("lid_sleep", true);
         bool desired = a == "LEFT" ? false : a == "RIGHT" ? true : !current;
         if (desired != current) { auto next = store.data; next["lid_sleep"] = desired; persist(next); }
+        notice.clear();
+      }
+      if(category==3 && row>=2 && (a=="A" || a=="LEFT" || a=="RIGHT")) {
+        auto next=store.data;
+        if(row==4) {
+          const std::vector<int> values{0,1,2,5,10,15};
+          auto index=std::find(values.begin(),values.end(),next.value("idle_screen_minutes",5))-values.begin();
+          next["idle_screen_minutes"]=values[(index+(a=="LEFT"?5:1))%values.size()];
+        } else {
+          std::string key=row==2?"autosave_enabled":row==3?"startup_resume":"battery_warning";
+          next[key]=a=="A"?!next.value(key,true):a=="RIGHT";
+        }
+        if(next!=store.data)persist(next);
         notice.clear();
       }
       if (a == "A" && category == 5) { screen = row == 0 ? Screen::Wifi : Screen::Bluetooth; row = 0; scroll = 0; wifiPollAt = 0; btPollAt = 0; }
@@ -664,6 +736,11 @@ void App::action(const std::string &a) {
         } else
           applyZone(l[row].id);
       }
+    } else if(screen==Screen::StartupResume) {
+      if(a=="UP")row=0;
+      if(a=="DOWN")row=1;
+      if(a=="B" || (a=="A" && row==1)) {screen=Screen::Library;row=0;}
+      else if(a=="A" && row==0) {resume=true;screen=Screen::Launching;launch=true;}
     } else if (screen == Screen::ResumeChoice) {
       if (a == "UP")
         row = 0;
@@ -709,6 +786,7 @@ void App::action(const std::string &a) {
       }
       if (a == "A" && chosen == 4) {
         screen = Screen::ExitConfirm;
+        autosaveError.clear();
         row = 0;
       }
     } else if (screen == Screen::GameSettings) {
@@ -719,12 +797,15 @@ void App::action(const std::string &a) {
       if (a == "A" || a == "LEFT" || a == "RIGHT") {
         scalingLastError.clear();
         auto next = store.data;
-        bool current = next["game_options"].contains(game.id) && next["game_options"][game.id].value("integer_scaling", false);
-        bool desired = a == "LEFT" ? false : a == "RIGHT" ? true : !current;
-        if (current != desired) {
-          next["game_options"][game.id]["integer_scaling"] = desired;
-          persist(next);
-        }
+        auto &options = next["game_options"];
+        int current = !options.contains(game.id) || !options[game.id].contains("integer_scaling")
+            ? 0 : options[game.id]["integer_scaling"].get<bool>() ? 1 : 2;
+        int desired = (current + (a == "LEFT" ? 2 : 1)) % 3;
+        if (desired == 0) {
+          options[game.id].erase("integer_scaling");
+          if (options[game.id].empty()) options.erase(game.id);
+        } else options[game.id]["integer_scaling"] = desired == 1;
+        persist(next);
       }
     } else if (screen == Screen::SaveSlots || screen == Screen::LoadSlots) {
       if (a == "UP")
@@ -771,9 +852,9 @@ void App::action(const std::string &a) {
       if (a == "UP")
         row = 0;
       if (a == "DOWN")
-        row = 1;
+        row = screen==Screen::ExitConfirm && !autosaveError.empty()?std::min(2,row+1):1;
       auto origin = screen;
-      bool confirmed = a == "A" && row == 1;
+      bool confirmed = a == "A" && (row == 1 || (origin==Screen::ExitConfirm && row==2 && !autosaveError.empty()));
       if (a == "B" || (a == "A" && row == 0)) {
         screen = origin == Screen::Overwrite     ? Screen::SaveSlots
                  : origin == Screen::LoadConfirm ? Screen::LoadSlots
@@ -795,7 +876,7 @@ void App::action(const std::string &a) {
           notice = locale.tr("notice.loaded");
           noticeUntil = monotonicMs() + 2000;
         } else {
-          core->flushSram();
+          saveOnExit(row==2);
           stop = true;
         }
       }
@@ -813,6 +894,10 @@ void App::action(const std::string &a) {
     batterySample("operation_failed");
     if (screen == Screen::GameSettings) scalingLastError = notice;
   }
+  if(inputOrigin!=Screen::Running && screen==Screen::Running) {
+    gameInputBlocked=true;
+    if(core)core->buttons=0;
+  }
   record(a);
 }
 std::string App::infoKey() const {
@@ -828,7 +913,37 @@ std::string App::infoKey() const {
   if (category == 4) return "debug";
   if (category == 0) return row == 0 ? "language" : "boot";
   if (category == 5) return row == 0 ? "wifi" : "bluetooth";
-  return category == 1 ? "brightness" : category == 2 ? "sound" : row == 0 ? "battery" : "lid";
+  if(category==3 && row>=2)return row==2?"autosave":row==3?"startup_resume":row==4?"idle_screen":"battery_warning";
+  return category == 1 ? (row == 0 ? "brightness" : row == 1 ? "scaling" : "game_background") : category == 2 ? "sound" : row == 0 ? "battery" : "lid";
+}
+void App::rememberLaunch() {
+  auto next=store.data;
+  next["recent_games"]=recentAfterLaunch(next.at("recent_games"),game,options.volumes);
+  persist(next);
+  if (section=="Recent") { selected=0;scroll=0; }
+}
+std::string App::libraryTitle() const {
+  if (section == "All") return locale.tr("section.all_title");
+  if (section == "Favorites") return locale.tr("section.favorites_title");
+  if (section == "Recent") return locale.tr("section.recent_title");
+  static const std::map<std::string,std::vector<std::string>> aliases{
+    {"NES",{"NES"}}, {"SNES",{"SNES"}}, {"MD",{"Mega Drive","MD"}},
+    {"PSX",{"PS1"}}, {"GB",{"Game Boy","GB"}},
+    {"GBC",{"Game Boy Color","GBC"}}, {"GBA",{"Game Boy Advance","GBA"}}};
+  auto found = aliases.find(section);
+  auto names = found == aliases.end() ? std::vector<std::string>{section} : found->second;
+  for (const auto &name : names) {
+    auto title = locale.tr("section.system_title", {{"system", name}});
+    if (ui->measure(title,29,700) <= 414) return title;
+  }
+  return ui->fit(locale.tr("section.system_title",{{"system",names.back()}}),414,29,700);
+}
+SDL_Color App::gameBackground() const {
+  auto color = store.data.value("game_background", "black");
+  if (color == "theme") return ui->bg;
+  if (color == "charcoal") return {16,16,16,255};
+  if (color == "navy") return {10,16,24,255};
+  return {0,0,0,255};
 }
 void App::returnToSettings() {
   screen = Screen::Settings;
@@ -891,7 +1006,92 @@ void App::batterySample(const std::string &event) {
   }
   if (ok) batteryLogWarning = false;
 }
+void App::saveOnExit(bool skipAutomatic) {
+  if(!core)return;
+  if(!skipAutomatic && store.data.value("autosave_enabled",true)) {
+    auto origin=screen;
+    try {
+      if(origin!=Screen::SystemProgress) {notice.clear();screen=Screen::SavingAutomatic;draw();}
+      core->saveAutomatic();autosaveError.clear();
+    } catch(...) {screen=origin;autosaveError=locale.tr("autosave.failed");notice=autosaveError;throw;}
+  } else core->flushSram();
+}
+void App::offerStartupResume() {
+  if(!store.data.value("startup_resume",true) || !store.warning.empty())return;
+  const auto &history=store.data.at("recent_games");
+  if(history.empty())return;
+  auto id=history[0].at("id").get<std::string>();
+  auto found=std::find_if(games.begin(),games.end(),[&](const Game &candidate){return candidate.id==id && candidate.available;});
+  if(found==games.end() || found->system!="NES" || !fs::is_regular_file(found->path))return;
+  game=*found;
+  if(latestResumeSlot()>=0) {screen=Screen::StartupResume;row=0;}
+}
+void App::wakeScreen() {
+  if(!screenBlank)return;
+  if(device->canBlank())device->blank(false);
+  screenBlank=false;lastActivity=monotonicMs();
+}
+bool App::activity() {
+  auto now=monotonicMs();lastActivity=now;
+  if(now<wakeConsumeUntil)return true;
+  if(!screenBlank)return false;
+  try {wakeScreen();wakeConsumeUntil=now+150;}
+  catch(const std::exception &error) {notice=locale.tr("power.screen_error");std::cerr<<error.what()<<"\n";}
+  return true;
+}
+void App::batteryWarning(const Telemetry &telemetry,uint64_t now) {
+  if(!batteryWarningsLoaded) {
+    try {
+      auto state=readJson(options.state/"battery-warning.json");
+      if(state.at("schema")==1 && state.at("shown").is_number_integer())
+        batteryWarningMask=std::clamp(state.at("shown").get<int>(),0,3);
+    }catch(...){}
+    batteryWarningsLoaded=true;
+  }
+  auto remember=[&](int mask) {
+    batteryWarningMask=mask;
+    try {
+      auto text=Json({{"schema",1},{"shown",mask}}).dump();
+      atomicWrite(options.state/"battery-warning.json",{text.begin(),text.end()});
+    }catch(const std::exception &error) {
+      std::cerr<<"Battery warning state: "<<error.what()<<"\n";
+      batterySample("battery_warning_state_failed");
+    }
+  };
+  bool known=telemetry.capacity && *telemetry.capacity>=0 && *telemetry.capacity<=100;
+  bool charging=telemetry.batteryStatus=="Charging" || telemetry.batteryStatus=="Full";
+  if(charging) {
+    batteryWarningPercent=-1;batteryNoticeUntil=0;
+    // Only sustained, system-confirmed charging rearms warnings, not gauge jumps.
+    if(known && *telemetry.capacity>=20 && batteryWarningMask) {
+      if(!batteryChargeAt)batteryChargeAt=now;
+      if(now>=batteryChargeAt+30000)remember(0);
+    }else batteryChargeAt=0;
+    return;
+  }
+  batteryChargeAt=0;
+  if(!known || screen!=Screen::Running || !store.data.value("battery_warning",true)) {
+    batteryWarningPercent=-1;batteryNoticeUntil=0;return;
+  }
+  int mask=*telemetry.capacity<=5?3:*telemetry.capacity<=10?1:0;
+  if(mask && (batteryWarningMask&mask)!=mask) {
+    remember(batteryWarningMask|mask);
+    batteryWarningPercent=*telemetry.capacity;batteryNoticeUntil=now+3000;
+  }
+}
+void App::powerTick(uint64_t now) {
+  if(sleeping || stop)return;
+  bool menu=screen!=Screen::Running && screen!=Screen::Launching && screen!=Screen::SystemConfirm && screen!=Screen::SystemProgress && screen!=Screen::SavingAutomatic && !launch;
+  int minutes=store.data.value("idle_screen_minutes",5);
+  if(!screenBlank && menu && minutes>0 && now>=lastActivity+uint64_t(minutes)*60000) {
+    try {if(device->canBlank())device->blank(true);screenBlank=true;}
+    catch(const std::exception &error) {lastActivity=now;notice=locale.tr("power.screen_error");std::cerr<<error.what()<<"\n";}
+  }
+  if(screen!=Screen::Running || (batteryNoticeUntil && now>=batteryNoticeUntil)) {batteryWarningPercent=-1;batteryNoticeUntil=0;}
+  if(now>=powerSampleAt) {powerSampleAt=now+15000;if(device->canSleep() || brightness)batteryWarning(readTelemetry(),now);}
+}
 void App::ticks(unsigned n) {
+  if(ui)powerTick(monotonicMs());
   wifiTick();
   btTick();
   clockTick();
@@ -941,6 +1141,7 @@ void App::ticks(unsigned n) {
 }
 void App::sleep() {
   if (sleeping) return;
+  try {wakeScreen();}catch(...){notice=locale.tr("power.screen_error");return;}
   if (!device->canSleep()) { notice=locale.tr("sleep.unsupported");return; }
   sleeping=true;
   clockSleep();
@@ -960,10 +1161,11 @@ void App::sleep() {
       ui->handheldKeys=std::make_unique<H700Keys>();ui->volumeKeys=std::make_unique<VolumeKeys>();
       ui->powerKeys=std::make_unique<PowerKeys>();SDL_FlushEvents(SDL_FIRSTEVENT,SDL_LASTEVENT);
     }
-    if(core) { core->openAudio();core->paused=wasPaused; }
+    if(core) { core->openAudio();core->paused=wasPaused;gameInputBlocked=true; }
     lastLidOpen=device->lidOpen();lidCheckAt=monotonicMs()+300;
     batterySample("sleep_after");
     btResume();
+    lastActivity=monotonicMs();
     notice.clear();record("sleep:resumed");
   } catch (const std::exception &e) {
     batterySample("sleep_failed");
@@ -1017,6 +1219,7 @@ void App::draw() {
       {"percentage_visible", false}, {"source_percent", nullptr},
       {"displayed_percent", nullptr}, {"label", nullptr},
       {"rendered_monotonic_ms", nullptr}, {"submitted_monotonic_ms", nullptr}};
+  if(screenBlank) {ui->rect(0,0,720,480,{0,0,0,255});ui->present();batterySample();return;}
   ui->wifiOverride.reset();
   if (wifi.available && wifi.ready) {
     Telemetry confirmed;
@@ -1030,16 +1233,20 @@ void App::draw() {
   auto tr = [this](auto key) { return locale.tr(key); };
   auto zone = store.data.value("timezone", "Etc/UTC");
   if (screen == Screen::Running) {
-    ui->rect(0, 0, 720, 480, ui->bg);
+    ui->rect(0, 0, 720, 480, gameBackground());
     int w = 720, h = 480;
-    if (store.data["game_options"].contains(game.id) &&
-        store.data["game_options"][game.id].value("integer_scaling", false)) {
+    if (store.integerScaling(game.id)) {
       int scale = std::max(1, std::min(720 / core->width, 480 / core->height));
       w = core->width * scale;
       h = core->height * scale;
     }
     ui->pixels(core->frame, core->width, core->height, (720 - w) / 2, (480 - h) / 2, w, h);
     if (!notice.empty()) ui->notice(notice,"folder");
+    if(batteryWarningPercent>=0 && monotonicMs()<batteryNoticeUntil && store.data.value("battery_warning",true)) {
+      ui->rect(584,24,112,40,ui->focus,8);
+      ui->icon("battery",596,32,24);
+      ui->text(std::to_string(batteryWarningPercent)+"%",630,30,22,500,ui->cream,56);
+    }
     ui->volumeOverlay(volumeFeedback, locale, !notice.empty());
     ui->present();
     batterySample();
@@ -1047,15 +1254,15 @@ void App::draw() {
   }
   if (screen == Screen::Library) {
     auto v = visible();
-    ui->frame(section == "Favorites" ? tr("screen.favorites") : tr("screen.library"), "", zone);
+    ui->frame(libraryTitle(), "", zone);
     int x = 24;
     for (auto &s : sections) {
       std::string label = s == "All" ? tr("section.all") : s;
-      int w = s == "Favorites" ? 22 : ui->measure(label, 19, s == section ? 700 : 500);
+      int w = s == "Favorites" || s == "Recent" ? 22 : ui->measure(label, 19, s == section ? 700 : 500);
       if (x + w > 680)
         break;
-      if (s == "Favorites")
-        ui->icon("star-filled", x, 86, 22);
+      if (s == "Favorites" || s == "Recent")
+        ui->icon(s == "Favorites" ? "star-filled" : "clock", x, 86, 22);
       else
         ui->text(label, x, 85, 19, s == section ? 700 : 500);
       if (s == section)
@@ -1064,10 +1271,10 @@ void App::draw() {
     }
     if(!searchQuery.empty())ui->text(locale.tr("search.filter",{{"query",searchQuery}}),x,85,19,500,ui->secondary,std::max(1,672-x));
     if (v.empty()) {
-      ui->text(tr(!searchQuery.empty()?"search.empty":section == "Favorites" ? "empty.favorites" : "empty.library"), 32, 182, 27, 700);
+      ui->text(tr(!searchQuery.empty()?"search.empty":section == "Favorites" ? "empty.favorites" : section == "Recent" ? "empty.recent" : "empty.library"), 32, 182, 27, 700);
       ui->text(!searchQuery.empty()?tr("search.empty_help"):section == "Favorites"
                    ? locale.tr("empty.favorites_help", {{"button", ui->buttonLabel("X")}})
-                   : tr("empty.library_help"), 32, 224,
+                   : tr(section == "Recent" ? "empty.recent_help" : "empty.library_help"), 32, 224,
                17, 500, ui->secondary);
       ui->hints({{"MENU",tr("search.title")},{searchQuery.empty()?"Y":"B",tr(searchQuery.empty()?"screen.settings":"search.clear")},{"L1/R1",tr("action.section")}});
     } else {
@@ -1089,7 +1296,7 @@ void App::draw() {
         int h = i == size_t(selected) && longRow ? 78 : 52;
         if (y + h > 128 && y < 408) {
           bool fav = std::find(favs.begin(), favs.end(), games[v[i]].id) != favs.end();
-          ui->row(games[v[i]].title, y, i == size_t(selected), 452, "", true, h,
+          ui->row(games[v[i]].title, y, i == size_t(selected), 452, "", games[v[i]].available, h,
                   i == size_t(selected) ? (fav ? "star-filled" : "star") : fav ? "star" : "");
         }
         y += h + 2;
@@ -1098,10 +1305,10 @@ void App::draw() {
       ui->rect(16, 408, 452, 24, ui->bg);
       ui->scrollbar(content, viewport, scroll, true);
       auto path = g.path.parent_path() / (artwork + ".png");
-      if (!ui->image(path, 492, 140, 204, 204, artwork == "cover")) {
+      if (!g.available || !ui->image(path, 492, 140, 204, 204, artwork == "cover")) {
         ui->rect(492, 140, 204, 204, ui->focus, 9);
         ui->icon("folder", 578, 193, 32);
-        ui->text(tr(artwork == "cover"   ? "art.missing_cover"
+        ui->text(tr(!g.available ? "recent.unavailable_short" : artwork == "cover"   ? "art.missing_cover"
                     : artwork == "title" ? "art.missing_title"
                                          : "art.missing_gameplay"),
                  504, 244, 17, 500, ui->secondary, 180);
@@ -1119,10 +1326,12 @@ void App::draw() {
       ui->text(label, 594 - ui->measure(label, 18) / 2, 372, 18);
       auto source = g.system + " · " + g.volume;
       ui->text(source,594-ui->measure(source,17)/2,399,17,500,ui->secondary,204);
-      ui->hints({{"A", tr("action.play")},
-                 {"X", tr("screen.favorites")},
-                 {"MENU",tr("search.title")},
-                 {searchQuery.empty()?"Y":"B",tr(searchQuery.empty()?"screen.settings":"search.clear")}});
+      std::vector<std::pair<std::string,std::string>> hints;
+      if (g.available) hints.push_back({"A",tr("action.play")});
+      hints.push_back({"X",tr("screen.favorites")});
+      hints.push_back({"MENU",tr("search.title")});
+      hints.push_back({searchQuery.empty()?"Y":"B",tr(searchQuery.empty()?"screen.settings":"search.clear")});
+      ui->hints(hints);
     }
   } else if(screen==Screen::Search) {
     searchDraw();
@@ -1172,11 +1381,34 @@ void App::draw() {
       ui->row(tr("debug.level"),182,row==1,672,tr("debug."+store.data.value("debug_level","events")),enabled);
       ui->row(tr("debug.clear"),236,row==2,672,"",true,52,"chevron-right");
     } else if (category == 3) {
-      ui->binaryRow(tr("setting.battery_percent"),128,row==0,store.data.value("show_battery_percent",true),locale);
-      ui->binaryRow(tr("setting.lid_sleep"),182,row==1,store.data.value("lid_sleep",true),locale,device->canSleep());
+      const int top=128,viewport=284,content=322;
+      if(row*54<powerScroll)powerScroll=row*54;
+      if(row*54+52>powerScroll+viewport)powerScroll=row*54+52-viewport;
+      powerScroll=std::clamp(powerScroll,0.0,double(content-viewport));
+      SDL_Rect clip{16,top,688,viewport};SDL_RenderSetClipRect(ui->renderer,&clip);
+      const std::vector<std::string> keys{"show_battery_percent","lid_sleep","autosave_enabled","startup_resume","idle_screen_minutes","battery_warning"};
+      const std::vector<std::string> labels{"setting.battery_percent","setting.lid_sleep","setting.autosave","setting.startup_resume","setting.idle_screen","setting.battery_warning"};
+      for(int i=0;i<6;++i) {
+        int y=top+i*54-int(powerScroll);
+        if(i==4) {
+          int minutes=store.data.value(keys[i],5);
+          ui->row(tr(labels[i]),y,row==i,672,minutes?locale.tr("power.minutes",{{"minutes",minutes}}):tr("value.off"));
+        } else ui->binaryRow(tr(labels[i]),y,row==i,store.data.value(keys[i],true),locale,i!=1 || device->canSleep());
+      }
+      SDL_RenderSetClipRect(ui->renderer,nullptr);
+      ui->rect(16,412,688,20,ui->bg);
+      ui->scrollbar(content,viewport,powerScroll,false,128,412);
     } else if (category == 5) {
       ui->row("Wi-Fi",128,row==0,672,"",true,52,"chevron-right");
       ui->row("Bluetooth",182,row==1,672,"",true,52,"chevron-right");
+    } else if (category == 1) {
+      ui->row(tr("setting.brightness"),128,row==0,672,brightness ? std::to_string(*brightness)+"%" : "—",brightness.has_value());
+      ui->binaryRow(tr("setting.integer_scaling"),182,row==1,store.data.value("integer_scaling",false),locale);
+      ui->row(tr("setting.game_background"),236,row==2);
+      auto backgroundName=tr("background."+store.data.value("game_background","black"));
+      ui->text(backgroundName,640-ui->measure(backgroundName,23),248,23);
+      ui->circle(656,250,24,ui->secondary,true);
+      ui->circle(658,252,20,gameBackground(),true);
     } else {
       bool supported = category == 2 || brightness.has_value();
       std::string value = category == 2 ? std::to_string(previewVolume)+"%" : brightness ? std::to_string(*brightness)+"%" : "—";
@@ -1187,15 +1419,20 @@ void App::draw() {
     if (opens) hints.push_back({"A",tr("action.open")});
     else {
       hints.push_back({"LEFT/RIGHT",tr("footer.value")});
-      if (category == 0 || category == 3 || (category == 4 && row == 0))
+      if (category == 0 || (category == 3 && row!=4) || (category == 1 && row == 1) || (category == 4 && row == 0))
         hints.push_back({"A",tr("footer.toggle")});
     }
     hints.push_back({"B",tr("action.back")});
     hints.push_back({"X",tr("footer.info")});
     const bool disabled = (category == 0 && row == 1 && (!bootLogoSupported() || bootPending() || !bootAcknowledged)) ||
-      (category == 1 && !brightness) || (category == 3 && row == 1 && !device->canSleep()) ||
+      (category == 1 && row == 0 && !brightness) || (category == 3 && row == 1 && !device->canSleep()) ||
       (category == 4 && row == 1 && !store.data.value("debug_enabled",false));
     ui->hints(hints,disabled);
+  } else if (screen == Screen::SystemProgress || screen==Screen::SavingAutomatic) {
+    ui->rect(0,0,720,480,ui->bg);
+    ui->icon(screen==Screen::SavingAutomatic?"save":restartRequested ? "rotate-cw" : "power",328,142,64);
+    auto title = tr(screen==Screen::SavingAutomatic?"autosave.progress":restartRequested ? "power.restarting" : "power.shutting_down");
+    ui->text(title,(720-ui->measure(title,29,700))/2,242,29,700);
   } else if (screen == Screen::SystemConfirm) {
     ui->frame(tr(restartRequested?"power.restart":"power.shutdown"),tr("screen.settings"),zone);
     ui->text(tr(restartRequested?"power.restart_confirm":"power.shutdown_confirm"),32,128,23,500,ui->cream,656);
@@ -1263,11 +1500,12 @@ void App::draw() {
     ui->hints({{"A", tr("action.select")}, {"B", tr("action.resume")}});
   } else if (screen == Screen::GameSettings) {
     ui->frame(tr("screen.game_settings"), tr("scope.game"), zone);
-    bool scaling = false;
-    if (store.data["game_options"].contains(game.id))
-      scaling = store.data["game_options"][game.id].value("integer_scaling", false);
-    ui->binaryRow(tr("setting.integer_scaling"), 128, true, scaling, locale);
-    ui->hints({{"A", tr("footer.toggle")}, {"B", tr("action.back")}, {"LEFT/RIGHT", tr("footer.value")}, {"X", tr("footer.info")}});
+    const auto &options = store.data.at("game_options");
+    bool inherited = !options.contains(game.id) || !options.at(game.id).contains("integer_scaling");
+    auto effective = tr(store.integerScaling(game.id)?"value.on":"value.off");
+    auto value = inherited ? locale.tr("value.global_state",{{"value",effective}}) : effective;
+    ui->row(tr("setting.integer_scaling"),128,true,672,value);
+    ui->hints({{"LEFT/RIGHT", tr("footer.value")}, {"B", tr("action.back")}, {"X", tr("footer.info")}});
   } else if (screen == Screen::SaveSlots || screen == Screen::LoadSlots) {
     ui->frame(tr(screen == Screen::SaveSlots ? "screen.save_slots" : "screen.load_slots"),
               game.title, zone);
@@ -1290,6 +1528,11 @@ void App::draw() {
     if (view.present) hints.push_back({"Y",tr("action.delete")});
     hints.push_back({"X",tr("footer.info")});
     ui->hints(hints,screen==Screen::LoadSlots && !view.compatible);
+  } else if(screen==Screen::StartupResume) {
+    ui->frame(tr("startup.title"),game.title,zone);
+    ui->row(tr("action.resume"),160,row==0);
+    ui->row(tr("startup.library"),214,row==1);
+    ui->hints({{"A",tr("action.select")},{"B",tr("startup.library")}});
   } else if (screen == Screen::ResumeChoice || screen == Screen::Overwrite || screen == Screen::DeleteSlot ||
              screen == Screen::LoadConfirm || screen == Screen::ExitConfirm) {
     std::string title = tr(screen == Screen::DeleteSlot ? "slot.delete_confirm" : screen == Screen::ResumeChoice  ? "resume.title"
@@ -1311,7 +1554,8 @@ void App::draw() {
       { std::istringstream lines(tr("slot.delete_body"));std::string line;int y=270;
         while(std::getline(lines,line)){ui->text(line,32,y,22,400,ui->secondary,656);y+=34;} }
     if (screen == Screen::ExitConfirm)
-      ui->text(tr("exit.warning"), 32, 136, 22, 400, ui->secondary,656);
+      ui->text(autosaveError.empty()?tr(store.data.value("autosave_enabled",true)?"exit.autosave":"exit.warning"):tr("autosave.failed"),32,136,22,400,ui->secondary,656);
+    if(screen==Screen::ExitConfirm && !autosaveError.empty())ui->row(tr("autosave.skip"),312,row==2);
     ui->hints({{"A", tr("action.select")}, {"B", tr("action.back")}});
   } else {
     ui->frame(tr(screen == Screen::Launching ? "progress.launch" : "screen.recovery"), game.title,

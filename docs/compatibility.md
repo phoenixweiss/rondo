@@ -36,3 +36,8 @@ The initial 0.0.1 preview is published. For the network/time release, the owner 
 | Test media | Dedicated 8 GB card passed full F3 write/read; identify it again before any separately authorized write |
 | Publication | Verify the exact annotated tag, branch ancestry, hosted CI, public Release and downloaded asset hashes |
 | Other cores/devices | Separate integration, license audit and hardware checks; no additional support claim |
+
+The 0.4.0 sprint (Recent games, automatic exit saves/startup continuation, display
+preferences, menu blanking and corner feedback) was accepted by the owner on
+RG34XXSP before the final color-sample and input-release fixes. Those two fixes
+have native and isolated BaseOS coverage; physical recheck is still pending.

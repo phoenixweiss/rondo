@@ -218,15 +218,15 @@
       },
       {
         "action": "RIGHT",
-        "assert_integer_scaling": true
-      },
-      {
-        "action": "LEFT",
         "assert_integer_scaling": false
       },
       {
-        "action": "A",
+        "action": "LEFT",
         "assert_integer_scaling": true
+      },
+      {
+        "action": "A",
+        "assert_integer_scaling": false
       },
       {
         "action": "A",

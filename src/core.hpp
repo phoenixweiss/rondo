@@ -50,6 +50,15 @@ public:
   void closeAudio();
   void openAudio();
   bool canSave() const;
+  void saveAutomatic();
+  void loadAutomatic();
+  bool compatibleAutomatic() const;
+private:
+  void saveTo(const fs::path &, bool flush);
+  void loadFrom(const fs::path &);
+  bool compatibleFile(const fs::path &) const;
+  fs::path automaticPath() const;
+public:
   void save(int slot);
   void deleteSlot(int slot);
   void loadState(int slot);

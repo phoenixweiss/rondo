@@ -32,6 +32,13 @@ A personal frontend project for the Anbernic RG34XXSP. I enjoy using this handhe
 - H700 Wi-Fi controls, separate network discovery, saved-network reconnect, IP and signal status.
 - Automatic/on-demand network time and offline date/time editing, with verified system/UTC hardware-clock writes.
 
+Recent games keep the last 20 successful starts. A separate automatic exit save
+preserves manual slots and offers continuation on startup. Display settings include
+global integer scaling, per-game overrides and selectable game borders with a color
+sample. Menu screen timeout and quiet in-game battery warnings are configurable.
+See [automatic saves](docs/autosave.md), [display settings](docs/display.md) and
+[power behavior](docs/power.md).
+
 ## Development
 
 Requires a C++17 compiler, make, pkg-config, SDL2, SDL2_ttf and Python 3.11+.

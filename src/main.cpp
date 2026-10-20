@@ -138,7 +138,7 @@ static void held(App &a) {
   put(RETRO_DEVICE_ID_JOYPAD_LEFT, raw.pressed("LEFT"));
   put(RETRO_DEVICE_ID_JOYPAD_RIGHT, raw.pressed("RIGHT"));
   mask |= a.ui->controllerButtons();
-  a.core->buttons = mask;
+  a.core->buttons = a.gameButtons(mask);
 }
 static void events(App &a) {
   for (auto &action:a.ui->powerKeys->poll()) a.action(action);
@@ -150,6 +150,10 @@ static void events(App &a) {
     a.action(action);
   SDL_Event e;
   while (SDL_PollEvent(&e)) {
+    if(a.screenBlank && (e.type==SDL_KEYDOWN || e.type==SDL_TEXTINPUT || e.type==SDL_CONTROLLERBUTTONDOWN || e.type==SDL_JOYBUTTONDOWN)) {
+      a.activity();SDL_FlushEvents(SDL_KEYDOWN,SDL_TEXTINPUT);continue;
+    }
+    if(e.type==SDL_TEXTINPUT && a.activity())continue;
     if(e.type==SDL_CONTROLLERDEVICEADDED || e.type==SDL_CONTROLLERDEVICEREMOVED ||
        e.type==SDL_CONTROLLERDEVICEREMAPPED || e.type==SDL_JOYDEVICEADDED || e.type==SDL_JOYDEVICEREMOVED)
       a.ui->refreshControllers();
@@ -304,7 +308,8 @@ static Json supervise(App &a, const Json &runnerScript) {
   posix_spawn_file_actions_destroy(&actions);
   close(channel[1]);
   Json result;
-  std::string failure;
+  std::string failure, historyWarning;
+  bool runnerReady=false;
   if (error) {
     close(channel[0]);
     failure = "Runner spawn failed";
@@ -321,8 +326,17 @@ static Json supervise(App &a, const Json &runnerScript) {
         if (!available) continue;
         auto reply = receive(channel[0]);
         auto type = reply.value("type", "");
-        if (type == "ready")
+        if (type == "ready") {
+          if (!runnerReady) {
+            runnerReady=true;
+            try { a.rememberLaunch(); }
+            catch (const std::exception &e) {
+              historyWarning=a.locale.tr("recent.write_failed");
+              std::cerr << "Recent history: " << e.what() << "\n";
+            }
+          }
           a.record("runner_ready");
+        }
         else if (type == "settings") {
           try {
             auto next = a.store.data;
@@ -363,10 +377,13 @@ static Json supervise(App &a, const Json &runnerScript) {
       failure = "Runner failed; unsaved progress may be lost";
   }
   a.ui = std::make_unique<UI>(a.options.assets, a.options.headless);
+  // Time spent in the runner is not idle time in the library.
+  a.lastActivity=monotonicMs();
+  a.batteryWarningsLoaded=false;
   a.slotCache.clear();
   a.launch = false;
   a.screen = failure.empty() ? Screen::Library : Screen::Recovery;
-  a.notice = failure;
+  a.notice = failure.empty() ? historyWarning : failure;
   a.record(failure.empty() ? "runner_released" : "runner_failure");
   return result;
 }
@@ -485,8 +502,8 @@ int main(int argc, char **argv) {
         if (latest < 0)
           throw std::runtime_error("Resume state unavailable");
         app.slot = latest;
-        app.core->loadState(latest);
-        app.record("resumed_slot:" + std::to_string(latest));
+        if(latest==3)app.core->loadAutomatic();else app.core->loadState(latest);
+        app.record(latest==3?"resumed_auto":"resumed_slot:"+std::to_string(latest));
       }
       app.ticks(1);
       message(fd, {{"type", "ready"}});
@@ -498,8 +515,7 @@ int main(int argc, char **argv) {
           (app.core && app.core->volume != app.previewVolume)))
         throw std::runtime_error("Live volume mismatch");
       if (c.contains("assert_integer_scaling")) {
-        bool scaling = app.store.data["game_options"].contains(app.game.id) &&
-                       app.store.data["game_options"][app.game.id].value("integer_scaling", false);
+        bool scaling = app.store.integerScaling(app.game.id);
         if (scaling != c.at("assert_integer_scaling").get<bool>())
           throw std::runtime_error("Integer scaling acknowledgement mismatch");
       }

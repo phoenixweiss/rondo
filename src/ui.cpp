@@ -716,7 +716,7 @@ void UI::scrollbar(double content, double viewport, double offset, bool library,
   rect(x, top, 3, bottom - top, separator, 1);
   rect(x, top + int(s.position), 3, int(s.thumb), secondary, 1);
 }
-void UI::volumeOverlay(VolumeFeedback &feedback, const Locale &locale, bool systemNotice) {
+void UI::volumeOverlay(VolumeFeedback &feedback, const Locale &locale, bool /*systemNotice*/) {
   feedback.timeout(monotonicMs());
   if (!feedback.visible(monotonicMs()))
     return;
@@ -724,10 +724,9 @@ void UI::volumeOverlay(VolumeFeedback &feedback, const Locale &locale, bool syst
   auto panel = spec["panel"], ico = spec["icon"], track = spec["track"];
   int x = panel["x"], y = panel["y"], w = panel["width"], h = panel["height"],
       radius = panel["radius"];
-  int dy = systemNotice ? spec["priority"]["secondary_volume_y"].get<int>() - y : 0;
+  int dy = 0; // Corner overlay stays above system notices.
   y += dy;
-  rect(x, y, w, h, separator, radius);
-  rect(x + 1, y + 1, w - 2, h - 2, focus, radius - 1);
+  rect(x, y, w, h, focus, radius);
   bool error = feedback.phase == "error", unavailable = feedback.phase == "unavailable";
   bool known = feedback.confirmed.has_value() && !error && !unavailable && feedback.phase != "unknown";
   bool muted = known && *feedback.confirmed == 0;
@@ -742,12 +741,11 @@ void UI::volumeOverlay(VolumeFeedback &feedback, const Locale &locale, bool syst
   } else {
     int tx = track["x"], ty = track["y"].get<int>() + dy, tw = track["width"], th = track["height"],
         tr = track["radius"];
-    // Keep an outlined empty track distinct from an unknown reading.
-    rect(tx, ty, tw, th, secondary, tr);
-    rect(tx + 1, ty + 1, tw - 2, th - 2, separator, tr - 1);
-    int fill = (tw - 2) * std::clamp(*feedback.confirmed, 0, 100) / 100;
+    // Zero keeps an empty track; unavailable readings use the state word.
+    rect(tx, ty, tw, th, separator, tr);
+    int fill = tw * std::clamp(*feedback.confirmed, 0, 100) / 100;
     if (fill > 0)
-      rect(tx + 1, ty + 1, fill, th - 2, accent, std::min(tr - 1, fill / 2));
+      rect(tx, ty, fill, th, cream, std::min(tr, fill / 2));
   }
 }
 void UI::present() {

@@ -17,6 +17,8 @@ enum class Screen {
   SettingsSection,
   LogClear,
   SystemConfirm,
+  SystemProgress,
+  SavingAutomatic,
   Clock,
   ClockEdit,
   Bluetooth,
@@ -31,6 +33,7 @@ enum class Screen {
   Regions,
   Zones,
   ResumeChoice,
+  StartupResume,
   Launching,
   Running,
   GameMenu,
@@ -65,6 +68,20 @@ public:
   std::optional<bool> lastLidOpen = true;
   uint64_t lidCheckAt = 0;
   bool sleeping = false;
+  bool gameInputBlocked=true;
+  uint16_t gameButtons(uint16_t);
+  bool screenBlank=false, batteryWarningsLoaded=false;
+  uint64_t wakeConsumeUntil=0, lastActivity=0, powerSampleAt=0, batteryChargeAt=0;
+  uint64_t batteryNoticeUntil=0;
+  int batteryWarningMask=0, batteryWarningPercent=-1;
+  std::string autosaveError;
+  double powerScroll=0;
+  bool activity();
+  void wakeScreen();
+  void powerTick(uint64_t);
+  void batteryWarning(const Telemetry &,uint64_t);
+  void saveOnExit(bool skipAutomatic=false);
+  void offerStartupResume();
   std::unique_ptr<BatteryLog> batteryLog;
   bool batteryLogWarning = false;
   bool diagnosticRunner = false;
@@ -93,6 +110,9 @@ public:
   int settingsFocus = 0;
   double settingsScroll = 0;
   void returnToSettings();
+  std::string libraryTitle() const;
+  void rememberLaunch();
+  SDL_Color gameBackground() const;
   int previewVolume = 80;
   void applyVolume(int);
   bool changeVolume(int);

@@ -30,6 +30,14 @@ int main(int argc, char **argv) {
     assert(c.stateHash() != hash);
     c.loadState(0);
     assert(c.stateHash() == hash);
+    auto manual=readBytes(state/"slot-0.json");
+    c.saveAutomatic();assert(c.compatibleAutomatic());auto automaticHash=c.stateHash();
+    for(int i=0;i<12;++i)c.tick();c.loadAutomatic();assert(c.stateHash()==automaticHash);
+    for(int i=0;i<12;++i)c.tick();c.saveAutomatic();
+    assert(readBytes(state/"slot-0.json")==manual && fs::exists(state/"autosave.json.previous"));
+    atomicWrite(state/"autosave.json",{'b','a','d'});assert(c.compatibleAutomatic());
+    c.loadAutomatic();assert(c.stateHash()==automaticHash);
+    c.saveAutomatic();assert(c.compatibleAutomatic());
     c.flushSram();
     persisted = readBytes(state / "sram.bin")[0];
     assert(persisted != 0);

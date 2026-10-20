@@ -8,11 +8,11 @@ The module and build sources remain packaged for research; they are inactive. Wa
 
 ## Settings and retained experimental design
 
-Settings → Power shows Battery percentage and Sleep on lid close (`lid_sleep`). Left/Right sets Off/On, A toggles, and Info explains the behavior. Wake on lid open is hidden until the device wake contract is supported and tested. The stored `wake_on_lid_open` key remains compatible with older configurations; hiding the control does not enable an unavailable capability or change existing preferences. The supervised NES runner uses the same settings authority.
+Settings → Power shows Battery percentage, Sleep on lid close (`lid_sleep`), Automatic save, Continue on startup, Screen off in menus and Battery warnings. The list scrolls while retaining focus. Left/Right sets Off/On, A toggles, and Info explains the behavior. Wake on lid open is hidden until the device wake contract is supported and tested. The stored `wake_on_lid_open` key remains compatible with older configurations; hiding the control does not enable an unavailable capability or change existing preferences. The supervised NES runner uses the same settings authority.
 
 Closing only triggers sleep when Sleep on lid close is On. Opening wakes only when Wake on lid open is On and the exact-kernel adapter is available. An already open lid is not an opening transition, so it does not immediately cancel sleep requested by Power. Power remains the fallback wake source. With close-to-sleep enabled, a closed device re-suspends after an accidental Power wake, preserving the existing closed-lid policy. With close-to-sleep disabled, the adapter distinguishes a closing wake edge from a fresh Power release before accepting a closed-lid wake.
 
-Before suspend the game pauses, input is cleared, SRAM is flushed, audio closes and mixer/display state is preserved. SRAM failure aborts suspend. After resume the previous pause state, display, mixer, input and audio are restored; failure leaves the game paused with a visible error. This does not add shutdown autosaves or change slot data.
+Before suspend the game pauses, input is cleared, SRAM is flushed, audio closes and mixer/display state is preserved. SRAM failure aborts suspend. After resume the previous pause state, display, mixer, input and audio are restored; failure leaves the game paused with a visible error. Suspend does not create an automatic state or change manual slots; see [Automatic saves](autosave.md) for orderly game exits.
 
 ## Kernel contract
 
@@ -35,7 +35,7 @@ Any future experiment requires physical acceptance: lid cycles in the library an
 
 The root Settings list ends with Restart and Shut down, separated from the
 seven settings sections. Each section and system action has a Lucide icon.
-Power retains the battery percentage and lid sleep options. Both open a confirmation with Cancel selected; B also cancels. Only
+Both system actions open a confirmation with Cancel selected; B also cancels. Only
 an explicit confirmation terminates Rondo. The process finishes its settings,
 SRAM and diagnostic lifecycle before the H700 launcher receives exit code 64
 (shutdown) or 65 (restart). The launcher runs `sync` and then `/usr/sbin/baseos-poweroff`
@@ -50,5 +50,36 @@ RAM launcher log. Desktop runs only exit the app and cannot shut down the host.
 Wait for the console to turn off completely before removing its SD card.
 Sleep retains the old process and filesystem caches; never update a card while
 the console is asleep. This menu does not change the physical Power-button
-handler or implement automatic save-state slots. Physical H700 acceptance of
+handler. Automatic state writes occur on orderly game exits, not on forced Power holds. Physical H700 acceptance of
 shutdown/restart and FAT preservation is required separately from native tests.
+
+After explicit confirmation the frontend submits a large icon and localized
+Shutting down / Restarting state before SRAM flushing and teardown, without an
+artificial delay. Further actions are ignored once the request is committed. A
+failed SRAM flush returns to the confirmation with the error and does not issue
+a power exit code. Feedback precedes the launcher operation; a launcher failure
+still uses the existing bounded error log and recovery path.
+
+## Menu screen timeout and battery warnings
+
+Screen off in menus defaults to 5 minutes; Off, 1, 2, 5, 10 and 15 minutes are
+available. It blanks the display and backlight, not the running system. Games,
+launches and committed power/save operations are excluded. The first input wakes
+the screen and is consumed; it cannot select a game or change a setting. H700
+restores the saved raw backlight level, including 254 at 100%. Desktop builds
+only black out the SDL surface. A display failure is reported without entering
+suspend. Existing lid sleep and Power wake remain independent.
+
+In-game battery warnings default to On. During gameplay, a small battery and
+percentage appear in the upper-right corner for three seconds: once at 10% or
+lower, once at 5% or lower. A first reading already below 5% produces only one
+indicator and consumes both thresholds. Menus never show this warning; no sound,
+pause, confirmation or automatic shutdown is involved. Unknown capacity remains
+in the existing opt-in diagnostic journal and produces no UI message.
+
+Thresholds already shown are stored in `battery-warning.json`, independent of
+manual saves, and shared across game changes and frontend restarts. Gauge jumps
+cannot rearm them. Only system-confirmed Charging/Full at 20% or higher for at
+least 30 seconds resets the cycle. Storage errors retain the in-memory latch and
+are diagnostic only; persistence across restarts cannot be guaranteed on failed
+storage. The vendor gauge remains unchanged.

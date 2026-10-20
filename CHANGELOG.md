@@ -2,6 +2,33 @@
 
 ## Unreleased
 
+## [0.4.0] - 2026-10-21
+
+### Library and display
+
+- Add Recent games with the last 20 acknowledged starts, stable ordering across clock changes, deduplication and disabled entries for missing media.
+- Add a global integer-scaling default and per-game Global / On / Off overrides, preserving existing choices.
+- Default game borders to black and offer Charcoal, Dark blue and Match menus, with a live color sample.
+- Use localized All games / Favorite games / {system} games headers without changing game or save identities.
+
+### Game continuity
+
+- Add a separate automatic NES exit save with a valid previous generation, preserving all three manual slots. A failed save leaves the game paused, with retry, cancel and an explicit exit-without-autosave choice.
+- Offer continuation of the last available game on startup, only after confirmation. Automatic saving and the startup offer can be disabled independently.
+- Consume held gameplay input until release after leaving menus, loading a state, starting a runner or waking from sleep, preventing confirm/back presses from becoming game actions.
+
+### Power and feedback
+
+- Show shutdown/restart progress before flushing and exiting; ignore duplicate requests.
+- Add a default five-minute menu screen timeout with first-input wake consumption and raw backlight restoration. Active games are excluded; diagnostic logging continues with the display blanked.
+- Add optional three-second in-game battery indicators at 10% and 5%, once per observed charge cycle across game changes and restarts. Menus and read failures remain silent; vendor capacity and shutdown policy are unchanged.
+- Move volume feedback to a smaller monochrome icon/bar in the upper-left corner, aligned with the upper-right game battery indicator. Preserve mute, pending and error behavior.
+
+### Verification and limitations
+
+- The main sprint was accepted on RG34XXSP. The final color sample and gameplay input-release guard have automated native and BaseOS coverage; their physical-console recheck remains pending.
+- Bluetooth remains experimental: 8BitDo Micro in D mode pairs/connects, but controller input does not work on the tested device. Battery-gauge jumps and wake-on-lid-open remain unresolved.
+
 ## [0.3.1] - 2026-10-20
 
 - Fix the 0.3.0 shutdown/restart requests to use the native BaseOS BusyBox-init wrappers instead of its no-op systemctl compatibility shim. Preserve filesystem sync and the native poweroff marker; shutdown and restart were confirmed on RG34XXSP. Bluetooth controller input remains experimental and is unchanged by this patch.

@@ -39,6 +39,18 @@ int main(int argc, char **argv) {
     }
     assert(refused && readJson(root / "future/config.json")["schema"] == 2);
 
+    // Legacy explicit values take priority; absent values inherit without a migration.
+    auto legacy = s.data;legacy.erase("integer_scaling");legacy.erase("game_background");
+    legacy["game_options"]={{"on",{{"integer_scaling",true}}},{"off",{{"integer_scaling",false}}}};
+    auto encoded=legacy.dump();atomicWrite(root/"legacy/config.json",{encoded.begin(),encoded.end()});
+    Store migrated(root/"legacy");assert(migrated.warning.empty());
+    assert(!migrated.integerScaling("new") && migrated.integerScaling("on") && !migrated.integerScaling("off"));
+    auto updated=migrated.data;updated["integer_scaling"]=true;migrated.commit(updated);
+    Store inherited(root/"legacy");assert(inherited.integerScaling("new") && !inherited.integerScaling("off"));
+    auto invalid=updated;invalid["game_background"]="invalid";
+    encoded=invalid.dump();atomicWrite(root/"legacy/config.json",{encoded.begin(),encoded.end()});
+    Store fallback(root/"legacy");assert(!fallback.warning.empty() && fallback.data["game_background"]=="black");
+
     fs::create_directories(root / "card-a/NES/Same");
     fs::create_directories(root / "card-b/NES/Same");
     atomicWrite(root / "card-a/NES/Same/test.nes", {1, 2});
@@ -56,6 +68,28 @@ int main(int argc, char **argv) {
     atomicWrite(root / "moved/NES/._playlist.m3u", {hiddenPlaylist.begin(), hiddenPlaylist.end()});
     assert(scan({{"a", root / "moved"}, {"b", root / "card-b"}}).size() == moved.size());
     assert(moved[0].id == first);
+    std::vector<Volume> recentVolumes{{"a",root/"moved"},{"b",root/"card-b"}};
+    auto history=recentAfterLaunch(Json::array(),moved[0],recentVolumes);
+    history=recentAfterLaunch(history,moved[1],recentVolumes);
+    assert(history.size()==2 && history[0]["id"]==moved[1].id);
+    history=recentAfterLaunch(history,moved[0],recentVolumes);
+    assert(history.size()==2 && history[0]["id"]==moved[0].id);
+    auto absent=recentUnavailable(history,{moved[1]});
+    assert(absent.size()==1 && absent[0].id==moved[0].id && !absent[0].available && absent[0].path.empty());
+    for(int i=0;i<30;++i) {
+      std::string rel="NES/Game"+std::to_string(i)+"/game.nes",identity="a\n"+rel;
+      Game entry{hashBytes({identity.begin(),identity.end()}),"a","NES","Game "+std::to_string(i),root/"moved"/rel};
+      history=recentAfterLaunch(history,entry,recentVolumes);
+    }
+    assert(history.size()==20 && history[0]["title"]=="Game 29" && history[19]["title"]=="Game 10");
+    auto preferences=migrated.data;preferences["recent_games"]=history;
+    migrated.commit(preferences);Store remembered(root/"legacy");assert(remembered.data["recent_games"]==history);
+    auto hostile=history;hostile[0]["relative_path"]="../../config.json";
+    preferences["recent_games"]=hostile;encoded=preferences.dump();
+    atomicWrite(root/"legacy/config.json",{encoded.begin(),encoded.end()});
+    Store sanitized(root/"legacy");assert(sanitized.warning.empty() && sanitized.data["recent_games"].size()==19);
+    assert(sanitized.data["locale"]==preferences["locale"]);
+
     fs::create_directories(root / "moved/PS/Disc");
     atomicWrite(root / "moved/PS/Disc/a.cue", {});
     atomicWrite(root / "moved/PS/Disc/b.cue", {});

@@ -5,6 +5,9 @@
 using namespace rondo;
 struct FakeDevice : DeviceControl {
   int level=60,sleeps=0;bool open=true,fail=false,wakeAvailable=true;
+  bool blanked=false,failBlank=false;int blankCalls=0;
+  bool canBlank() const override {return true;}
+  void blank(bool value) override {if(failBlank)throw std::runtime_error("Injected blank failure");blanked=value;++blankCalls;}
   std::vector<std::pair<bool,bool>> policies;
   std::function<void()> before;
   std::optional<int> brightness() override { return level; }
@@ -26,7 +29,7 @@ int main(int argc,char **argv) {
     App a(o);auto fake=std::make_unique<FakeDevice>();auto *d=fake.get();a.device=std::move(fake);a.brightness=60;
     auto group=[&](int index) { a.returnToSettings();a.settingsFocus=index;a.row=index;a.action("A"); };
     a.action("Y");group(1);a.action("RIGHT");assert(d->level==65 && a.store.data["brightness"]==65);a.capture("brightness-inline");
-    a.action("DOWN");assert(a.row==0); // Display contains brightness only.
+    a.action("DOWN");assert(a.row==1);a.action("DOWN");assert(a.row==2);a.action("UP");a.action("UP");assert(a.row==0); // Display: brightness, global scaling, background.
     a.requestSettings=[](Json){return false;};a.action("LEFT");assert(d->level==65 && a.brightness==65 && a.store.data["brightness"]==65);a.requestSettings={};
     group(5);a.action("LEFT");assert(a.row==0 && !a.store.data["show_battery_percent"].get<bool>() && d->level==65);
     a.capture("battery-percent-off");
@@ -85,8 +88,188 @@ int main(int argc,char **argv) {
         a.action("A");a.action("DOWN");a.action("B");assert(!a.stop && a.row==target);
         a.action("A");a.action("DOWN");a.action("A");
         assert(a.stop && a.systemExitCode==(target==8?64:65) && a.store.data==before);
+        assert(a.screen==Screen::SystemProgress);
+        a.capture(std::string("power-progress-")+language+std::to_string(target));
+        a.action("B");a.action("A");a.action("VOLUME_UP");a.action("SLEEP");
+        assert(a.screen==Screen::SystemProgress && a.store.data==before);
       }
     }
+  }
+  {
+    o.state=root/"display-qol";App a(o);
+    a.device=std::make_unique<FakeDevice>();a.brightness=60;
+    assert(!a.store.integerScaling("new") && a.store.data["game_background"]=="black");
+    a.store.data["game_options"]["old-on"]={{"integer_scaling",true},{"other",17}};
+    a.store.data["game_options"]["old-off"]={{"integer_scaling",false}};
+    a.screen=Screen::SettingsSection;a.category=1;a.row=1;a.action("RIGHT");
+    assert(a.store.integerScaling("new") && a.store.integerScaling("old-on") && !a.store.integerScaling("old-off"));
+    a.requestSettings=[](Json){return false;};a.action("LEFT");
+    assert(a.store.integerScaling("new"));a.requestSettings={};a.notice.clear();
+    a.row=2;a.action("RIGHT");assert(a.store.data["game_background"]=="charcoal");
+    a.action("LEFT");assert(a.store.data["game_background"]=="black");
+    Store reload(o.state);assert(reload.integerScaling("new") && !reload.integerScaling("old-off"));
+    for(const auto *language:{"en","ru"}) {
+      a.locale.select(o.assets,language);a.row=1;a.capture(std::string("display-global-")+language);
+      a.action("X");a.capture(std::string("display-global-info-")+language);a.action("B");
+      a.row=2;a.capture(std::string("display-background-")+language);
+      for(const auto *system:{"All","Favorites","NES","SNES","GB","GBC","GBA","MD","PSX"}) {
+        a.section=system;a.screen=Screen::Library;
+        auto title=a.libraryTitle();assert(a.ui->measure(title,29,700)<=414);
+        if(std::string(system)=="NES")assert(title==(std::string(language)=="ru"?"Игры для NES":"NES games"));
+        a.capture(std::string("library-title-")+system+"-"+language);
+      }
+      a.screen=Screen::SettingsSection;a.category=1;
+    }
+    // A runner reads the same persisted global default; per-game reset retains other options.
+    Game entry{"old-on","test","NES","QOL fixture",argv[4]};
+    a.ui.reset();
+    o.state=root/"display-runner";Store initial(o.state);auto config=initial.data;
+    config["integer_scaling"]=true;config["game_options"][entry.id]={{"integer_scaling",true},{"other",17}};initial.commit(config);
+    App runner(o,true,entry);runner.ticks(3);
+    assert(runner.store.integerScaling(entry.id));
+    for(const auto *language:{"en","ru"}) {
+      runner.locale.select(o.assets,language);runner.screen=Screen::GameSettings;
+      runner.capture(std::string("display-override-on-")+language);
+      runner.action("RIGHT");assert(!runner.store.integerScaling(entry.id));
+      runner.capture(std::string("display-override-off-")+language);
+      runner.action("RIGHT");assert(runner.store.integerScaling(entry.id));
+      assert(!runner.store.data["game_options"][entry.id].contains("integer_scaling"));
+      assert(runner.store.data["game_options"][entry.id]["other"]==17);
+      runner.capture(std::string("display-override-global-")+language);
+      runner.screen=Screen::Running;runner.capture(std::string("display-game-black-")+language);
+      auto *pixel=static_cast<uint32_t *>(runner.ui->surface->pixels);Uint8 r,g,b,alpha;
+      SDL_GetRGBA(pixel[0],runner.ui->surface->format,&r,&g,&b,&alpha);assert(r==0 && g==0 && b==0);
+      runner.screen=Screen::GameSettings;runner.action("RIGHT");assert(runner.store.integerScaling(entry.id));
+    }
+    auto before=runner.store.data;runner.requestSettings=[](Json){return false;};
+    runner.action("RIGHT");assert(runner.store.data==before && !runner.notice.empty());
+    // A failed SRAM flush must restore confirmation, never request system power.
+    runner.requestSettings={};auto dir=runner.store.gameDir(entry);
+    fs::rename(dir,dir.string()+".kept");std::ofstream(dir)<<"blocked";
+    runner.screen=Screen::SystemConfirm;runner.row=1;runner.restartRequested=false;
+    runner.action("A");assert(!runner.stop && runner.systemExitCode==0 && runner.screen==Screen::SystemConfirm && !runner.notice.empty());
+    fs::remove(dir);fs::rename(dir.string()+".kept",dir);
+  }
+  {
+    o.state=root/"recents";auto library=root/"recent-card";
+    fs::create_directories(library/"NES/First");fs::create_directories(library/"NES/Second");
+    fs::copy_file(argv[4],library/"NES/First/game.nes");fs::copy_file(argv[4],library/"NES/Second/game.nes");
+    o.volumes={{"recent-volume",library}};
+    { App a(o);a.section="Recent";assert(a.visible().empty());
+      for(const auto *language:{"en","ru"}) { a.locale.select(o.assets,language);a.capture(std::string("recents-empty-")+language); }
+      a.game=a.games[0];auto firstId=a.game.id;a.rememberLaunch();assert(a.visible().size()==1);
+      a.game=a.games[1];a.rememberLaunch();assert(a.visible().size()==2 && a.games[a.visible()[0]].id==a.game.id);
+      a.game=a.games[0];a.rememberLaunch();assert(a.store.data["recent_games"].size()==2 && a.games[a.visible()[0]].id==firstId);
+      const auto before=a.store.data;
+      a.requestSettings=[](Json){return false;};a.game=a.games[1];
+      bool failed=false;try{a.rememberLaunch();}catch(...){failed=true;}
+      assert(failed && a.store.data==before);a.requestSettings={};a.notice.clear();
+      for(const auto *language:{"en","ru"}) { a.locale.select(o.assets,language);a.capture(std::string("recents-list-")+language); }
+      a.screen=Screen::Library;a.selected=0;
+      a.action("A");assert(a.launch);a.launch=false; // Request is not an acknowledged launch.
+      assert(a.store.data["recent_games"]==before["recent_games"]);
+    }
+    fs::rename(library,library.string()+".away");
+    { App offline(o);offline.section="Recent";auto visible=offline.visible();assert(visible.size()==2);
+      assert(!offline.games[visible[0]].available);
+      for(const auto *language:{"en","ru"}) { offline.locale.select(o.assets,language);offline.capture(std::string("recents-missing-")+language); }
+      auto before=offline.store.data["recent_games"];offline.action("A");
+      assert(!offline.launch && offline.screen==Screen::Library && !offline.notice.empty());
+      assert(offline.store.data["recent_games"]==before);offline.notice.clear();
+      offline.action("MENU");offline.searchText("First");offline.action("SEARCH_SUBMIT");assert(offline.visible().size()==1);
+      offline.action("B");offline.section="All";assert(offline.visible().empty());
+    }
+    fs::rename(library.string()+".away",library);
+    { App online(o);online.section="Recent";assert(online.visible().size()==2 && online.games[online.visible()[0]].available); }
+    o.volumes.clear();
+  }
+  {
+    o.state=root/"background-preview";App a(o);a.screen=Screen::SettingsSection;a.category=1;a.row=2;
+    for(const auto *language:{"en","ru"})for(const auto *color:{"black","charcoal","navy","theme"}) {
+      a.locale.select(o.assets,language);a.store.data["game_background"]=color;
+      a.capture(std::string("background-swatch-")+language+"-"+color);
+    }
+  }
+  {
+    o.state=root/"power-qol";App a(o);auto fake=std::make_unique<FakeDevice>();auto *d=fake.get();a.device=std::move(fake);
+    a.screen=Screen::SettingsSection;a.category=3;a.row=0;a.lastActivity=1000;a.powerSampleAt=9999999;
+    a.powerTick(300999);assert(!a.screenBlank);a.powerTick(301000);assert(a.screenBlank && d->blanked);
+    a.store.data["debug_enabled"]=true;a.store.data["debug_level"]="detailed";
+    a.batteryLog=std::make_unique<BatteryLog>(o.state/"Logs","shell",root/"fake-sys",root/"fake-proc");
+    a.capture("menu-screen-off");assert(fs::exists(o.state/"Logs/shell.jsonl"));
+    assert(!a.ui->batteryDisplay.at("percentage_visible").get<bool>());
+    a.store.data["debug_enabled"]=false;a.batteryLog.reset();
+    a.action("A");assert(!a.screenBlank && !d->blanked && a.row==0 && a.store.data["show_battery_percent"]==true);
+    a.wakeConsumeUntil=0;a.store.data["idle_screen_minutes"]=0;a.lastActivity=0;a.powerTick(900000);assert(!a.screenBlank);
+    a.store.data["idle_screen_minutes"]=1;a.screen=Screen::Running;a.powerTick(900000);assert(!a.screenBlank);
+    a.screen=Screen::SettingsSection;a.lastActivity=0;d->failBlank=true;a.powerTick(900000);assert(!a.screenBlank && !a.notice.empty());d->failBlank=false;a.notice.clear();
+    for(const auto *language:{"en","ru"}) {
+      a.locale.select(o.assets,language);a.row=0;a.capture(std::string("power-options-top-")+language);
+      a.row=5;a.capture(std::string("power-options-bottom-")+language);assert(a.powerScroll>0);
+      a.action("X");a.capture(std::string("battery-warning-info-")+language);a.action("B");
+    }
+    Telemetry t;t.capacity=10;t.batteryStatus="Discharging";
+    a.screen=Screen::Library;a.batteryWarning(t,1000);assert(a.batteryWarningPercent<0 && a.batteryWarningMask==0);
+    a.screen=Screen::Running;a.batteryWarning(t,2000);assert(a.batteryWarningPercent==10 && a.batteryWarningMask==1 && a.batteryNoticeUntil==5000);
+    a.powerTick(5000);assert(a.batteryWarningPercent<0);
+    t.capacity=80;a.batteryWarning(t,6000);t.capacity=10;a.batteryWarning(t,7000);assert(a.batteryWarningPercent<0);
+    t.capacity=5;a.batteryWarning(t,8000);assert(a.batteryWarningPercent==5 && a.batteryWarningMask==3 && !a.stop);
+    a.screen=Screen::GameMenu;a.batteryWarning(t,9000);assert(a.batteryWarningPercent<0);
+    a.batteryWarningsLoaded=false;a.batteryWarningMask=0;a.screen=Screen::Running;
+    a.batteryWarning(t,10000);assert(a.batteryWarningMask==3 && a.batteryWarningPercent<0);
+    t.capacity=100;a.batteryWarning(t,11000);assert(a.batteryWarningMask==3);
+    t.batteryStatus="Charging";t.capacity=25;a.batteryWarning(t,12000);a.batteryWarning(t,41999);assert(a.batteryWarningMask==3);
+    a.batteryWarning(t,42000);assert(a.batteryWarningMask==0 && a.batteryWarningPercent<0);
+    t.batteryStatus="Discharging";t.capacity.reset();a.batteryWarning(t,100000);assert(a.batteryWarningPercent<0);
+    a.store.data["battery_warning"]=false;t.capacity=5;a.batteryWarning(t,110000);assert(a.batteryWarningMask==0 && a.batteryWarningPercent<0);
+    a.store.data["battery_warning"]=true;a.batteryWarning(t,120000);assert(a.batteryWarningMask==3 && a.batteryWarningPercent==5);
+
+  }
+  {
+    o.state=root/"autosave";o.volumes={{"autosave-card",root/"autosave-card"}};
+    fs::create_directories(o.volumes[0].root/"NES/Game");fs::copy_file(argv[4],o.volumes[0].root/"NES/Game/test.nes");
+    auto entry=scan(o.volumes)[0];
+    { App input(o,true,entry);
+      auto A=uint16_t(1<<RETRO_DEVICE_ID_JOYPAD_A),B=uint16_t(1<<RETRO_DEVICE_ID_JOYPAD_B);
+      assert(input.gameButtons(A)==0);assert(input.gameButtons(0)==0);assert(input.gameButtons(A)==A);
+      input.action("MENU");input.action("A");assert(input.screen==Screen::Running && !input.core->paused);
+      for(int i=0;i<10;++i)assert(input.gameButtons(A)==0);
+      assert(input.gameButtons(A|B)==0);assert(input.gameButtons(B)==0);
+      assert(input.gameButtons(0)==0);assert(input.gameButtons(A)==A);
+      input.action("MENU");input.action("B");assert(input.gameButtons(B)==0);
+      input.gameButtons(0);assert(input.gameButtons(B)==B);
+      input.core->save(0);input.screen=Screen::LoadConfirm;input.row=1;input.slot=0;input.action("A");
+      assert(input.gameButtons(A)==0);input.gameButtons(0);assert(input.gameButtons(A)==A);
+    }
+    { App preview(o,true,entry);preview.ticks(5);Telemetry low;low.capacity=10;low.batteryStatus="Discharging";
+      preview.batteryWarning(low,monotonicMs());preview.capture("battery-game-10");
+      preview.volumeFeedback.confirmed=50;preview.volumeFeedback.phase="confirmed";preview.volumeFeedback.deadline=monotonicMs()+10000;
+      preview.capture("battery-and-volume");preview.volumeFeedback.deadline=0;
+      low.capacity=5;preview.batteryWarning(low,monotonicMs());preview.capture("battery-game-5");
+      preview.screen=Screen::GameMenu;preview.capture("battery-menu-no-warning");
+    }
+    { App a(o,true,entry);a.ticks(5);a.core->save(0);auto manual=readBytes(a.store.gameDir(entry)/"slot-0.json");
+      a.screen=Screen::ExitConfirm;a.row=1;a.action("A");assert(a.stop && a.core->compatibleAutomatic());
+      assert(readBytes(a.store.gameDir(entry)/"slot-0.json")==manual && a.latestResumeSlot()==3);
+      auto config=a.store.data;config["recent_games"]=recentAfterLaunch(Json::array(),entry,o.volumes);a.store.commit(config);
+    }
+    { App startup(o);assert(startup.screen==Screen::StartupResume && !startup.launch);
+      for(const auto *language:{"en","ru"}) {startup.locale.select(o.assets,language);startup.capture(std::string("startup-resume-")+language);}
+      startup.action("B");assert(startup.screen==Screen::Library && !startup.launch);
+      startup.offerStartupResume();startup.action("A");assert(startup.launch && startup.resume);
+    }
+    { App failed(o,true,entry);failed.ticks(3);auto dir=failed.store.gameDir(entry);
+      fs::rename(dir,dir.string()+".saved");std::ofstream(dir)<<"blocked";
+      failed.screen=Screen::ExitConfirm;failed.row=1;failed.action("A");assert(!failed.stop && !failed.autosaveError.empty());
+      for(const auto *language:{"en","ru"}) {failed.locale.select(o.assets,language);failed.notice=failed.locale.tr("autosave.failed");failed.capture(std::string("autosave-error-")+language);}
+      fs::remove(dir);fs::rename(dir.string()+".saved",dir);
+      auto prior=readBytes(dir/"autosave.json");failed.action("DOWN");assert(failed.row==2);failed.action("A");
+      assert(failed.stop && readBytes(dir/"autosave.json")==prior);
+    }
+    { Store settings(o.state);auto config=settings.data;config["startup_resume"]=false;config["autosave_enabled"]=false;settings.commit(config);
+      App disabled(o);assert(disabled.screen==Screen::Library);
+    }
+    o.volumes.clear();
   }
   {
     o.state=root/"library-search";App a(o);a.games.clear();
@@ -138,7 +321,7 @@ int main(int argc,char **argv) {
     auto bad=Json{{"schema",1},{"wake_on_lid_open","true"}}.dump();
     atomicWrite(root/"invalid-lid/config.json",{bad.begin(),bad.end()});
     Store invalid(root/"invalid-lid");assert(!invalid.warning.empty() && invalid.data["wake_on_lid_open"].is_boolean());
-    d->wakeAvailable=false;a.row=1;a.action("DOWN");assert(a.row==1 && a.infoKey()=="lid" && a.store.data["wake_on_lid_open"]==true);
+    d->wakeAvailable=false;a.row=1;a.action("DOWN");assert(a.row==2 && a.infoKey()=="autosave" && a.store.data["wake_on_lid_open"]==true);a.row=1;
     a.capture("lid-adapter-unavailable");a.action("SLEEP");assert(d->policies.back()==std::make_pair(false,true));
   }
   {

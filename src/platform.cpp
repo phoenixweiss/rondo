@@ -417,6 +417,7 @@ static bool mixer(const std::string &path, const char *operation) {
 }
 class H700Device final : public DeviceControl {
   bool supported = false;
+  std::optional<int> blankLevel;
   static void brightnessLog(const std::string &message) {
     std::cerr<<"[brightness] t_ms="<<monotonicMs()<<" pid="<<getpid()<<" "<<message<<"\n";
   }
@@ -458,6 +459,26 @@ public:
     int raw=brightnessRawLevel(percent);
     brightnessLog("op=request percent="+std::to_string(percent)+" requested_raw="+std::to_string(raw));
     rawBrightness(raw);
+  }
+  bool canBlank() const override { return supported && fs::exists("/sys/class/graphics/fb0/blank"); }
+  void blank(bool enabled) override {
+    if(!canBlank())throw std::runtime_error("Screen blanking unavailable");
+    if(enabled) {
+      if(blankLevel)return;
+      int previous=rawBrightness();
+      try {
+        sysWrite("/sys/class/graphics/fb0/blank","1");
+        rawBrightness(0);
+        blankLevel=previous;
+      } catch(...) {
+        try {sysWrite("/sys/class/graphics/fb0/blank","0");rawBrightness(previous);}catch(...){}
+        throw;
+      }
+    } else if(blankLevel) {
+      sysWrite("/sys/class/graphics/fb0/blank","0");
+      rawBrightness(*blankLevel);
+      blankLevel.reset();
+    }
   }
   bool canSleep() const override { return supported && value("/sys/power/state").find("mem")!=std::string::npos && access("/sys/power/state",W_OK)==0; }
   std::optional<bool> lidOpen() override {

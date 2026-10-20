@@ -26,8 +26,11 @@ struct Volume {
 struct Game {
   std::string id, volume, system, title;
   fs::path path;
+  bool available = true;
 };
 std::vector<Game> scan(const std::vector<Volume> &);
+Json recentAfterLaunch(const Json &, const Game &, const std::vector<Volume> &);
+std::vector<Game> recentUnavailable(const Json &, const std::vector<Game> &);
 class Store {
 public:
   fs::path root;
@@ -37,6 +40,7 @@ public:
   explicit Store(fs::path);
   void commit(Json);
   fs::path gameDir(const Game &) const;
+  bool integerScaling(const std::string &gameId) const;
 };
 class Locale {
   Json source, catalog;

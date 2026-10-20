@@ -173,17 +173,75 @@ std::vector<Game> scan(const std::vector<Volume> &volumes) {
   });
   return out;
 }
+static bool validRecent(const Json &entry) {
+  if (!entry.is_object()) return false;
+  for (const auto *key : {"id","volume","relative_path","system","title"})
+    if (!entry.contains(key) || !entry.at(key).is_string() || entry.at(key).get<std::string>().empty() ||
+        entry.at(key).get<std::string>().size() > 4096) return false;
+  const auto relative = entry.at("relative_path").get<std::string>();
+  fs::path path(relative);
+  if (path.is_absolute() || path.has_root_name()) return false;
+  for (const auto &part : path) if (part == ".." || part == ".") return false;
+  auto identity = entry.at("volume").get<std::string>() + "\n" + relative;
+  return entry.at("id") == hashBytes({identity.begin(),identity.end()});
+}
+static Json cleanRecents(const Json &source) {
+  Json result=Json::array();std::set<std::string> ids;
+  if (source.is_array()) for (const auto &entry : source) {
+    if (validRecent(entry) && ids.insert(entry.at("id").get<std::string>()).second)
+      result.push_back(entry);
+    if (result.size() == 20) break;
+  }
+  return result;
+}
+Json recentAfterLaunch(const Json &history, const Game &game, const std::vector<Volume> &volumes) {
+  auto volume=std::find_if(volumes.begin(),volumes.end(),[&](const Volume &v){return v.id==game.volume;});
+  if (volume==volumes.end() || !game.available) throw std::runtime_error("Unknown recent-game volume");
+  auto relative=fs::weakly_canonical(game.path).lexically_relative(fs::weakly_canonical(volume->root)).generic_string();
+  Json entry={{"id",game.id},{"volume",game.volume},{"relative_path",relative},
+              {"system",game.system},{"title",game.title}};
+  if (!validRecent(entry)) throw std::runtime_error("Invalid recent-game identity");
+  Json next=Json::array({entry});
+  for (const auto &old:cleanRecents(history))
+    if (old.at("id")!=game.id && next.size()<20) next.push_back(old);
+  return next;
+}
+std::vector<Game> recentUnavailable(const Json &history, const std::vector<Game> &games) {
+  std::set<std::string> available;for(const auto &game:games)available.insert(game.id);
+  std::vector<Game> result;
+  for (const auto &entry:cleanRecents(history))
+    if (!available.count(entry.at("id").get<std::string>()))
+      result.push_back({entry.at("id"),entry.at("volume"),entry.at("system"),entry.at("title"),{},false});
+  return result;
+}
 static void validateConfig(const Json &candidate, const Json &defaults) {
   if (!candidate.is_object() || candidate.value("schema", 0) != 1)
     throw std::runtime_error("Unsupported configuration");
   for (const auto &key : {"revision", "locale", "artwork", "section", "focus", "timezone", "volume",
-                          "favorites", "game_options", "replace_boot_logo", "brightness", "lid_sleep", "wake_on_lid_open", "show_battery_percent", "wifi_enabled", "bluetooth_enabled", "bluetooth_device", "ntp_auto", "debug_enabled", "debug_level"})
+                          "favorites", "game_options", "replace_boot_logo", "brightness", "lid_sleep", "wake_on_lid_open", "show_battery_percent", "wifi_enabled", "bluetooth_enabled", "bluetooth_device", "ntp_auto", "debug_enabled", "debug_level", "integer_scaling", "game_background", "autosave_enabled", "startup_resume", "idle_screen_minutes", "battery_warning"})
     if (candidate.contains(key) && candidate[key].type() != defaults[key].type() &&
         !(candidate[key].is_number() && defaults[key].is_number()))
       throw std::runtime_error("Invalid configuration field");
   if (candidate.contains("debug_level") && candidate["debug_level"] != "errors" &&
       candidate["debug_level"] != "events" && candidate["debug_level"] != "detailed")
     throw std::runtime_error("Invalid diagnostic level");
+  if(candidate.contains("idle_screen_minutes")) {
+    const std::set<int> values{0,1,2,5,10,15};
+    if(!candidate.at("idle_screen_minutes").is_number_integer() ||
+       !values.count(candidate.at("idle_screen_minutes").get<int>()))
+      throw std::runtime_error("Invalid screen idle interval");
+  }
+  if (candidate.contains("game_background")) {
+    const std::set<std::string> colors{"black", "charcoal", "navy", "theme"};
+    if (!colors.count(candidate.at("game_background").get<std::string>()))
+      throw std::runtime_error("Invalid game background");
+  }
+  if (candidate.contains("game_options"))
+    for (const auto &entry : candidate.at("game_options").items()) {
+      if (!entry.value().is_object() || (entry.value().contains("integer_scaling") &&
+          !entry.value().at("integer_scaling").is_boolean()))
+        throw std::runtime_error("Invalid game display option");
+    }
 }
 Store::Store(fs::path p) : root(std::move(p)) {
   data = {{"schema", 1},
@@ -193,6 +251,12 @@ Store::Store(fs::path p) : root(std::move(p)) {
           {"debug_enabled", false},
           {"debug_level", "events"},
           {"brightness", 70},
+          {"integer_scaling", false},
+          {"game_background", "black"},
+          {"autosave_enabled", true},
+          {"startup_resume", true},
+          {"idle_screen_minutes", 5},
+          {"battery_warning", true},
           {"lid_sleep", true},
           {"wake_on_lid_open", true},
           {"show_battery_percent", true},
@@ -206,6 +270,7 @@ Store::Store(fs::path p) : root(std::move(p)) {
           {"bluetooth_enabled", false},
           {"bluetooth_device", ""},
           {"favorites", Json::array()},
+          {"recent_games", Json::array()},
           {"game_options", Json::object()}};
   auto file = root / "config.json";
   if (fs::exists(file)) {
@@ -228,6 +293,7 @@ Store::Store(fs::path p) : root(std::move(p)) {
       }
     }
   }
+  data["recent_games"] = cleanRecents(data.value("recent_games",Json::array()));
   if (data["artwork"] != "cover" && data["artwork"] != "title" && data["artwork"] != "screenshot")
     data["artwork"] = "cover";
 }
@@ -265,6 +331,12 @@ void Store::commit(Json next) {
   data = std::move(next);
 }
 fs::path Store::gameDir(const Game &g) const { return root / "games" / g.id; }
+bool Store::integerScaling(const std::string &gameId) const {
+  const auto &options = data.at("game_options");
+  if (options.contains(gameId) && options.at(gameId).contains("integer_scaling"))
+    return options.at(gameId).at("integer_scaling").get<bool>();
+  return data.value("integer_scaling", false);
+}
 Locale::Locale(const fs::path &assets) {
   registry = readJson(assets / "Locales/registry.json");
   source = readJson(assets / "Locales/en.json");

@@ -83,6 +83,8 @@ public:
   virtual ~DeviceControl() = default;
   virtual std::optional<int> brightness() { return std::nullopt; }
   virtual void brightness(int) { throw std::runtime_error("Display adapter unavailable"); }
+  virtual bool canBlank() const { return false; }
+  virtual void blank(bool) { throw std::runtime_error("Screen blanking unavailable"); }
   virtual bool canSleep() const { return false; }
   virtual bool canWakeOnLid() const { return false; }
   virtual std::optional<bool> lidOpen() { return std::nullopt; }

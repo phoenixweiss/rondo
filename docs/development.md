@@ -121,3 +121,13 @@ bounded two-second frame summaries (input/update/draw work, measured frame rate,
 maximum work and frames exceeding 16.667 ms), attached to existing journal
 samples without introducing per-frame disk writes. These measurements describe
 the active runtime, not a guarantee of device FPS.
+
+See [game display preferences](display.md) for global defaults, per-game overrides,
+background colors and library headers.
+
+See [recent games](recent-games.md) for launch acknowledgement, persistence and unavailable-media behavior.
+
+Gameplay input waits for all game buttons to be released after a menu resume,
+save-state load, initial runner start or suspend/resume. Confirm/back presses
+therefore cannot become a game action; a fresh press works without a timed delay.
+This applies after keyboard, built-in evdev and SDL controller input are combined.
