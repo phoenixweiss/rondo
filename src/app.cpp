@@ -3,6 +3,7 @@
 #include "app.hpp"
 #include <algorithm>
 #include <iostream>
+#include <sstream>
 namespace rondo {
 App::App(Options opts, bool runner, const Game &entry)
     : options(std::move(opts)), store(options.state), locale(options.assets) {
@@ -12,6 +13,7 @@ App::App(Options opts, bool runner, const Game &entry)
   if (!store.warning.empty()) std::cerr << "Configuration: " << store.warning << "\n";
   artwork = store.data.value("artwork", "cover");
   section = store.data.value("section", "All");
+  previewVolume = store.data.value("volume", 80);
   ui = std::make_unique<UI>(options.assets, options.headless);
   device = deviceControl(!options.headless);
   brightness = device->brightness();
@@ -29,7 +31,7 @@ App::App(Options opts, bool runner, const Game &entry)
   if (runner) {
     game = entry;
     core = std::make_unique<Core>(options.core, game, store.gameDir(game), options.headless);
-    core->volume = store.data.value("volume", 80);
+    core->volume = previewVolume;
     screen = Screen::Running;
   } else {
     games = scan(options.volumes);
@@ -52,6 +54,9 @@ App::App(Options opts, bool runner, const Game &entry)
     auto adapter=wifiDevice;bool wanted=store.data.value("wifi_enabled",false);
     wifiRun("startup",[adapter,wanted]{return adapter->enable(wanted);});
   }
+  btDevice=bluetoothAdapter(options.assets.parent_path()/"tools/bluetooth-radio.sh",!options.headless);
+  bt.available=btDevice->supported();
+  if(bt.available && store.data.value("bluetooth_enabled",false) && !runner) btResume();
   clockDevice=clockAdapter(options.assets.parent_path()/"tools/ntp-notify.sh",!runner&&!options.headless);
   clockState.available=clockDevice->supported();
   try {clockLastSync=readJson(options.state/"Time/last-sync.json").value("utc",0LL);}catch(...){}
@@ -59,7 +64,97 @@ App::App(Options opts, bool runner, const Game &entry)
     auto device=clockDevice;bool wanted=store.data.value("ntp_auto",true);
     clockRun("startup",[device,wanted]{return wanted?device->restart():device->enable(false);});
   }
+  diagnosticRunner = runner;
+  configureDiagnostics();
   record("ready");
+}
+// Library search folds ASCII and Cyrillic without depending on the host locale.
+static std::string searchFold(std::string text) {
+  for(size_t i=0;i<text.size();++i) {
+    auto c=static_cast<unsigned char>(text[i]);
+    if(c>='A' && c<='Z')text[i]=char(c+32);
+    else if(i+1<text.size()) {
+      auto next=static_cast<unsigned char>(text[i+1]);
+      if(c==0xd0 && next==0x81) {text[i]=char(0xd1);text[++i]=char(0x91);}
+      else if(c==0xd0 && next>=0x90 && next<=0xaf) {
+        if(next<0xa0)text[++i]=char(next+32);
+        else {text[i]=char(0xd1);text[++i]=char(next-32);}
+      }
+    }
+  }
+  return text;
+}
+static void eraseGlyph(std::string &text) {
+  if(text.empty())return;
+  auto i=text.size()-1;
+  while(i && (static_cast<unsigned char>(text[i])&0xc0)==0x80)--i;
+  text.erase(i);
+}
+std::vector<std::vector<std::string>> App::searchKeys() const {
+  const std::vector<std::string> rows=searchRussian?
+    std::vector<std::string>{"1234567890", "йцукенгшщзх", "фывапролджэ", "ячсмитьбюё-"}:
+    std::vector<std::string>{"1234567890", "qwertyuiop", "asdfghjkl-", "zxcvbnm._'"};
+  std::vector<std::vector<std::string>> keys;
+  for(const auto &row:rows) {
+    std::vector<std::string> cells;
+    for(size_t i=0;i<row.size();) {
+      size_t n=static_cast<unsigned char>(row[i])<128?1:2;
+      cells.push_back(row.substr(i,n));i+=n;
+    }
+    keys.push_back(cells);
+  }
+  keys.push_back({"space","language","delete","apply"});
+  return keys;
+}
+void App::searchText(const std::string &text) {
+  if(screen!=Screen::Search)return;
+  for(size_t i=0;i<text.size();) {
+    auto c=static_cast<unsigned char>(text[i]);
+    size_t n=c<128?1:c>=0xc2 && c<=0xdf?2:c>=0xe0 && c<=0xef?3:c>=0xf0 && c<=0xf4?4:0;
+    if(!n || i+n>text.size())break;
+    bool valid=c>=32 && c!=127;
+    for(size_t j=1;j<n;++j)valid=valid && (static_cast<unsigned char>(text[i+j])&0xc0)==0x80;
+    if(valid && searchDraft.size()+n<=96)searchDraft+=text.substr(i,n);
+    i+=n;
+  }
+}
+void App::searchAction(const std::string &action) {
+  if(action=="B") {SDL_StopTextInput();screen=Screen::Library;return;}
+  if(action=="SEARCH_DELETE" || action=="X") {eraseGlyph(searchDraft);return;}
+  if(action=="Y") {searchRussian=!searchRussian;searchColumn=0;return;}
+  if(action=="SEARCH_SUBMIT" || action=="MENU") {
+    searchQuery=searchFold(searchDraft);selected=0;scroll=0;
+    SDL_StopTextInput();screen=Screen::Library;return;
+  }
+  if(action=="UP")searchRow=std::max(0,searchRow-1);
+  if(action=="DOWN")searchRow=std::min(4,searchRow+1);
+  auto keys=searchKeys();
+  searchColumn=std::min(searchColumn,int(keys[searchRow].size())-1);
+  if(action=="LEFT")searchColumn=std::max(0,searchColumn-1);
+  if(action=="RIGHT")searchColumn=std::min(int(keys[searchRow].size())-1,searchColumn+1);
+  if(action=="A") {
+    auto key=keys[searchRow][searchColumn];
+    if(key=="apply")searchAction("SEARCH_SUBMIT");
+    else if(key=="delete")eraseGlyph(searchDraft);
+    else if(key=="language") {searchRussian=!searchRussian;searchColumn=0;}
+    else searchText(key=="space"?" ":key);
+  }
+}
+void App::searchDraw() {
+  auto tr=[&](const std::string &key){return locale.tr(key);};
+  ui->frame(tr("search.title"),section=="All"?tr("section.all"):section=="Favorites"?tr("screen.favorites"):section,store.data.value("timezone","Etc/UTC"));
+  ui->row(searchDraft.empty()?tr("search.placeholder"):searchDraft,128,false,672,"",true,48);
+  auto keys=searchKeys();
+  for(int y=0;y<5;++y)for(size_t x=0;x<keys[y].size();++x) {
+    int cell=672/int(keys[y].size()),left=24+int(x)*cell;
+    bool focused=y==searchRow && int(x)==searchColumn;
+    ui->rect(left,190+y*43,cell-5,38,focused?ui->focus:ui->bg,5);
+    auto key=keys[y][x];
+    auto label=key=="language"?(searchRussian?"EN":"РУ"):key.size()>2?tr("search.key."+key):key;
+    ui->text(label,left+(cell-5-ui->measure(label,21))/2,196+y*43,21);
+  }
+  if(ui->keyboardHints)ui->hints({{"Enter",tr("search.apply")},{"Esc",tr("action.cancel")},{"Backspace",tr("wifi.delete")}});
+  else ui->hints({{"A",tr("wifi.choose")},{"B",tr("action.cancel")},{"X",tr("wifi.delete")},{"Y",tr("search.language")}});
 }
 std::vector<int> App::visible() const {
   std::vector<int> v;
@@ -67,7 +162,8 @@ std::vector<int> App::visible() const {
   for (size_t i = 0; i < games.size(); i++) {
     auto &g = games[i];
     bool fav = std::find(favorites.begin(), favorites.end(), g.id) != favorites.end();
-    if (section == "All" || (section == "Favorites" && fav) || section == g.system)
+    if ((section == "All" || (section == "Favorites" && fav) || section == g.system) &&
+        (searchQuery.empty() || (i<searchNames.size() && searchNames[i].find(searchQuery)!=std::string::npos)))
       v.push_back(i);
   }
   return v;
@@ -123,14 +219,22 @@ std::string App::screenName() const {
   switch (screen) {
   case Screen::Clock: return "clock";
   case Screen::ClockEdit: return "clock_edit";
+  case Screen::Bluetooth: return "bluetooth";
+  case Screen::BluetoothDevices: return "bluetooth_devices";
+  case Screen::BluetoothDevice: return "bluetooth_device";
+  case Screen::BluetoothForget: return "bluetooth_forget";
   case Screen::Wifi: return "wifi";
   case Screen::WifiNetworks: return "wifi_networks";
   case Screen::WifiNetwork: return "wifi_network";
   case Screen::WifiPassword: return "wifi_password";
+  case Screen::Search: return "search";
   case Screen::Library:
     return "library";
   case Screen::Settings:
     return "global_settings";
+  case Screen::SettingsSection: return "settings_section";
+  case Screen::LogClear: return "log_clear";
+  case Screen::SystemConfirm: return "system_confirm";
   case Screen::Language:
     return "language";
   case Screen::Regions:
@@ -151,6 +255,7 @@ std::string App::screenName() const {
     return "save_slots";
   case Screen::LoadSlots:
     return "load_slots";
+  case Screen::DeleteSlot: return "delete_slot";
   case Screen::Overwrite:
     return "overwrite_confirm";
   case Screen::LoadConfirm:
@@ -163,6 +268,9 @@ std::string App::screenName() const {
   return "unknown";
 }
 void App::record(const std::string &event) {
+  // Do not journal typed Wi-Fi characters, capture paths or user content.
+  if (screen != Screen::WifiPassword && event.find("capture:") != 0)
+    batterySample(event.find("failure") != std::string::npos ? "operation_failed" : "action:" + event);
   trace.push_back({{"event", event},
                    {"screen", screenName()},
                    {"row", row},
@@ -172,6 +280,8 @@ void App::record(const std::string &event) {
                    {"notice", notice}});
 }
 void App::persist(Json next) {
+  // A failed disk write must not roll the live mixer back on a later setting change.
+  next["volume"] = previewVolume;
   try {
     if (requestSettings) {
       if (!requestSettings(next))
@@ -182,8 +292,21 @@ void App::persist(Json next) {
   } catch (const std::exception &e) {
     notice = locale.tr("notice.not_persisted");
     std::cerr << "Preference write: " << e.what() << "\n";
+    batterySample("settings_write_failed");
     throw;
   }
+}
+void App::applyVolume(int value) {
+  previewVolume = std::clamp(value, 0, 100);
+  if (core) { core->volume = previewVolume; core->silence(); }
+  volumeFeedback.confirmed = previewVolume;
+}
+bool App::changeVolume(int value) {
+  applyVolume(value);
+  auto next = store.data;
+  next["volume"] = previewVolume;
+  try { persist(next); return true; }
+  catch (const std::exception &) { return false; }
 }
 static bool anySlots(App &a) {
   for (int i = 0; i < 3; i++)
@@ -230,8 +353,8 @@ void App::applyZone(const std::string &id) {
   next["timezone"] = id;
   try {
     persist(next);
-    screen = Screen::Settings;
-    row = 1;
+    screen = Screen::Clock;
+    row = 3;
     notice.clear();
   } catch (...) {
     if (zones.valid(previous))
@@ -250,17 +373,10 @@ void App::action(const std::string &a) {
     if (a == "VOLUME_UP" || a == "VOLUME_DOWN") {
       volumeFeedback.begin(monotonicMs());
       draw();
-      auto next = store.data;
-      next["volume"] =
-          std::clamp(store.data.value("volume", 80) + (a == "VOLUME_UP" ? 5 : -5), 0, 100);
-      persist(next);
-      if (core) {
-        core->volume = store.data.value("volume", 80);
-        core->silence();
-      }
-      previewVolume = store.data.value("volume", 80);
-      volumeFeedback.result(volumeFeedback.sequence, store.data.value("volume", 80), true,
+      bool saved = changeVolume(previewVolume + (a == "VOLUME_UP" ? 5 : -5));
+      volumeFeedback.result(volumeFeedback.sequence, previewVolume, true,
                             monotonicMs());
+      if (saved) notice.clear();
       record(a);
       return;
     }
@@ -277,11 +393,19 @@ void App::action(const std::string &a) {
       record("info:open");
       return;
     }
+    if(screen==Screen::Search) {searchAction(a);record("search:"+a);return;}
+    if(screen==Screen::Bluetooth || screen==Screen::BluetoothDevices || screen==Screen::BluetoothDevice || screen==Screen::BluetoothForget){btAction(a);record("bluetooth:"+a);return;}
     if(screen==Screen::Clock || screen==Screen::ClockEdit){clockAction(a);record("clock:"+a);return;}
     if (screen==Screen::Wifi || screen==Screen::WifiNetworks || screen==Screen::WifiNetwork || screen==Screen::WifiPassword) {
       wifiAction(a);record("wifi:"+a);return;
     }
     if (screen == Screen::Library) {
+      if(a=="MENU") {
+        searchNames.clear();for(const auto &entry:games)searchNames.push_back(searchFold(entry.title));
+        searchDraft=searchQuery;searchRow=searchColumn=0;
+        screen=Screen::Search;SDL_StartTextInput();return;
+      }
+      if(a=="B" && !searchQuery.empty()) {searchQuery.clear();selected=0;scroll=0;return;}
       auto v = visible();
       if (!v.empty())
         selected = std::clamp(selected, 0, int(v.size()) - 1);
@@ -319,9 +443,7 @@ void App::action(const std::string &a) {
         selected = updated.empty() ? 0 : std::min(selected, int(updated.size()) - 1);
       }
       if (a == "Y") {
-        screen = Screen::Settings;
-        row = 0;
-        category = 0;
+        returnToSettings();
       }
       if (a == "A" && !v.empty()) {
         game = games[v[selected]];
@@ -345,21 +467,67 @@ void App::action(const std::string &a) {
           next["focus"] = games[vv[std::clamp(selected, 0, int(vv.size()) - 1)]].id;
         persist(next);
       }
+    } else if (screen == Screen::SystemConfirm) {
+      if (a == "UP") row = 0;
+      if (a == "DOWN") row = 1;
+      if (a == "B" || (a == "A" && row == 0)) {
+        returnToSettings();
+      } else if (a == "A" && row == 1) {
+        // Failure must leave the application running; no shutdown code escapes.
+        if (core) core->flushSram();
+        systemExitCode = restartRequested ? 65 : 64;
+        stop = true;
+      }
+    } else if (screen == Screen::LogClear) {
+      if (a == "B") { screen = Screen::SettingsSection; category = 4; row = 2; }
+      if (a == "A") {
+        clearDiagnosticLogs(options.state / "Logs", options.headless ? options.state / "ram-logs" : fs::path("/tmp/rondo-diagnostics/Logs"));
+        clearDiagnosticLogs(options.state / "Battery");
+        fs::remove(options.state / "launcher.log");
+        if (!options.headless)
+          for (const auto *name : {"launcher.log", "process-0.log", "process-1.log"})
+            fs::remove(fs::path("/tmp/rondo-output") / name);
+        notice = locale.tr("debug.cleared");
+        screen = Screen::SettingsSection; category = 4; row = 2;
+        batteryLog.reset(); configureDiagnostics();
+      }
     } else if (screen == Screen::Settings) {
-      int count = category == 0 ? 5 : (category == 1 || category == 3) ? 2 : 1;
-      if (a == "UP")
-        row = std::max(0, row - 1);
-      if (a == "DOWN")
-        row = std::min(count - 1, row + 1);
-      if (a == "L1" || a == "R1") {
-        category = (category + 4 + (a == "R1" ? 1 : -1)) % 4;
-        row = 0;
+      if (a == "UP") settingsFocus = std::max(0, settingsFocus - 1);
+      if (a == "DOWN") settingsFocus = std::min(8, settingsFocus + 1);
+      row = settingsFocus;
+      if (a == "B") screen = Screen::Library;
+      if (a == "A" && settingsFocus >= 7) {
+        restartRequested = settingsFocus == 7;
+        screen = Screen::SystemConfirm; row = 0;
+        record("system:confirm"); return;
       }
-      if (a == "B") {
-        screen = Screen::Library;
+      if (a == "A") {
+        static const int categories[] = {0, 1, 2, 6, 5, 3, 4};
+        category = categories[settingsFocus];
+        screen = category == 6 ? Screen::Clock : Screen::SettingsSection;
         row = 0;
+        if (category == 6) clockPollAt = 0;
       }
-      if (category == 0 && row == 2 && (a == "A" || a == "LEFT" || a == "RIGHT")) {
+    } else if (screen == Screen::SettingsSection) {
+      int count = category == 4 ? 3 : (category == 0 || category == 3 || category == 5) ? 2 : 1;
+      if (a == "UP") row = std::max(0, row - 1);
+      if (a == "DOWN") row = std::min(count - 1, row + 1);
+      if (a == "B") { returnToSettings(); return; }
+      if (category == 4 && (a == "A" || a == "LEFT" || a == "RIGHT")) {
+        if (row == 2) { if (a == "A") screen = Screen::LogClear; }
+        else if (row == 0 || store.data.value("debug_enabled", false)) {
+          auto next = store.data;
+          if (row == 0) next["debug_enabled"] = a == "A" ? !next.value("debug_enabled", false) : a == "RIGHT";
+          else {
+            std::vector<std::string> levels{"errors", "events", "detailed"};
+            auto it = std::find(levels.begin(), levels.end(), next.value("debug_level", "events"));
+            int index = int(it - levels.begin());
+            next["debug_level"] = levels[(index + (a == "LEFT" ? 2 : 1)) % 3];
+          }
+          persist(next); configureDiagnostics(); notice.clear();
+        }
+      }
+      if (category == 0 && row == 1 && (a == "A" || a == "LEFT" || a == "RIGHT")) {
         if (!bootLogoSupported()) {
           notice = locale.tr("bootlogo.unsupported");
           return;
@@ -368,10 +536,7 @@ void App::action(const std::string &a) {
           requestBootLogo(a == "LEFT" ? false : a == "RIGHT" ? true : !*bootAcknowledged);
       }
       if ((a == "LEFT" || a == "RIGHT") && category == 2) {
-        auto next=store.data;
-        int desired=std::clamp(store.data.value("volume",80)+(a=="RIGHT"?5:-5),0,100);
-        if (desired!=store.data.value("volume",80)) { next["volume"]=desired;persist(next); }
-        notice.clear();
+        if (changeVolume(previewVolume+(a=="RIGHT"?5:-5))) notice.clear();
       }
       if ((a == "LEFT" || a == "RIGHT") && category == 1 && row == 0 && brightness) {
         int old=*brightness, desired=std::clamp(old+(a=="RIGHT"?5:-5),0,100);
@@ -383,7 +548,7 @@ void App::action(const std::string &a) {
         }
         notice.clear();
       }
-      if (category == 1 && row == 1 && (a == "A" || a == "LEFT" || a == "RIGHT")) {
+      if (category == 3 && row == 0 && (a == "A" || a == "LEFT" || a == "RIGHT")) {
         bool current = store.data.value("show_battery_percent", true);
         bool desired = a == "LEFT" ? false : a == "RIGHT" ? true : !current;
         if (desired != current) {
@@ -393,29 +558,17 @@ void App::action(const std::string &a) {
         }
         notice.clear();
       }
-      if (category==3 && (row==0 ? device->canSleep() : device->canWakeOnLid()) && (a=="LEFT" || a=="RIGHT" || a=="A")) {
-        const auto setting=row==0?"lid_sleep":"wake_on_lid_open";
-        bool current=store.data.value(setting,true);
-        bool desired=a=="LEFT"?false:a=="RIGHT"?true:!current;
-        if (desired!=current) { auto next=store.data;next[setting]=desired;persist(next); }
+      if (category == 3 && row == 1 && device->canSleep() && (a == "LEFT" || a == "RIGHT" || a == "A")) {
+        bool current = store.data.value("lid_sleep", true);
+        bool desired = a == "LEFT" ? false : a == "RIGHT" ? true : !current;
+        if (desired != current) { auto next = store.data; next["lid_sleep"] = desired; persist(next); }
         notice.clear();
       }
-      if(a=="A" && category==0 && row==4){screen=Screen::Clock;row=0;clockPollAt=0;}
-      else if(a=="A" && category==0 && row==3) {screen=Screen::Wifi;row=0;scroll=0;wifiPollAt=0;}
-      else if (a == "A" && category == 0 && row < 2) {
-        if (row == 0) {
-          screen = Screen::Language;
-          row = 0;
-          for (size_t i = 0; i < locale.registry["locales"].size(); i++)
-            if (locale.registry["locales"][i]["code"] == locale.current)
-              row = i;
-        } else {
-          if (zones.zones.empty())
-            notice = locale.tr("timezone.unavailable");
-          else {
-            openTimezones();
-          }
-        }
+      if (a == "A" && category == 5) { screen = row == 0 ? Screen::Wifi : Screen::Bluetooth; row = 0; scroll = 0; wifiPollAt = 0; btPollAt = 0; }
+      if (a == "A" && category == 0 && row == 0) {
+        screen = Screen::Language;
+        for (size_t i = 0; i < locale.registry["locales"].size(); i++)
+          if (locale.registry["locales"][i]["code"] == locale.current) row = i;
       }
     } else if (screen == Screen::Language) {
       int count = locale.registry["locales"].size();
@@ -424,7 +577,8 @@ void App::action(const std::string &a) {
       if (a == "DOWN")
         row = std::min(count - 1, row + 1);
       if (a == "B") {
-        screen = Screen::Settings;
+        screen = Screen::SettingsSection;
+        category = 0;
         row = 0;
       }
       if (a == "A") {
@@ -444,7 +598,8 @@ void App::action(const std::string &a) {
           locale.select(options.assets, old);
           throw;
         }
-        screen = Screen::Settings;
+        screen = Screen::SettingsSection;
+        category = 0;
         row = 0;
         notice = locale.tr("notice.language_changed");
       }
@@ -484,8 +639,8 @@ void App::action(const std::string &a) {
           row = regionFocus;
           scroll = regionScroll;
         } else {
-          screen = Screen::Settings;
-          row = 1;
+          screen = Screen::Clock;
+          row = 3;
         }
         if (screen != Screen::Regions)
           scroll = 0;
@@ -581,6 +736,9 @@ void App::action(const std::string &a) {
         screen = Screen::GameMenu;
         row = saving ? 1 : 2;
       }
+      if (a == "Y" && slotView(row).present) {
+        slot = row; deleteOrigin = screen; screen = Screen::DeleteSlot; row = 0;
+      }
       if (a == "A") {
         slot = row;
         if (screen == Screen::LoadSlots) {
@@ -599,6 +757,14 @@ void App::action(const std::string &a) {
           notice = locale.tr("notice.saved");
           noticeUntil = monotonicMs() + 2000;
         }
+      }
+    } else if (screen == Screen::DeleteSlot) {
+      if (a == "UP") row = 0;
+      if (a == "DOWN") row = 1;
+      if (a == "B" || (a == "A" && row == 0)) { screen = deleteOrigin; row = slot; }
+      else if (a == "A" && row == 1) {
+        core->deleteSlot(slot); slotCache.clear(); screen = deleteOrigin; row = slot;
+        notice = locale.tr("slot.deleted"); noticeUntil = monotonicMs() + 2000;
       }
     } else if (screen == Screen::Overwrite || screen == Screen::LoadConfirm ||
                screen == Screen::ExitConfirm) {
@@ -644,20 +810,29 @@ void App::action(const std::string &a) {
     if (notice == priorNotice)
       notice = locale.tr("error.operation");
     std::cerr << "Operation: " << e.what() << "\n";
+    batterySample("operation_failed");
     if (screen == Screen::GameSettings) scalingLastError = notice;
   }
   record(a);
 }
 std::string App::infoKey() const {
+  if(screen==Screen::Bluetooth || screen==Screen::BluetoothDevices || screen==Screen::BluetoothDevice || screen==Screen::BluetoothForget)return "bluetooth";
   if(screen==Screen::Clock || screen==Screen::ClockEdit)return "clock";
   if (screen==Screen::WifiPassword) return "";
   if (screen==Screen::Wifi || screen==Screen::WifiNetworks || screen==Screen::WifiNetwork) return "wifi";
   if (screen == Screen::GameSettings) return "scaling";
   if (screen == Screen::SaveSlots || screen == Screen::LoadSlots) return "slots";
   if (screen == Screen::Regions || screen == Screen::Zones) return "timezone";
-  if (screen != Screen::Settings) return "";
-  if (category == 0) return row == 0 ? "language" : row == 1 ? "timezone" : row==2 ? "boot" : row==3 ? "wifi" : "clock";
-  return category == 1 ? (row == 1 ? "battery" : "brightness") : category == 2 ? "sound" : row==0 ? "lid" : "lid_wake";
+  if (screen == Screen::Settings && settingsFocus >= 7) return "system_power";
+  if (screen != Screen::SettingsSection) return "";
+  if (category == 4) return "debug";
+  if (category == 0) return row == 0 ? "language" : "boot";
+  if (category == 5) return row == 0 ? "wifi" : "bluetooth";
+  return category == 1 ? "brightness" : category == 2 ? "sound" : row == 0 ? "battery" : "lid";
+}
+void App::returnToSettings() {
+  screen = Screen::Settings;
+  row = settingsFocus;
 }
 void App::requestBootLogo(bool desired) {
   if (bootPending() || (bootAcknowledged && *bootAcknowledged == desired)) return;
@@ -672,8 +847,53 @@ void App::requestBootLogo(bool desired) {
     }
   });
 }
+void App::configureDiagnostics() {
+  if (!store.data.value("debug_enabled", false)) { batteryLog.reset(); return; }
+  if (!batteryLog) {
+    batteryLog = std::make_unique<BatteryLog>(options.state / "Logs", diagnosticRunner ? "runner" : "shell",
+        "/sys", "/proc", 2 * 1024 * 1024,
+        options.headless ? options.state / "ram-logs" : fs::path("/tmp/rondo-diagnostics/Logs"));
+    batteryLogWarning = false;
+    batterySample("start");
+  }
+}
+void App::observeFrame(double inputMs,double updateMs,double drawMs) {
+  if(!store.data.value("debug_enabled",false) || store.data.value("debug_level","events")!="detailed")return;
+  const auto now=monotonicMs();
+  if(!frameWindow)frameWindow=now;
+  ++frameCount;frameInput+=inputMs;frameUpdate+=updateMs;frameDraw+=drawMs;
+  auto total=inputMs+updateMs+drawMs;frameMaximum=std::max(frameMaximum,total);frameSlow+=total>16.667;
+  if(now-frameWindow<2000)return;
+  frameDiagnostic={{"frames",frameCount},{"window_ms",now-frameWindow},
+    {"fps",1000.0*frameCount/double(now-frameWindow)},{"input_ms",frameInput/frameCount},
+    {"update_ms",frameUpdate/frameCount},{"draw_ms",frameDraw/frameCount},
+    {"max_work_ms",frameMaximum},{"over_16ms",frameSlow}};
+  frameWindow=now;frameCount=frameSlow=0;frameInput=frameUpdate=frameDraw=frameMaximum=0;
+}
+void App::batterySample(const std::string &event) {
+  if (!batteryLog || (!ui && event.empty())) return;
+  auto level = store.data.value("debug_level", "events");
+  bool failure = event.find("failed") != std::string::npos;
+  if ((level == "errors" && !failure) || (level != "detailed" && event.empty())) return;
+  if (!ui && event.find("action:") == 0) return;
+  bool ok = batteryLog->sample(monotonicMs(), {{"screen", screenName()},
+      {"brightness_percent", brightness ? Json(*brightness) : Json(nullptr)},
+      {"volume_percent", previewVolume},
+      {"stored_volume_percent", store.data.value("volume", 80)},
+      {"battery_display", ui ? ui->batteryDisplay : Json(nullptr)},
+      {"paused", core ? Json(core->paused) : Json(nullptr)},
+      {"bluetooth", btDiagnostic}, {"frames",frameDiagnostic},
+      {"controller_input",ui?ui->controllerDiagnostics():Json(nullptr)}}, event);
+  if (!ok && !batteryLogWarning) {
+    std::cerr << "Battery diagnostic journal unavailable; gameplay continues: "
+              << batteryLog->lastError.dump() << "\n";
+    batteryLogWarning = true;
+  }
+  if (ok) batteryLogWarning = false;
+}
 void App::ticks(unsigned n) {
   wifiTick();
+  btTick();
   clockTick();
   if (ui && !sleeping && monotonicMs()>=lidCheckAt) {
     lidCheckAt=monotonicMs()+100;
@@ -724,6 +944,7 @@ void App::sleep() {
   if (!device->canSleep()) { notice=locale.tr("sleep.unsupported");return; }
   sleeping=true;
   clockSleep();
+  btSleep();
   wifiQueued={};wifiQueuedTask.clear();wifiToggle.reset();
   if(wifiJob.valid()) {wifiDevice->cancelled=true;wifiJob.wait();wifiTick();}
   wifiDevice->cancelled=false;wifiPollAt=0;
@@ -731,6 +952,7 @@ void App::sleep() {
   try {
     while (bootPending()) { ticks(0);SDL_Delay(5); }
     if (core) { core->paused=true;core->buttons=0;core->silence();core->flushSram();core->closeAudio(); }
+    batterySample("sleep_before");
     record("sleep:prepared");
     device->sleep(store.data.value("wake_on_lid_open",true) && device->canWakeOnLid(),
                   store.data.value("lid_sleep",true));
@@ -740,8 +962,11 @@ void App::sleep() {
     }
     if(core) { core->openAudio();core->paused=wasPaused; }
     lastLidOpen=device->lidOpen();lidCheckAt=monotonicMs()+300;
+    batterySample("sleep_after");
+    btResume();
     notice.clear();record("sleep:resumed");
   } catch (const std::exception &e) {
+    batterySample("sleep_failed");
     std::cerr<<"Sleep: "<<e.what()<<"\n";
     if(core) {
       core->paused=true;core->buttons=0;
@@ -786,6 +1011,12 @@ void App::capture(const std::string &name) {
   record("capture:" + name);
 }
 void App::draw() {
+  ui->bluetoothEnabled=bt.enabled;
+  // A game frame without a header must never inherit a previous menu's 100%.
+  ui->batteryDisplay = {{"screen", screenName()}, {"header_visible", false},
+      {"percentage_visible", false}, {"source_percent", nullptr},
+      {"displayed_percent", nullptr}, {"label", nullptr},
+      {"rendered_monotonic_ms", nullptr}, {"submitted_monotonic_ms", nullptr}};
   ui->wifiOverride.reset();
   if (wifi.available && wifi.ready) {
     Telemetry confirmed;
@@ -811,6 +1042,7 @@ void App::draw() {
     if (!notice.empty()) ui->notice(notice,"folder");
     ui->volumeOverlay(volumeFeedback, locale, !notice.empty());
     ui->present();
+    batterySample();
     return;
   }
   if (screen == Screen::Library) {
@@ -823,20 +1055,21 @@ void App::draw() {
       if (x + w > 680)
         break;
       if (s == "Favorites")
-        ui->icon("star", x, 86, 22);
+        ui->icon("star-filled", x, 86, 22);
       else
         ui->text(label, x, 85, 19, s == section ? 700 : 500);
       if (s == section)
         ui->rect(x, 115, w, 2, ui->accent);
       x += w + 30;
     }
+    if(!searchQuery.empty())ui->text(locale.tr("search.filter",{{"query",searchQuery}}),x,85,19,500,ui->secondary,std::max(1,672-x));
     if (v.empty()) {
-      ui->text(tr(section == "Favorites" ? "empty.favorites" : "empty.library"), 32, 182, 27, 700);
-      ui->text(section == "Favorites"
+      ui->text(tr(!searchQuery.empty()?"search.empty":section == "Favorites" ? "empty.favorites" : "empty.library"), 32, 182, 27, 700);
+      ui->text(!searchQuery.empty()?tr("search.empty_help"):section == "Favorites"
                    ? locale.tr("empty.favorites_help", {{"button", ui->buttonLabel("X")}})
                    : tr("empty.library_help"), 32, 224,
                17, 500, ui->secondary);
-      ui->hints({{"Y", tr("screen.settings")}, {"L1/R1", tr("action.section")}});
+      ui->hints({{"MENU",tr("search.title")},{searchQuery.empty()?"Y":"B",tr(searchQuery.empty()?"screen.settings":"search.clear")},{"L1/R1",tr("action.section")}});
     } else {
       selected = std::clamp(selected, 0, int(v.size()) - 1);
       auto &g = games[v[selected]];
@@ -857,7 +1090,7 @@ void App::draw() {
         if (y + h > 128 && y < 408) {
           bool fav = std::find(favs.begin(), favs.end(), games[v[i]].id) != favs.end();
           ui->row(games[v[i]].title, y, i == size_t(selected), 452, "", true, h,
-                  fav ? "star" : "");
+                  i == size_t(selected) ? (fav ? "star-filled" : "star") : fav ? "star" : "");
         }
         y += h + 2;
       }
@@ -888,56 +1121,92 @@ void App::draw() {
       ui->text(source,594-ui->measure(source,17)/2,399,17,500,ui->secondary,204);
       ui->hints({{"A", tr("action.play")},
                  {"X", tr("screen.favorites")},
-                 {"Y", tr("screen.settings")},
-                 {"L1/R1", tr("action.section")}});
+                 {"MENU",tr("search.title")},
+                 {searchQuery.empty()?"Y":"B",tr(searchQuery.empty()?"screen.settings":"search.clear")}});
     }
+  } else if(screen==Screen::Search) {
+    searchDraw();
   } else if(screen==Screen::Clock || screen==Screen::ClockEdit) {
     clockDraw();
+  } else if(screen==Screen::Bluetooth || screen==Screen::BluetoothDevices || screen==Screen::BluetoothDevice || screen==Screen::BluetoothForget) {
+    btDraw();
   } else if(screen==Screen::Wifi || screen==Screen::WifiNetworks || screen==Screen::WifiNetwork || screen==Screen::WifiPassword) {
     wifiDraw();
   } else if (screen == Screen::Settings) {
-    std::vector<std::string> cat = {"section.general", "section.display", "section.sound",
-                                    "section.power"};
-    ui->frame(tr("screen.settings"), "", zone);
-    int x = 24;
-    for (int i = 0; i < 4; i++) {
-      auto label = tr(cat[i]);
-      ui->text(label, x, 85, 19, i == category ? 700 : 500);
-      if (i == category)
-        ui->rect(x, 115, ui->measure(label, 19), 2, ui->accent);
-      x += ui->measure(label, 19) + 38;
+    const std::vector<std::string> labels = {"section.interface", "section.display", "section.sound",
+      "clock.title", "section.network", "section.power", "section.debug", "power.restart", "power.shutdown"};
+    const std::vector<std::string> icons = {"panels-top-left","monitor","volume-2","clock","wifi","battery","bug","rotate-cw","power"};
+    ui->frame(tr("screen.settings"), "", zone, "settings");
+    constexpr double viewport = 324, content = 9 * 54 + 16;
+    const double top = settingsFocus * 54 + (settingsFocus >= 7 ? 16 : 0);
+    if (top < settingsScroll) settingsScroll = top;
+    if (top + 54 > settingsScroll + viewport) settingsScroll = top + 54 - viewport;
+    settingsScroll = std::clamp(settingsScroll, 0.0, content - viewport);
+    SDL_Rect clip{16, 84, 672, 324};
+    SDL_RenderSetClipRect(ui->renderer, &clip);
+    const int divider = 84 + 7 * 54 + 7 - int(settingsScroll);
+    ui->line(32,divider,672,divider,ui->separator);
+    for (int i = 0; i < 9; ++i) {
+      int y = 84 + i * 54 + (i >= 7 ? 16 : 0) - int(settingsScroll);
+      if (y + 52 > 84 && y < 408)
+        ui->row(tr(labels[i]), y, i == settingsFocus, 672, "", true, 52, "chevron-right", icons[i]);
     }
+    SDL_RenderSetClipRect(ui->renderer, nullptr);
+    ui->scrollbar(content, viewport, settingsScroll, false, 91, 406);
+    std::vector<std::pair<std::string,std::string>> hints{{"A",tr("action.open")},{"B",tr("action.back")}};
+    if(settingsFocus >= 7) hints.push_back({"X",tr("footer.info")});
+    ui->hints(hints);
+  } else if (screen == Screen::SettingsSection) {
+    const std::vector<std::string> labels = {"section.interface", "section.display", "section.sound",
+      "section.power", "section.debug", "section.network"};
+    ui->frame(tr(labels.at(category)), tr("screen.settings"), zone);
     if (category == 0) {
       std::string name = locale.current;
       for (auto &l : locale.registry["locales"])
-        if (l["code"] == locale.current)
-          name = l["native_name"];
-      ui->row(tr("screen.language"), 128, row == 0, 672, name + "  ›");
-      ui->row(tr("setting.timezone"), 182, row == 1, 672, zoneLabel(zone) + "  ›");
-      ui->binaryRow(tr("boot.label"), 236, row == 2, bootAcknowledged, locale, bootLogoSupported());
-      ui->row("Wi-Fi",290,row==3,672,"›");
-      ui->row(tr("clock.title"),344,row==4,672,"›");
-    } else if (category==3) {
-      ui->binaryRow(tr("setting.lid_sleep"),128,row==0,store.data.value("lid_sleep",true),locale,device->canSleep());
-      ui->binaryRow(tr("setting.lid_wake"),182,row==1,store.data.value("wake_on_lid_open",true),locale,device->canWakeOnLid());
+        if (l["code"] == locale.current) name = l["native_name"];
+      ui->row(tr("screen.language"),128,row==0,672,name,true,52,"chevron-right");
+      ui->binaryRow(tr("boot.label"),182,row==1,bootAcknowledged,locale,bootLogoSupported());
+    } else if (category == 4) {
+      bool enabled = store.data.value("debug_enabled", false);
+      ui->binaryRow(tr("debug.enabled"),128,row==0,enabled,locale);
+      ui->row(tr("debug.level"),182,row==1,672,tr("debug."+store.data.value("debug_level","events")),enabled);
+      ui->row(tr("debug.clear"),236,row==2,672,"",true,52,"chevron-right");
+    } else if (category == 3) {
+      ui->binaryRow(tr("setting.battery_percent"),128,row==0,store.data.value("show_battery_percent",true),locale);
+      ui->binaryRow(tr("setting.lid_sleep"),182,row==1,store.data.value("lid_sleep",true),locale,device->canSleep());
+    } else if (category == 5) {
+      ui->row("Wi-Fi",128,row==0,672,"",true,52,"chevron-right");
+      ui->row("Bluetooth",182,row==1,672,"",true,52,"chevron-right");
     } else {
-      bool supported=category==2 || brightness.has_value();
-      std::string value=category==2?std::to_string(store.data.value("volume",80))+"%":brightness?std::to_string(*brightness)+"%":"—";
-      ui->row(tr(category==1?"setting.brightness":"setting.volume"),128,row==0,672,value,supported);
-      if (category == 1)
-        ui->binaryRow(tr("setting.battery_percent"),182,row==1,store.data.value("show_battery_percent",true),locale);
+      bool supported = category == 2 || brightness.has_value();
+      std::string value = category == 2 ? std::to_string(previewVolume)+"%" : brightness ? std::to_string(*brightness)+"%" : "—";
+      ui->row(tr(category==1?"setting.brightness":"setting.volume"),128,true,672,value,supported);
     }
-    if (category==0 && row!=2)
-      ui->hints({{"A",tr("action.change")},{"B",tr("action.back")},{"L1/R1",tr("action.section")},{"X",tr("footer.info")}});
+    const bool opens = (category == 0 && row == 0) || category == 5 || (category == 4 && row == 2);
+    std::vector<std::pair<std::string,std::string>> hints;
+    if (opens) hints.push_back({"A",tr("action.open")});
     else {
-      std::vector<std::pair<std::string,std::string>> hints;
-      if ((category==0 && row==2) || category==3 || (category==1 && row==1)) hints.push_back({"A",tr("footer.toggle")});
-      hints.push_back({"LEFT/RIGHT",tr("footer.value")});hints.push_back({"B",tr("action.back")});
-      if((category==1 && row==0) || category==2) hints.push_back({"L1/R1",tr("action.section")});
-      hints.push_back({"X",tr("footer.info")});
-      ui->hints(hints,(category==0 && (!bootLogoSupported() || bootPending() || !bootAcknowledged)) ||
-                      (category==1 && row==0 && !brightness) || (category==3 && !(row==0?device->canSleep():device->canWakeOnLid())));
+      hints.push_back({"LEFT/RIGHT",tr("footer.value")});
+      if (category == 0 || category == 3 || (category == 4 && row == 0))
+        hints.push_back({"A",tr("footer.toggle")});
     }
+    hints.push_back({"B",tr("action.back")});
+    hints.push_back({"X",tr("footer.info")});
+    const bool disabled = (category == 0 && row == 1 && (!bootLogoSupported() || bootPending() || !bootAcknowledged)) ||
+      (category == 1 && !brightness) || (category == 3 && row == 1 && !device->canSleep()) ||
+      (category == 4 && row == 1 && !store.data.value("debug_enabled",false));
+    ui->hints(hints,disabled);
+  } else if (screen == Screen::SystemConfirm) {
+    ui->frame(tr(restartRequested?"power.restart":"power.shutdown"),tr("screen.settings"),zone);
+    ui->text(tr(restartRequested?"power.restart_confirm":"power.shutdown_confirm"),32,128,23,500,ui->cream,656);
+    ui->row(tr("action.cancel"),204,row==0);
+    ui->row(tr(restartRequested?"power.restart":"power.shutdown"),258,row==1,672,"",true,52,"",restartRequested?"rotate-cw":"power");
+    ui->hints({{"A",tr("action.select")},{"B",tr("action.back")}});
+  } else if (screen == Screen::LogClear) {
+    ui->frame(tr("debug.clear"),tr("section.debug"),zone);
+    std::istringstream lines(tr("debug.confirm"));std::string line;int y=150;
+    while(std::getline(lines,line)) { ui->text(line,32,y,23,500,ui->cream,650);y+=42; }
+    ui->hints({{"A",tr("debug.clear")},{"B",tr("action.back")}});
   } else if (screen == Screen::Language) {
     ui->frame(tr("screen.language"), tr("editor.path_general"), zone);
     auto ls = locale.registry["locales"];
@@ -1017,10 +1286,13 @@ void App::draw() {
       ui->text(label,594-ui->measure(label,19)/2,252,19,400,ui->secondary,192);
     }
     if (view.present && !view.compatible) ui->text(tr("slot.incompatible"),492,365,19,400,ui->secondary,204);
-    ui->hints({{"A",tr("action.select")},{"B",tr("action.back")},{"X",tr("footer.info")}},screen==Screen::LoadSlots && !view.compatible);
-  } else if (screen == Screen::ResumeChoice || screen == Screen::Overwrite ||
+    std::vector<std::pair<std::string,std::string>> hints{{"A",tr("action.select")},{"B",tr("action.back")}};
+    if (view.present) hints.push_back({"Y",tr("action.delete")});
+    hints.push_back({"X",tr("footer.info")});
+    ui->hints(hints,screen==Screen::LoadSlots && !view.compatible);
+  } else if (screen == Screen::ResumeChoice || screen == Screen::Overwrite || screen == Screen::DeleteSlot ||
              screen == Screen::LoadConfirm || screen == Screen::ExitConfirm) {
-    std::string title = tr(screen == Screen::ResumeChoice  ? "resume.title"
+    std::string title = tr(screen == Screen::DeleteSlot ? "slot.delete_confirm" : screen == Screen::ResumeChoice  ? "resume.title"
                            : screen == Screen::Overwrite   ? "slot.overwrite"
                            : screen == Screen::LoadConfirm ? "slot.load_confirm"
                                                            : "exit.title");
@@ -1031,9 +1303,13 @@ void App::draw() {
             screen==Screen::ExitConfirm?204:128, row == 0);
     ui->row(tr(screen == Screen::ResumeChoice  ? "resume.new"
                : screen == Screen::ExitConfirm ? "action.exit"
+               : screen == Screen::DeleteSlot  ? "action.delete"
                : screen == Screen::Overwrite   ? "action.overwrite"
                                                : "action.confirm"),
             screen==Screen::ExitConfirm?258:182, row == 1);
+    if (screen == Screen::DeleteSlot)
+      { std::istringstream lines(tr("slot.delete_body"));std::string line;int y=270;
+        while(std::getline(lines,line)){ui->text(line,32,y,22,400,ui->secondary,656);y+=34;} }
     if (screen == Screen::ExitConfirm)
       ui->text(tr("exit.warning"), 32, 136, 22, 400, ui->secondary,656);
     ui->hints({{"A", tr("action.select")}, {"B", tr("action.back")}});
@@ -1052,7 +1328,7 @@ void App::draw() {
         : tr("info." + key + ".body");
     if(key=="wifi" && !wifi.address.empty())body+="\nIP: "+wifi.address;
     if (key=="brightness" && !brightness) body+="\n"+tr("binary.unsupported");
-    if (key=="lid_wake" && !device->canWakeOnLid()) body+="\n"+tr("binary.unsupported");
+    if (key=="clock") body+="\n"+tr("clock.last")+": "+(clockLastSync>0 && zones.valid(zone)?slotDate(clockLastSync):tr("clock.never"));
     if (key=="lid" && !device->canSleep()) body+="\n"+tr("binary.unsupported");
     if (screen==Screen::Zones) { auto locations=this->locations();if(row<int(locations.size()))body+="\n"+locations[row].id; }
     auto error = key == "boot" ? bootLastError : key == "scaling" ? scalingLastError : "";
@@ -1073,5 +1349,6 @@ void App::draw() {
   }
   ui->volumeOverlay(volumeFeedback, locale, screen == Screen::Library && !notice.empty() && !infoOpen);
   ui->present();
+  batterySample();
 }
 } // namespace rondo

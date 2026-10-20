@@ -1,6 +1,6 @@
 # Wi-Fi settings
 
-Settings → General → Wi-Fi opens radio control and connection status. The
+Settings → Network → Wi-Fi opens radio control and connection status. The
 current network and IP address are shown directly after connection. Open
 Wi-Fi networks for discovery and per-network actions; Back returns one level. The
 initial scope is RG34XXSP / BaseOS 1.3.0: open and WPA/WPA2-Personal networks.

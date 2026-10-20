@@ -10,9 +10,12 @@ The [core feature review](feature-review.md) compares NextUI, MinUI and muOS wit
 
 ## Agreed next steps
 
-1. Reorganize settings into coherent groups and verify navigation/localization.
-2. Add an explicitly enabled browser file-transfer mode for local-network use.
-3. Keep network backup/save synchronization, online Rondo updates and artwork
+1. Resolve the current shell slowdown and Bluetooth regression; measure input,
+   frame time, CPU/RAM and full-library behavior on RG34XXSP. Retain performance
+   budgets as a criterion for future features.
+2. Verify the settings organization and title search on the console.
+3. Add an explicitly enabled browser file-transfer mode for local-network use.
+4. Keep network backup/save synchronization, online Rondo updates and artwork
    retrieval in the backlog; their implementation and services are not enabled.
 
 ## First: core functionality and everyday use
@@ -35,15 +38,18 @@ This list grows with device testing and user feedback; it is not a complete inve
 ## Next: library and gameplay essentials
 
 - F08–F09: recent games, safe game switching, search, collections and large-library navigation.
+- Design a console-first library list for handhelds, inspired by NextUI, with
+  full system names and navigation into each system's games. Agree the design
+  before replacing the current layout.
 - F10–F13: control remapping, hotkeys/turbo, fast-forward, measured rewind, user screenshots and scoped core options.
 - F14–F16: BIOS/format/disc support as systems are integrated, external controllers/audio routing and image/performance options.
 - F17–F18: local playtime tracking, user data transfer and conflict-aware save sync after networking and backup are ready.
 
 ## Next: game systems and library support
 
-- Investigate GB/GBC, GBA, SNES, MD and PSX individually, covering licensing, builds, controls, performance, SRAM, save states, resume and sleep on the console. Retain NES regression checks.
+- Investigate GB/GBC, GBA, SNES, MD and PSX (CHD only) individually, covering licensing, builds, controls, performance, SRAM, save states, resume and sleep on the console. Retain NES regression checks.
 - Investigate two-card library behavior, duplicate handling, missing cards and state-storage placement.
-- Treat PSP performance and wider H700 hardware support as separate investigations before promising compatibility.
+- Investigate wider H700 hardware support separately before promising compatibility. PSP is outside the project scope.
 
 ## Optional research
 
@@ -51,7 +57,7 @@ F19–F23 cover RetroAchievements, cheats, measured CPU/power profiles, battery 
 
 ## Later: website and community
 
-The Vue website follows the agreed core functionality and device work. Revisit its start after reviewing that progress; exploratory PSP and additional-device work need not all be finished first.
+The Vue website follows the agreed core functionality and device work. Revisit its start after reviewing that progress; additional-device investigations need not all be finished first.
 
 - A separate website build under website/, with English and Russian content, actual screenshots, installation and compatibility information, and links to canonical releases.
 - A considered explanation of the Rondo name.
@@ -61,3 +67,9 @@ The Vue website follows the agreed core functionality and device work. Revisit i
 The public dev branch receives small, verified changes. README capabilities describe the checked-out code. Releases and website deployments have separate verification and versioning.
 
 Versioned delivery is recorded in [CHANGELOG](../CHANGELOG.md), using [the release contract](release.md). The future website should distinguish this backlog from implemented and released capabilities.
+
+### Distant platform ideas
+
+Explore Android tablets and Android TV later, using the original Rondo layout
+as a possible large-screen direction. Touch, remote and gamepad interaction need
+separate design and implementation; these platforms are not currently supported.

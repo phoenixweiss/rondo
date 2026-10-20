@@ -7,6 +7,16 @@ using namespace rondo;
 int main(int argc, char **argv) {
   assert(argc == 3); fs::path out=argv[2];fs::create_directories(out);
   UI ui(argv[1],true); Locale locale(argv[1]);
+  Telemetry observed; observed.capacity=100;
+  ui.battery(observed,true);ui.present();
+  assert(ui.batteryDisplay["displayed_percent"]==100 && ui.batteryDisplay["label"]=="100%");
+  observed.capacity=10;ui.battery(observed,true);ui.present();
+  assert(ui.batteryDisplay["source_percent"]==10 && ui.batteryDisplay["displayed_percent"]==10 && ui.batteryDisplay["label"]=="10%");
+  assert(ui.batteryDisplay["submitted_monotonic_ms"].is_number_unsigned());
+  ui.battery(observed,false);ui.present();
+  assert(ui.batteryDisplay["source_percent"]==10 && ui.batteryDisplay["displayed_percent"].is_null() && ui.batteryDisplay["label"].is_null());
+  observed.capacity.reset();ui.battery(observed,true);ui.present();
+  assert(ui.batteryDisplay["source_percent"].is_null() && ui.batteryDisplay["displayed_percent"].is_null() && ui.batteryDisplay["label"]=="—");
   auto pixels=[&](int x,int y,int w,int h) {
     std::vector<Uint32> result;
     for(int row=y;row<y+h;++row) {

@@ -118,6 +118,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("prepare-changelog")
+    prepared = commands.add_parser("check-changelog")
+    prepared.add_argument("version")
     check = commands.add_parser("validate-tag")
     check.add_argument("tag")
     build = commands.add_parser("bundle")
@@ -128,6 +130,8 @@ def main():
     args = parser.parse_args()
     if args.command == "prepare-changelog":
         prepare_changelog(ROOT, os.environ["BUMPSTER_PREV_VERSION"], os.environ["BUMPSTER_NEW_VERSION"])
+    elif args.command == "check-changelog":
+        notes((ROOT / "CHANGELOG.md").read_text(), version(args.version))
     elif args.command == "validate-tag":
         validate_tag(ROOT, args.tag)
     else:

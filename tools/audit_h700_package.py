@@ -114,6 +114,12 @@ def audit(path):
         for name in ['runtime/build-all.sh', 'runtime/build-libraries.sh', 'runtime/build-programs.sh',
                      'runtime/build-lock.json', 'tools/build_h700_runtime.py', 'vendor/libretro.h']:
             require(name in source, 'Missing corresponding build input: ' + name)
+        if 'assets/ControllerMappings/sources.json' in source:
+            mapping_inputs = json.loads(source['assets/ControllerMappings/sources.json'])
+            for name, expected in [(mapping_inputs['output'], mapping_inputs['output_sha256']),
+                                   (mapping_inputs['license_file'], mapping_inputs['license_sha256'])]:
+                require(digest(package.read(prefix + 'assets/ControllerMappings/' + name)) == expected,
+                        'Controller mapping input mismatch: ' + name)
         require(not any(n.startswith(('RondoState/', 'RondoGames/')) for n in names), 'Private payload')
         return {'package_sha256': sha(path), 'source_id': info['source_id'], 'payload_files': len(names),
                 'source_files_verified': len(source), 'installed_elf_sha256': binaries,

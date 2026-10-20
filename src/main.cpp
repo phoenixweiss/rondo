@@ -137,30 +137,7 @@ static void held(App &a) {
   put(RETRO_DEVICE_ID_JOYPAD_DOWN, raw.pressed("DOWN"));
   put(RETRO_DEVICE_ID_JOYPAD_LEFT, raw.pressed("LEFT"));
   put(RETRO_DEVICE_ID_JOYPAD_RIGHT, raw.pressed("RIGHT"));
-  for (int i = 0; i < SDL_NumJoysticks(); i++)
-    if (SDL_IsGameController(i)) {
-      auto *controller = SDL_GameControllerOpen(i);
-      if (!controller)
-        continue;
-      const char *name = SDL_GameControllerName(controller);
-      if (name && std::string(name) == "ANBERNIC-keys") {
-        SDL_GameControllerClose(controller);
-        continue;
-      }
-      put(RETRO_DEVICE_ID_JOYPAD_A,
-          SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_A));
-      put(RETRO_DEVICE_ID_JOYPAD_B,
-          SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_B));
-      put(RETRO_DEVICE_ID_JOYPAD_START,
-          SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_START));
-      put(RETRO_DEVICE_ID_JOYPAD_SELECT,
-          SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_BACK));
-      for (int d = 0; d < 4; d++)
-        put(RETRO_DEVICE_ID_JOYPAD_UP + d,
-            SDL_GameControllerGetButton(
-                controller, SDL_GameControllerButton(SDL_CONTROLLER_BUTTON_DPAD_UP + d)));
-      SDL_GameControllerClose(controller);
-    }
+  mask |= a.ui->controllerButtons();
   a.core->buttons = mask;
 }
 static void events(App &a) {
@@ -173,6 +150,10 @@ static void events(App &a) {
     a.action(action);
   SDL_Event e;
   while (SDL_PollEvent(&e)) {
+    if(e.type==SDL_CONTROLLERDEVICEADDED || e.type==SDL_CONTROLLERDEVICEREMOVED ||
+       e.type==SDL_CONTROLLERDEVICEREMAPPED || e.type==SDL_JOYDEVICEADDED || e.type==SDL_JOYDEVICEREMOVED)
+      a.ui->refreshControllers();
+    a.ui->controllerEvent(e);
     if (e.type == SDL_QUIT) {
       if (a.core) {
         a.screen = Screen::GameMenu;
@@ -182,6 +163,16 @@ static void events(App &a) {
         a.action("A");
       } else
         a.stop = true;
+    }
+    if(e.type==SDL_TEXTINPUT && a.screen==Screen::Search && !a.ui->handheldKeys->available()) {a.ui->inputHints(true);a.searchText(e.text.text);continue;}
+    if(e.type==SDL_KEYDOWN && a.screen==Screen::Search && !a.ui->handheldKeys->available()) {
+      a.ui->inputHints(true);
+      auto k=e.key.keysym.sym;
+      if(k==SDLK_BACKSPACE)a.action("SEARCH_DELETE");
+      else if(k==SDLK_RETURN)a.action("SEARCH_SUBMIT");
+      else if(k==SDLK_ESCAPE)a.action("B");
+      else if(k==SDLK_UP || k==SDLK_DOWN || k==SDLK_LEFT || k==SDLK_RIGHT)a.action(key(k));
+      continue;
     }
     if(e.type==SDL_TEXTINPUT && a.screen==Screen::WifiPassword){a.ui->inputHints(true);a.wifiText(e.text.text);continue;}
     if(e.type==SDL_KEYDOWN && a.screen==Screen::WifiPassword && !a.ui->handheldKeys->available()) {
@@ -217,17 +208,29 @@ static void events(App &a) {
       const char *name = controller ? SDL_GameControllerName(controller) : nullptr;
       if (name && std::string(name) == "ANBERNIC-keys") continue;
       auto action = pad(e.cbutton.button);
+      // Keep Select usable in NES; Guide or Start+Back opens the game menu.
+      if(e.cbutton.button==SDL_CONTROLLER_BUTTON_BACK)
+        action=a.screen==Screen::Running?(controller && SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_START)?"MENU":""):"B";
+      if(e.cbutton.button==SDL_CONTROLLER_BUTTON_START && controller && SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_BACK))action="MENU";
       if (!action.empty()) {
         a.ui->inputHints(false);
         a.action(action);
       }
     }
   }
+  if(a.screen!=Screen::Running)for(const auto &action:a.ui->controllerNavigation()) {
+    a.ui->inputHints(false);a.action(action);
+  }
+
 }
 static void script(App &a, const Json &commands, const std::function<void(const Json &)> &after) {
   for (auto &c : commands) {
     if (c.contains("action"))
       a.action(c.at("action"));
+    if (c.contains("text") && a.screen==Screen::Search)
+      a.searchText(c.at("text"));
+    if (c.contains("assert_visible") && a.visible().size()!=c.at("assert_visible").get<size_t>())
+      throw std::runtime_error("Library result count mismatch");
     if (c.contains("frames"))
       a.ticks(c.at("frames"));
     if (c.contains("wait_ms"))
@@ -252,7 +255,7 @@ static Json supervise(App &a, const Json &runnerScript) {
                 {"volume", g.volume},
                 {"system", g.system},
                 {"title", g.title},
-                {"path", g.path.string()}};
+                {"path", g.path.string()}, {"runtime_volume", a.previewVolume}};
   std::vector<std::string> args = {a.options.executable.string(),
                                    "--runner",
                                    "--assets",
@@ -325,11 +328,15 @@ static Json supervise(App &a, const Json &runnerScript) {
             auto next = a.store.data;
             next["game_options"] = reply.at("data").at("game_options");
             next["volume"] = reply.at("data").value("volume", 80);
+            // Runtime audio is independent from durable settings acknowledgement.
+            a.applyVolume(next["volume"].get<int>());
             a.store.commit(next);
             message(channel[0], {{"ok", true},
                                  {"request_id", reply.value("request_id", uint64_t(0))},
                                  {"data", a.store.data}});
           } catch (const std::exception &e) {
+            std::cerr << "Settings authority: " << e.what() << "\n";
+            a.batterySample("settings_write_failed");
             message(channel[0], {{"ok", false},
                                  {"request_id", reply.value("request_id", uint64_t(0))},
                                  {"error", e.what()}});
@@ -338,6 +345,7 @@ static Json supervise(App &a, const Json &runnerScript) {
           result = reply;
           if (reply.contains("feedback"))
             a.volumeFeedback.restore(reply["feedback"]);
+          a.applyVolume(reply.value("runtime_volume", a.previewVolume));
           if (reply.contains("keyboard_hints"))
             SDL_setenv("RONDO_INPUT_HINTS", reply["keyboard_hints"].get<bool>() ? "keyboard" : "controller", 1);
           done = true;
@@ -445,6 +453,7 @@ int main(int argc, char **argv) {
       game = {entry.at("id"), entry.at("volume"), entry.at("system"), entry.at("title"),
               entry.at("path").get<std::string>()};
     App app(opts, runner, game);
+    if (runner) app.applyVolume(entry.value("runtime_volume", app.previewVolume));
     if (!initialFeedback.is_null())
       app.volumeFeedback.restore(initialFeedback);
     Json results = Json::array();
@@ -469,7 +478,7 @@ int main(int argc, char **argv) {
           app.store.data = reply.at("data");
           return true;
         }
-        return false;
+        throw std::runtime_error("Settings authority: " + reply.value("error", "write rejected"));
       };
       if (resume) {
         int latest = app.latestResumeSlot();
@@ -485,6 +494,9 @@ int main(int argc, char **argv) {
     auto after = [&](const Json &c) {
       if (c.contains("assert_info") && app.infoOpen != c.at("assert_info").get<bool>())
         throw std::runtime_error("Setting Info focus mismatch");
+      if (c.contains("assert_runtime_volume") && (app.previewVolume != c.at("assert_runtime_volume").get<int>() ||
+          (app.core && app.core->volume != app.previewVolume)))
+        throw std::runtime_error("Live volume mismatch");
       if (c.contains("assert_integer_scaling")) {
         bool scaling = app.store.data["game_options"].contains(app.game.id) &&
                        app.store.data["game_options"][app.game.id].value("integer_scaling", false);
@@ -505,12 +517,18 @@ int main(int argc, char **argv) {
         throw std::runtime_error("Runner script did not confirm exit");
     } else {
       uint64_t next = SDL_GetPerformanceCounter();
+      const double counterMs=1000.0/SDL_GetPerformanceFrequency();
       while (!app.stop) {
+        auto inputAt=SDL_GetPerformanceCounter();
         events(app);
         held(app);
         after(Json::object());
+        auto updateAt=SDL_GetPerformanceCounter();
         app.ticks(1);
+        auto drawAt=SDL_GetPerformanceCounter();
         app.draw();
+        auto endAt=SDL_GetPerformanceCounter();
+        app.observeFrame((updateAt-inputAt)*counterMs,(drawAt-updateAt)*counterMs,(endAt-drawAt)*counterMs);
         double hz = app.core ? app.core->fps : 60;
         next += uint64_t(SDL_GetPerformanceFrequency() / hz);
         auto now = SDL_GetPerformanceCounter();
@@ -534,6 +552,7 @@ int main(int argc, char **argv) {
       report["state_hash"] = app.core->stateHash();
       message(fd,
               {{"type", "stopped"}, {"report", report}, {"feedback", app.volumeFeedback.json()},
+               {"runtime_volume", app.previewVolume},
                {"keyboard_hints", app.ui->keyboardHints}});
       close(fd);
     }
@@ -541,7 +560,7 @@ int main(int argc, char **argv) {
     auto reportPath = opts.output / (runner ? "runner-report.json" : "shell-report.json");
     std::ofstream(reportPath) << report.dump(2) << "\n";
     std::cout << "Rondo check complete: " << reportPath << "\n";
-    return 0;
+    return app.systemExitCode;
   } catch (const std::exception &e) {
     if (fd >= 0) {
       try {

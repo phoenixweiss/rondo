@@ -2,6 +2,36 @@
 
 ## Unreleased
 
+## [0.3.0] - 2026-10-20
+
+
+### Library and interface
+
+- Add title search within All, Favorites or a system, with English/Russian on-screen entry, desktop typing and case-insensitive filtering.
+- Add confirmed save-slot deletion without changing other slots or in-game SRAM; use filled/outlined favorite stars consistently.
+- Organize settings into seven scrollable sections, retain focus, move battery percentage to Power and time zone to Date & time, and hide unavailable lid-open wake controls.
+- Add consistent section icons, a settings-header icon, and separate confirmed Restart / Shut down actions at the bottom of Settings. The launcher waits for application teardown and filesystem sync before the system request; physical shutdown/restart acceptance is still pending.
+
+### Performance and diagnostics
+
+- Share frontend/test object files within each native or H700 build while retaining independent reproducibility builds. Track header and compiler/link flag changes.
+- Remove per-frame controller enumeration and time-zone database loading; record bounded frame timing summaries in detailed diagnostics.
+- Keep volume controls usable after sleep and when settings cannot be saved, preserve the live level across shell/runner transitions and report persistence errors separately.
+- Add opt-in Diagnostics (Errors, Events, Detailed) and confirmed log clearing, bounded SD journals and temporary RAM fallback during storage failures.
+- Record a read-only H700 battery passport, system/display percentage comparison, PMIC/USB observations and sleep/resume markers. Battery calibration and charge-estimation jumps remain unresolved; no corrected gauge is claimed.
+- Exclude external HID batteries before opening any attributes, avoiding blocking peripheral battery reads. A cold-start Micro test no longer showed the previous 5–19-second stalls; an isolated 0.7-second frame was still recorded.
+
+### Experimental Bluetooth — controller input does not work yet
+
+- Add BaseOS Bluetooth enable/disable, discovery, pairing, connection/removal, reconnect preference and a radio-dependent status icon. Discovery keeps one agent/client alive and batches state readback.
+- Load pinned, attributed Micro profiles and add bounded controller identity, binding and raw/mapped activity diagnostics; virtual SDL tests cover hotplug, buttons and release.
+- **Bluetooth remains experimental. On RG34XXSP, 8BitDo Micro in D mode pairs/connects, but buttons do not work: SDL reports no external input device. A successful connection is not working gamepad support.** PIN/numeric confirmation and Bluetooth audio are not implemented or verified. Do not rely on Bluetooth controllers for normal use.
+- Retain the built-in controls as the supported input path. Further Linux HID/input discovery and physical controller tests are required.
+
+### Release maintenance
+
+- Prepare changelog entries before Bumpster runs; keep pre-bump validation read-only for compatibility with Bumpster 1.4.
+
 ## [0.2.0] - 2026-10-16
 
 - Use matching, centered, font-independent arrow pairs, center key labels by visible bounds and share a softer outline weight/contrast across circular and rectangular footer keys.

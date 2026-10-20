@@ -2,17 +2,27 @@
 // Copyright (c) 2026 PAVEL TKACHEV
 #pragma once
 #include "core.hpp"
+#include "battery_log.hpp"
 #include "clock.hpp"
 #include "wifi.hpp"
+#include "bluetooth.hpp"
 #include "ui.hpp"
 #include <functional>
 #include <future>
 namespace rondo {
 enum class Screen {
   Library,
+  Search,
   Settings,
+  SettingsSection,
+  LogClear,
+  SystemConfirm,
   Clock,
   ClockEdit,
+  Bluetooth,
+  BluetoothDevices,
+  BluetoothDevice,
+  BluetoothForget,
   Wifi,
   WifiNetworks,
   WifiNetwork,
@@ -27,6 +37,7 @@ enum class Screen {
   GameSettings,
   SaveSlots,
   LoadSlots,
+  DeleteSlot,
   Overwrite,
   LoadConfirm,
   ExitConfirm,
@@ -54,6 +65,15 @@ public:
   std::optional<bool> lastLidOpen = true;
   uint64_t lidCheckAt = 0;
   bool sleeping = false;
+  std::unique_ptr<BatteryLog> batteryLog;
+  bool batteryLogWarning = false;
+  bool diagnosticRunner = false;
+  Json frameDiagnostic=Json::object();
+  uint64_t frameWindow=0,frameCount=0,frameSlow=0;
+  double frameInput=0,frameUpdate=0,frameDraw=0,frameMaximum=0;
+  void observeFrame(double inputMs,double updateMs,double drawMs);
+  void configureDiagnostics();
+  void batterySample(const std::string &event = "");
   void sleep();
   struct SlotView {
     bool present=false, compatible=false;
@@ -67,14 +87,23 @@ public:
   std::vector<Game> games;
   std::vector<std::string> sections;
   Screen screen = Screen::Library;
+  Screen deleteOrigin = Screen::LoadSlots;
   int selected = 0, row = 0, slot = 0, category = 0, regionFocus = 0;
   double scroll = 0, regionScroll = 0;
+  int settingsFocus = 0;
+  double settingsScroll = 0;
+  void returnToSettings();
   int previewVolume = 80;
+  void applyVolume(int);
+  bool changeVolume(int);
   VolumeFeedback volumeFeedback;
   std::string section = "All", artwork = "cover", notice, region;
   std::unique_ptr<Core> core;
   Game game;
   bool stop = false, launch = false, resume = false;
+  // Handled by the H700 launcher only after process teardown.
+  int systemExitCode = 0;
+  bool restartRequested = false;
   Json trace = Json::array();
   std::future<std::pair<std::optional<bool>, std::string>> bootJob;
   std::optional<bool> bootAcknowledged;
@@ -126,6 +155,34 @@ public:
   void wifiText(const std::string &);
   std::vector<std::vector<std::string>> wifiKeys() const;
 
+  std::shared_ptr<BluetoothAdapter> btDevice;
+  BluetoothState bt;
+  BluetoothDevice btSelected;
+  std::future<BluetoothState> btJob;
+  std::string btTask, btError, btQueuedTask;
+  std::function<BluetoothState()> btQueued;
+  uint64_t btStarted=0, btDiscoveryUntil=0;
+  Json btDiagnostic=Json::object();
+  std::optional<bool> btToggle;
+  uint64_t btPollAt = 0;
+  int btFocus = 0;
+  double btScroll = 0;
+  bool btBusy() const { return bool(btQueued) || (btJob.valid() && btTask!="poll"); }
+  void btRun(const std::string &, std::function<BluetoothState()>);
+  void btTick();
+  void btAction(const std::string &);
+  void btDraw();
+  void btSleep();
+  void btResume();
+
+  std::string searchQuery, searchDraft;
+  std::vector<std::string> searchNames;
+  int searchRow=0, searchColumn=0;
+  bool searchRussian=false;
+  void searchText(const std::string &);
+  void searchAction(const std::string &);
+  void searchDraw();
+  std::vector<std::vector<std::string>> searchKeys() const;
   std::vector<int> visible() const;
   std::vector<std::string> regions() const;
   std::vector<Zone> locations() const;

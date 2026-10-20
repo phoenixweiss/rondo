@@ -39,6 +39,9 @@
     "capture": "settings-en"
   },
   {
+    "action": "A"
+  },
+  {
     "action": "A",
     "capture": "language-en"
   },
@@ -63,6 +66,27 @@
     "assert_config": {
       "locale": "ru"
     }
+  },
+  {
+    "action": "B"
+  },
+  {
+    "action": "DOWN"
+  },
+  {
+    "action": "DOWN"
+  },
+  {
+    "action": "DOWN"
+  },
+  {
+    "action": "A"
+  },
+  {
+    "action": "DOWN"
+  },
+  {
+    "action": "DOWN"
   },
   {
     "action": "DOWN"
@@ -90,6 +114,9 @@
     "assert_config": {
       "timezone": "Etc/UTC"
     }
+  },
+  {
+    "action": "B"
   },
   {
     "action": "B",

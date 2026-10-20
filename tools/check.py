@@ -35,12 +35,16 @@ def run(name, command, timeout=120):
 
 
 run("source", [sys.executable, str(ROOT / "tools/check_source.py")])
+run("build-graph", [sys.executable, str(ROOT / "tests/build_graph_tests.py")])
 run("runtime-build-tools", [sys.executable, str(ROOT / "tests/runtime_build_tests.py")])
 run("release-tools", [sys.executable, str(ROOT / "tests/release_tests.py")])
+run("system-power", [sys.executable, str(ROOT / "tests/system_power_tests.py")])
 run("installer", [sys.executable, str(ROOT / "tests/installer_tests.py")])
-run("build", ["make", "-j4", "all", "build/model-tests", "build/core-tests",
-              "build/device-tests", "build/volume-ui-tests", "build/timezone-tests", "build/battery-tests", "build/wifi-tests", "build/clock-tests"], timeout=300)
+run("build", ["make", "-j4", "all", "build/battery-log-tests", "build/model-tests", "build/core-tests",
+              "build/device-tests", "build/bluetooth-tests", "build/volume-ui-tests", "build/timezone-tests", "build/battery-tests", "build/wifi-tests", "build/clock-tests"], timeout=300)
+run("bluetooth", [str(ROOT / "build/bluetooth-tests"), str(ROOT / "assets"), str(work / "bluetooth")])
 run("clock", [str(ROOT / "build/clock-tests"), str(ROOT / "assets"), str(work / "clock")])
+run("battery-log", [str(ROOT / "build/battery-log-tests"), str(work / "battery-log")])
 run("battery", [str(ROOT / "build/battery-tests"), str(ROOT / "assets"), str(work / "battery")])
 run("wifi", [str(ROOT / "build/wifi-tests"), str(ROOT / "assets"), str(work / "wifi")])
 run("timezone", [str(ROOT / "build/timezone-tests"), str(ROOT / "assets"), str(work / "timezone")])

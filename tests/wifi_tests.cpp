@@ -277,9 +277,9 @@ int main(int argc, char **argv) {
   App app(opts);
   assert(!app.wifi.available && !app.store.data["wifi_enabled"].get<bool>());
   app.action("Y");
-  for (int i = 0; i < 3; ++i)
+  for (int i = 0; i < 4; ++i)
     app.action("DOWN");
-  app.action("A");
+  app.action("A");app.action("A");
   assert(app.screen == Screen::Wifi);
   app.capture("unavailable");
   app.wifiDevice = adapter;

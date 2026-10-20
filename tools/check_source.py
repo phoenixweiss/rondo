@@ -49,4 +49,15 @@ zone_inputs = json.loads((zone_names.parent / "sources.json").read_text())
 assert hashlib.sha256(zone_names.read_bytes()).hexdigest() == zone_inputs["output_sha256"]
 assert (zone_names.parent / "LICENSE").read_text().startswith("UNICODE LICENSE V3")
 
+mapping_root = ROOT / "assets/ControllerMappings"
+mapping_inputs = json.loads((mapping_root / "sources.json").read_text())
+for name, expected in [(mapping_inputs["output"], mapping_inputs["output_sha256"]),
+                       (mapping_inputs["license_file"], mapping_inputs["license_sha256"])]:
+    assert hashlib.sha256((mapping_root / name).read_bytes()).hexdigest() == expected, name
+mapping_rows = [row for row in (mapping_root / mapping_inputs["output"]).read_text().splitlines()
+                if row and not row.startswith("#")]
+assert len(mapping_rows) == 4 and all(",8BitDo Micro," in row for row in mapping_rows)
+assert sum("platform:Linux," in row for row in mapping_rows) == 2
+assert re.fullmatch(r"[0-9a-f]{40}", mapping_inputs["commit"])
+
 print(f"PASS: {len(files)} publication input files, JSON, local links, vendor hashes and locale placeholders")

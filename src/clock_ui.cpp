@@ -204,15 +204,18 @@ void App::clockAction(const std::string &action) {
     return;
   }
   if (action == "B") {
-    screen = Screen::Settings;
-    category = 0;
-    row = 4;
+    returnToSettings();
     return;
   }
   if (action == "UP")
     row = std::max(0, row - 1);
   if (action == "DOWN")
-    row = std::min(2, row + 1);
+    row = std::min(3, row + 1);
+  if (action == "A" && row == 3) {
+    if (zones.zones.empty()) notice = locale.tr("timezone.unavailable");
+    else openTimezones();
+    return;
+  }
   if (!clockState.available || clockBusy())
     return;
   auto d = clockDevice;
@@ -296,13 +299,15 @@ void App::clockDraw() {
                 clockState.available);
   ui->row(tr("clock.now"), 182, row == 1, 672, "",
           clockState.available && !clockBusy() && wifi.enabled && !wifi.address.empty());
-  ui->row(tr("clock.edit"), 236, row == 2, 672, "›", clockState.available && !clockBusy());
-  ui->text(slotDate(time(nullptr)), 32, 302, 27, 700);
-  ui->text(tr("clock.last"), 32, 350, 21, 500, ui->secondary);
-  ui->text(clockLastSync > 0 ? slotDate(clockLastSync) : tr("clock.never"), 32, 379, 21);
-  ui->hints({{"A", tr(row == 0 ? "footer.toggle" : row==1 ? "clock.now_short" : "action.change")},
-             {"B", tr("action.back")},
-             {"X", tr("footer.info")}});
+  ui->row(tr("clock.edit"),236,row==2,672,"",clockState.available&&!clockBusy(),52,"chevron-right");
+  ui->row(tr("setting.timezone"),290,row==3,672,zoneLabel(store.data.value("timezone","Etc/UTC")),true,52,"chevron-right");
+  ui->text(zones.valid(store.data.value("timezone","Etc/UTC")) ? slotDate(time(nullptr)) : tr("timezone.unavailable"),32,365,27,700,ui->cream,650);
+  std::vector<std::pair<std::string,std::string>> hints;
+  if (row == 0) hints.push_back({"LEFT/RIGHT",tr("footer.value")});
+  hints.push_back({"A",tr(row==0?"footer.toggle":row==1?"clock.now_short":"action.change")});
+  hints.push_back({"B",tr("action.back")});
+  hints.push_back({"X",tr("footer.info")});
+  ui->hints(hints);
   if (!clockError.empty())
     ui->notice(tr("clock.error." + clockError), "clock");
 }

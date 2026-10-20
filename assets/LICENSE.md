@@ -13,4 +13,6 @@ Third-party assets retain their own terms:
 
 - Unicode CLDR country/city names: Unicode License v3, retained in Timezones/LICENSE, with the pinned revision and input hashes in Timezones/sources.json. These data are not original MIT artwork.
 
+- SDL_GameControllerDB Micro profiles: zlib-style license and original copyright retained in ControllerMappings/LICENSE. Selected rows are unmodified; the upstream commit and hashes are in ControllerMappings/sources.json. These data are not original MIT artwork.
+
 Source hashes and provenance are recorded in docs/dependencies/asset-inputs.json and Assets/Icons/sources.json. These paths are relative to the repository and assets directories respectively.

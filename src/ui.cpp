@@ -2,6 +2,7 @@
 // Copyright (c) 2026 PAVEL TKACHEV
 #include "ui.hpp"
 #include "platform.hpp"
+#include "libretro.h"
 #include <algorithm>
 #include <cmath>
 #define STBI_ONLY_PNG
@@ -36,6 +37,10 @@ UI::UI(fs::path a, bool hidden) : assets(std::move(a)), headless(hidden) {
     SDL_setenv("SDL_VIDEODRIVER", "dummy", 1);
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_EVENTS))
     throw std::runtime_error(SDL_GetError());
+  const auto mappingFile=assets/"ControllerMappings/micro.txt";
+  if(fs::is_regular_file(mappingFile))
+    controllerMappingsLoaded=SDL_GameControllerAddMappingsFromFile(mappingFile.c_str());
+  refreshControllers();
   const char *hintMode = SDL_getenv("RONDO_INPUT_HINTS");
   keyboardHints = hintMode ? std::string(hintMode) == "keyboard"
                           : !headless && std::string(SDL_GetCurrentVideoDriver()) != "mali";
@@ -62,6 +67,8 @@ UI::UI(fs::path a, bool hidden) : assets(std::move(a)), headless(hidden) {
   }
 }
 UI::~UI() {
+  for (auto &entry : controllers) SDL_GameControllerClose(entry.second);
+  for (auto &entry : unmappedControllers) SDL_JoystickClose(entry.second);
   for (auto &t : textures)
     SDL_DestroyTexture(t.second);
   for (auto &f : fonts)
@@ -137,6 +144,124 @@ void UI::line(int x, int y, int xx, int yy, SDL_Color c) {
   SDL_SetRenderDrawColor(renderer, c.r, c.g, c.b, c.a);
   SDL_RenderDrawLine(renderer, x, y, xx, yy);
 }
+void UI::refreshControllers() {
+  for(auto it=controllers.begin();it!=controllers.end();) {
+    if(!SDL_GameControllerGetAttached(it->second)) {
+      controllerActivity.erase(it->first);axisRepeats.erase(it->first);
+      SDL_GameControllerClose(it->second);it=controllers.erase(it);
+    } else ++it;
+  }
+  for(auto it=unmappedControllers.begin();it!=unmappedControllers.end();) {
+    if(!SDL_JoystickGetAttached(it->second)) {
+      controllerActivity.erase(it->first);SDL_JoystickClose(it->second);it=unmappedControllers.erase(it);
+    } else ++it;
+  }
+  for(int i=0;i<SDL_NumJoysticks();++i) {
+    auto id=SDL_JoystickGetDeviceInstanceID(i);
+    if(controllers.count(id))continue;
+    const auto *name=SDL_JoystickNameForIndex(i);
+    if(name && std::string(name)=="ANBERNIC-keys")continue;
+    if(controllers.size()+unmappedControllers.size()>=8 && !unmappedControllers.count(id))continue;
+    if(SDL_IsGameController(i)) {
+      if(auto *controller=SDL_GameControllerOpen(i)) {
+        controllers[id]=controller;
+        auto raw=unmappedControllers.find(id);
+        if(raw!=unmappedControllers.end()) {SDL_JoystickClose(raw->second);unmappedControllers.erase(raw);}
+      }
+    } else if(!unmappedControllers.count(id)) {
+      // Keep unknown joysticks observable without guessing their button layout.
+      if(auto *raw=SDL_JoystickOpen(i))unmappedControllers[id]=raw;
+    }
+  }
+  inputDiagnosticAt=0;
+}
+void UI::controllerEvent(const SDL_Event &event) {
+  SDL_JoystickID id=-1;
+  switch(event.type) {
+  case SDL_JOYBUTTONDOWN:case SDL_JOYBUTTONUP:id=event.jbutton.which;break;
+  case SDL_JOYAXISMOTION:id=event.jaxis.which;break;
+  case SDL_JOYHATMOTION:id=event.jhat.which;break;
+  case SDL_CONTROLLERBUTTONDOWN:case SDL_CONTROLLERBUTTONUP:id=event.cbutton.which;break;
+  case SDL_CONTROLLERAXISMOTION:id=event.caxis.which;break;
+  default:return;
+  }
+  if(!controllers.count(id) && !unmappedControllers.count(id))return;
+  auto &counts=controllerActivity[id];
+  if(event.type==SDL_JOYBUTTONDOWN || event.type==SDL_JOYBUTTONUP)++counts.buttons;
+  if(event.type==SDL_JOYAXISMOTION)++counts.axes;
+  if(event.type==SDL_JOYHATMOTION)++counts.hats;
+  if(event.type==SDL_CONTROLLERBUTTONDOWN || event.type==SDL_CONTROLLERBUTTONUP)++counts.mappedButtons;
+  if(event.type==SDL_CONTROLLERAXISMOTION)++counts.mappedAxes;
+}
+const Json &UI::controllerDiagnostics() {
+  const auto now=monotonicMs();
+  if(inputDiagnosticAt && now<inputDiagnosticAt)return inputDiagnostic;
+  inputDiagnosticAt=now+1000;
+  inputDiagnostic={{"api","SDL2 joystick"},{"platform",SDL_GetPlatform()},
+    {"shipped_mappings_loaded",controllerMappingsLoaded},{"devices",Json::array()}};
+  auto append=[&](SDL_JoystickID id,SDL_Joystick *joystick,bool mapped,SDL_GameController *controller) {
+    char guid[33];SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(joystick),guid,sizeof(guid));
+    const auto found=controllerActivity.find(id);
+    const auto counts=found==controllerActivity.end()?ControllerActivity{}:found->second;
+    Json device={{"guid",guid},{"vendor",SDL_JoystickGetVendor(joystick)},
+      {"product",SDL_JoystickGetProduct(joystick)},{"version",SDL_JoystickGetProductVersion(joystick)},
+      {"mapped",mapped},{"buttons",SDL_JoystickNumButtons(joystick)},
+      {"axes",SDL_JoystickNumAxes(joystick)},{"hats",SDL_JoystickNumHats(joystick)},
+      {"activity",{{"raw_buttons",counts.buttons},{"raw_axes",counts.axes},{"raw_hats",counts.hats},
+        {"mapped_buttons",counts.mappedButtons},{"mapped_axes",counts.mappedAxes}}}};
+    // Binding indices establish the active layout without logging arbitrary
+    // device names, serials, Bluetooth addresses or individual button presses.
+    if(controller) {
+      auto bindings=Json::object();
+      for(auto b:{SDL_CONTROLLER_BUTTON_A,SDL_CONTROLLER_BUTTON_B,SDL_CONTROLLER_BUTTON_X,SDL_CONTROLLER_BUTTON_Y,
+        SDL_CONTROLLER_BUTTON_BACK,SDL_CONTROLLER_BUTTON_START,SDL_CONTROLLER_BUTTON_GUIDE,
+        SDL_CONTROLLER_BUTTON_DPAD_UP,SDL_CONTROLLER_BUTTON_DPAD_DOWN,SDL_CONTROLLER_BUTTON_DPAD_LEFT,SDL_CONTROLLER_BUTTON_DPAD_RIGHT}) {
+        auto binding=SDL_GameControllerGetBindForButton(controller,b);std::string target="none";
+        if(binding.bindType==SDL_CONTROLLER_BINDTYPE_BUTTON)target="button:"+std::to_string(binding.value.button);
+        if(binding.bindType==SDL_CONTROLLER_BINDTYPE_AXIS)target="axis:"+std::to_string(binding.value.axis);
+        if(binding.bindType==SDL_CONTROLLER_BINDTYPE_HAT)target="hat:"+std::to_string(binding.value.hat.hat)+":"+std::to_string(binding.value.hat.hat_mask);
+        bindings[SDL_GameControllerGetStringForButton(b)]=target;
+      }
+      device["bindings"]=std::move(bindings);
+    }
+    inputDiagnostic["devices"].push_back(std::move(device));
+  };
+  for(const auto &entry:controllers)append(entry.first,SDL_GameControllerGetJoystick(entry.second),true,entry.second);
+  for(const auto &entry:unmappedControllers)append(entry.first,entry.second,false,nullptr);
+  return inputDiagnostic;
+}
+uint16_t UI::controllerButtons() const {
+  uint16_t mask=0;
+  for(const auto &entry:controllers) {
+    auto *controller=entry.second;
+    if(!SDL_GameControllerGetAttached(controller))continue;
+    auto put=[&](int button,bool pressed){if(pressed)mask|=uint16_t(1<<button);};
+    put(RETRO_DEVICE_ID_JOYPAD_A,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_A));
+    put(RETRO_DEVICE_ID_JOYPAD_B,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_B));
+    put(RETRO_DEVICE_ID_JOYPAD_START,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_START));
+    put(RETRO_DEVICE_ID_JOYPAD_SELECT,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_BACK));
+    for(int d=0;d<4;++d)put(RETRO_DEVICE_ID_JOYPAD_UP+d,SDL_GameControllerGetButton(controller,SDL_GameControllerButton(SDL_CONTROLLER_BUTTON_DPAD_UP+d)));
+    const int x=SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_LEFTX);
+    const int y=SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_LEFTY);
+    put(RETRO_DEVICE_ID_JOYPAD_LEFT,x < -12000);put(RETRO_DEVICE_ID_JOYPAD_RIGHT,x > 12000);
+    put(RETRO_DEVICE_ID_JOYPAD_UP,y < -12000);put(RETRO_DEVICE_ID_JOYPAD_DOWN,y > 12000);
+  }
+  return mask;
+}
+std::vector<std::string> UI::controllerNavigation() {
+  std::vector<std::string> result;
+  for(const auto &entry:controllers) {
+    auto *controller=entry.second;
+    const int x=SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_LEFTX);
+    const int y=SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_LEFTY);
+    const std::string direction=y < -12000?"UP":y > 12000?"DOWN":x < -12000?"LEFT":x > 12000?"RIGHT":"";
+    auto &repeat=axisRepeats[entry.first];const auto now=monotonicMs();
+    if(direction.empty()){repeat={"",0};continue;}
+    if(repeat.first!=direction){repeat={direction,now+350};result.push_back(direction);}
+    else if(now>=repeat.second){repeat.second=now+110;result.push_back(direction);}
+  }
+  return result;
+}
 void UI::icon(const std::string &name, int x, int y, int size) {
   if (name == "check") {
     // Draw the selection mark independently of the text font's glyph coverage.
@@ -154,6 +279,14 @@ void UI::battery(const Telemetry &telemetry, bool showPercent, int x) {
   const int y = 34, w = 27, h = 14;
   const auto level = telemetry.capacity;
   const bool known = level && *level >= 0 && *level <= 100;
+  const std::string percentage = known ? std::to_string(*level) + "%" : "—";
+  batteryDisplay["header_visible"] = true;
+  batteryDisplay["percentage_visible"] = showPercent;
+  batteryDisplay["source_percent"] = level ? Json(*level) : Json(nullptr);
+  batteryDisplay["displayed_percent"] = showPercent && known ? Json(*level) : Json(nullptr);
+  batteryDisplay["label"] = showPercent ? Json(percentage) : Json(nullptr);
+  batteryDisplay["rendered_monotonic_ms"] = monotonicMs();
+  batteryDisplay["submitted_monotonic_ms"] = nullptr;
   const auto color = known && *level <= 15 ? accent : cream;
   rect(x, y, w, h, color, 3);
   rect(x + 2, y + 2, w - 4, h - 4, bg, 1);
@@ -186,7 +319,7 @@ void UI::battery(const Telemetry &telemetry, bool showPercent, int x) {
       rect(span.x, span.y, span.w, span.h, cream);
   }
   if (showPercent)
-    text(known ? std::to_string(*level) + "%" : "—", x + 40, 29, 21);
+    text(percentage, x + 40, 29, 21);
 }
 void UI::wifiIcon(int x, int y, const Telemetry &telemetry) {
   const int level = wifiSignalLevel(telemetry.wifiSignalDbm);
@@ -219,35 +352,42 @@ int UI::status(const std::string &clock, const Telemetry &telemetry) {
     x -= 12 + 22;
     wifiIcon(x, 29, telemetry);
   }
+  if (bluetoothEnabled) {
+    x -= 12 + 22;
+    const auto c=cream;
+    for(int stroke=0;stroke<2;++stroke) {
+      const int dx=x+stroke;
+      line(dx+10,29,dx+10,51,c);
+      line(dx+10,29,dx+18,36,c);line(dx+18,36,dx+3,47,c);
+      line(dx+10,51,dx+18,44,c);line(dx+18,44,dx+3,33,c);
+    }
+  }
   return x;
 }
-void UI::frame(const std::string &title, const std::string &context, const std::string &zone) {
+void UI::frame(const std::string &title, const std::string &context, const std::string &zone, const std::string &titleIcon) {
   rect(0, 0, width, height, bg);
   // Only the clock is available on the host; unknown battery, no invented
   // Wi-Fi.
-  Timezones zones;
-  std::string old = getenv("TZ") ? getenv("TZ") : "";
-  bool had = getenv("TZ");
-  if (zones.valid(zone))
-    zones.applyHost(zone);
   auto now = time(nullptr);
-  tm local{};
-  localtime_r(&now, &local);
-  char clock[8];
-  strftime(clock, sizeof(clock), "%H:%M", &local);
-  if (had)
-    setenv("TZ", old.c_str(), 1);
-  else
-    unsetenv("TZ");
-  tzset();
+  if(now!=frameSecond || zone!=frameZone) {
+    std::string old = getenv("TZ") ? getenv("TZ") : "";
+    bool had = getenv("TZ");
+    if (frameZones.valid(zone))frameZones.applyHost(zone);
+    tm local{};localtime_r(&now,&local);char clock[8];
+    strftime(clock,sizeof(clock),"%H:%M",&local);frameClock=clock;
+    if(had)setenv("TZ",old.c_str(),1);else unsetenv("TZ");
+    tzset();frameSecond=now;frameZone=zone;
+  }
   auto telemetry = readTelemetry();
   if (wifiOverride) {
     telemetry.wifiEnabled=wifiOverride->wifiEnabled;
     telemetry.wifiState=wifiOverride->wifiState;
     telemetry.wifiSignalDbm=wifiOverride->wifiSignalDbm;
   }
-  const int statusLeft = status(clock, telemetry);
-  text(title, 24, 22, 29, 700, cream, statusLeft - 48);
+  const int statusLeft = status(frameClock, telemetry);
+  const int titleX = titleIcon.empty() ? 24 : 62;
+  if (!titleIcon.empty()) icon(titleIcon,24,28,26);
+  text(title, titleX, 22, 29, 700, cream, statusLeft - titleX - 24);
 
   line(24, 68, 696, 68, separator);
   line(24, 432, 696, 432, separator);
@@ -291,7 +431,7 @@ void UI::row(const std::string &label, int y, bool selected, int width, const st
   } else
     text(label, labelX, y + 12, 23, selected ? 700 : 500, c, available);
   if (!value.empty())
-    text(value, width - 8 - valueW, y + 14, 21, 500, c);
+    text(value, width - 8 - valueW - (endIcon.empty() ? 0 : 38), y + 14, 21, 500, c);
   if (!endIcon.empty())
     icon(endIcon, width - 30, y + (h - 22) / 2, 22);
 }
@@ -565,9 +705,11 @@ void UI::pixels(const std::vector<uint32_t> &p, int iw, int ih, int x, int y, in
   SDL_RenderCopy(renderer, t, nullptr, &r);
   SDL_DestroyTexture(t);
 }
-void UI::scrollbar(double content, double viewport, double offset, bool library) {
+void UI::scrollbar(double content, double viewport, double offset, bool library, int top, int bottom) {
   auto token = tokens["layout"][library ? "game_scrollbar" : "scrollbar"];
-  int x = token["x"], top = token["top"], bottom = token["bottom"];
+  int x = token["x"];
+  if (top < 0) top = token["top"];
+  if (bottom < 0) bottom = token["bottom"];
   auto s = scrollGeometry(content, viewport, offset, bottom - top);
   if (!s.visible)
     return;
@@ -617,6 +759,7 @@ void UI::present() {
     SDL_RenderCopy(display, output, nullptr, nullptr);
     SDL_RenderPresent(display);
   }
+  batteryDisplay["submitted_monotonic_ms"] = monotonicMs();
 }
 void UI::save(const fs::path &p) {
   present();

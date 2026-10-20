@@ -51,6 +51,7 @@ public:
   void openAudio();
   bool canSave() const;
   void save(int slot);
+  void deleteSlot(int slot);
   void loadState(int slot);
   bool compatible(int slot) const;
   void flushSram();

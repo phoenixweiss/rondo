@@ -14,6 +14,8 @@ A personal frontend project for the Anbernic RG34XXSP. I enjoy using this handhe
 
 **Early development.** Interfaces and settings formats may change.
 
+**Experimental Bluetooth:** pairing and connection controls are available, but controller input is not working on the tested 8BitDo Micro (D mode). Bluetooth audio and PIN confirmation are not supported. See [Bluetooth limitations](docs/bluetooth.md).
+
 ## Components
 
 - Library catalog and persistent preferences, with recovery after a failed write.

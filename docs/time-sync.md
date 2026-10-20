@@ -1,9 +1,10 @@
 # Date and time
 
-Settings → General → Date & time provides Automatic sync, Synchronize now,
-the current date/time and the last successful synchronization. Automatic sync
+Settings → Date & time provides Automatic sync, Synchronize now,
+the current date/time and time-zone selection. Info shows the last successful
+synchronization. Automatic sync
 defaults to On; it does not enable Wi-Fi. Without a connection it waits. Time-zone
-selection remains a separate General setting and does not change the UTC clock.
+selection is on the same Date & time page and does not change the UTC clock.
 
 Rondo uses BaseOS 1.3.0's timedatectl/baseos-ntp service and BusyBox ntpd, with
 BaseOS's configured time servers. It starts asynchronously and restarts when

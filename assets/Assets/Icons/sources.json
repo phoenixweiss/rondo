@@ -70,5 +70,36 @@
     "sha256": "f382e421b7aae01172989f2b749ee87e44c0c82c16970b13a9ad5a323b613be0",
     "source": "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/volume-x.svg",
     "license": "ISC; see LICENSE"
+  },
+  {
+    "path": "Assets/Icons/star-filled.svg",
+    "sha256": "cf45da49575551e58ac7ec4dd31bb1220265129ee0d123676a833880ae9a43ab",
+    "source": "https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/star.svg",
+    "modification": "Fill changed from none to currentColor for the selected favorite state."
+  },
+  {
+    "path": "Assets/Icons/monitor.svg",
+    "sha256": "d1a443233345724859de8e4fb48968ba91e885e12ddbd710701548bd91b39428",
+    "source": "https://raw.githubusercontent.com/lucide-icons/lucide/02eb9161b57917ccaa262f1bf070507cddde3b08/icons/monitor.svg"
+  },
+  {
+    "path": "Assets/Icons/bug.svg",
+    "sha256": "c4fddf0d43b4c4f0b8fc52eb8810173c8d8bd25618034a70f162d85e8189d69d",
+    "source": "https://raw.githubusercontent.com/lucide-icons/lucide/02eb9161b57917ccaa262f1bf070507cddde3b08/icons/bug.svg"
+  },
+  {
+    "path": "Assets/Icons/rotate-cw.svg",
+    "sha256": "ddcfe6d87240475946935e77411cd4d15a06f3d28a9b921bafed224ebe953668",
+    "source": "https://raw.githubusercontent.com/lucide-icons/lucide/02eb9161b57917ccaa262f1bf070507cddde3b08/icons/rotate-cw.svg"
+  },
+  {
+    "path": "Assets/Icons/power.svg",
+    "sha256": "1e6b84a659aa43f826cdd8df0a63d349720004e2ccb10c33e415a990a311aa05",
+    "source": "https://raw.githubusercontent.com/lucide-icons/lucide/02eb9161b57917ccaa262f1bf070507cddde3b08/icons/power.svg"
+  },
+  {
+    "path": "Assets/Icons/panels-top-left.svg",
+    "sha256": "321a2a5500f2b814a2e62eb73c4b01dc65c7334fe2e6f7d77517239383e26bb1",
+    "source": "https://raw.githubusercontent.com/lucide-icons/lucide/02eb9161b57917ccaa262f1bf070507cddde3b08/icons/panels-top-left.svg"
   }
 ]

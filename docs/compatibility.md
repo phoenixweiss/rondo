@@ -15,7 +15,9 @@ Rondo is in early development. The initial handheld target is Anbernic RG34XXSP,
 | Wi-Fi | Owner accepted connection, recovery after reboot/sleep, separate discovery, IP and revised status display on RG34XXSP | Not exhaustive testing of networks, authentication failures or RSSI calibration |
 | Date and time | Owner accepted automatic/on-demand network time and candidate 1c1ac5e705d3 for offline manual setting, short power-off retention and return to automatic synchronization | Native/BaseOS tests substitute clocks; owner acceptance is bounded and does not establish long-term RTC durability |
 | Compact volume | Latest prototype appearance approved by owner; native state/collision checks | Physical legibility on other screens remains unverified |
-| Other emulators | Planned GB/GBC/GBA/SNES/MD/PSX; possible PSP | Not integrated, benchmarked or cleared for distribution by this source candidate |
+| Bluetooth (experimental) | Micro D paired/connected on RG34XXSP; the previous multi-second HID-battery stalls were absent in a cold-start test | Buttons do not work; SDL reports no external device. Audio/PIN are not implemented; no working wireless controller claim |
+| Shutdown / restart menu | Native confirmation, teardown and mocked launcher/sync tests pass | Physical H700 shutdown/reboot and FAT durability still need acceptance |
+| Other emulators | Planned GB/GBC/GBA/SNES/MD/PSX (CHD only) | Not integrated, benchmarked or cleared for distribution by this source candidate |
 | Two-card integration | Model identity tests | Live TF1/TF2 mounting/integration not established |
 
 Saves and preferences are treated conservatively, but a successful atomic write test is not proof of durability under every power-loss or FAT failure. Back up important state before testing development builds.

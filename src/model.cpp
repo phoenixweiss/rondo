@@ -177,16 +177,21 @@ static void validateConfig(const Json &candidate, const Json &defaults) {
   if (!candidate.is_object() || candidate.value("schema", 0) != 1)
     throw std::runtime_error("Unsupported configuration");
   for (const auto &key : {"revision", "locale", "artwork", "section", "focus", "timezone", "volume",
-                          "favorites", "game_options", "replace_boot_logo", "brightness", "lid_sleep", "wake_on_lid_open", "show_battery_percent", "wifi_enabled", "ntp_auto"})
+                          "favorites", "game_options", "replace_boot_logo", "brightness", "lid_sleep", "wake_on_lid_open", "show_battery_percent", "wifi_enabled", "bluetooth_enabled", "bluetooth_device", "ntp_auto", "debug_enabled", "debug_level"})
     if (candidate.contains(key) && candidate[key].type() != defaults[key].type() &&
         !(candidate[key].is_number() && defaults[key].is_number()))
       throw std::runtime_error("Invalid configuration field");
+  if (candidate.contains("debug_level") && candidate["debug_level"] != "errors" &&
+      candidate["debug_level"] != "events" && candidate["debug_level"] != "detailed")
+    throw std::runtime_error("Invalid diagnostic level");
 }
 Store::Store(fs::path p) : root(std::move(p)) {
   data = {{"schema", 1},
           {"revision", 0},
           {"locale", "en"},
           {"volume", 80},
+          {"debug_enabled", false},
+          {"debug_level", "events"},
           {"brightness", 70},
           {"lid_sleep", true},
           {"wake_on_lid_open", true},
@@ -198,6 +203,8 @@ Store::Store(fs::path p) : root(std::move(p)) {
           {"section", "All"},
           {"focus", ""},
           {"timezone", "Etc/UTC"},
+          {"bluetooth_enabled", false},
+          {"bluetooth_device", ""},
           {"favorites", Json::array()},
           {"game_options", Json::object()}};
   auto file = root / "config.json";

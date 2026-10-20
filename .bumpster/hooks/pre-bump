@@ -5,6 +5,5 @@ cd "$(git rev-parse --show-toplevel)"
 : "${BUMPSTER_NEW_VERSION:?Bumpster new version is required}"
 .venv/bin/python tools/build_core.py
 .venv/bin/python tools/check.py
-.venv/bin/python tools/release.py prepare-changelog
+.venv/bin/python tools/release.py check-changelog "$BUMPSTER_NEW_VERSION"
 git diff --check
-git add CHANGELOG.md

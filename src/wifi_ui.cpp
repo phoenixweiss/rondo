@@ -5,6 +5,8 @@
 #include <iostream>
 namespace rondo {
 App::~App() {
+  btSleep();
+  batterySample("stop");
   if(clockJob.valid())clockJob.wait();
   if(clockState.available && clockDevice && !store.data.value("ntp_auto",true))try{clockDevice->enable(false);}catch(...){}
   clearSecret(wifiPassword);
@@ -208,9 +210,9 @@ void App::wifiAction(const std::string &action) {
       screen = Screen::Wifi;
       row = 1;
     } else {
-      screen = Screen::Settings;
-      category = 0;
-      row = 3;
+      screen = Screen::SettingsSection;
+      category = 5;
+      row = 0;
     }
     wifi.error.clear();
     return;

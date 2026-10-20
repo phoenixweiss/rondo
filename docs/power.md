@@ -6,9 +6,9 @@ The 2026-10-16 hardware run loaded the experimental module, but the actual hall 
 
 The module and build sources remain packaged for research; they are inactive. Wake-on-open is back in the backlog until the actual kernel wake-device contract and standby behavior are established.
 
-## Retained experimental design
+## Settings and retained experimental design
 
-Settings → Power has two independent booleans: Sleep on lid close (`lid_sleep`) and Wake on lid open (`wake_on_lid_open`). Both default to On, including when an older configuration has no wake setting. Existing explicit preferences are preserved. Left/Right sets Off/On, A toggles, and Info explains the behavior. The supervised NES runner uses the same settings authority.
+Settings → Power shows Battery percentage and Sleep on lid close (`lid_sleep`). Left/Right sets Off/On, A toggles, and Info explains the behavior. Wake on lid open is hidden until the device wake contract is supported and tested. The stored `wake_on_lid_open` key remains compatible with older configurations; hiding the control does not enable an unavailable capability or change existing preferences. The supervised NES runner uses the same settings authority.
 
 Closing only triggers sleep when Sleep on lid close is On. Opening wakes only when Wake on lid open is On and the exact-kernel adapter is available. An already open lid is not an opening transition, so it does not immediately cancel sleep requested by Power. Power remains the fallback wake source. With close-to-sleep enabled, a closed device re-suspends after an accidental Power wake, preserving the existing closed-lid policy. With close-to-sleep disabled, the adapter distinguishes a closing wake edge from a fresh Power release before accepting a closed-lid wake.
 
@@ -29,3 +29,22 @@ The offline H700 build pins Linux 4.9.170 and GNU BC 1.07.1 sources, the existin
 Native tests cover all four option combinations, defaults, persistence, rejected writes, unsupported adapters, UI/Info in English/Russian and the existing NES suspend lifecycle. ARM64 BaseOS tests use synthetic sysfs and wrapped device calls: they test wake readback, rejection before `mem`, USB-policy retention, restoration and fallback. ELF checks reject incorrect vendor CRCs and kernel identity. They never load a module into the container host kernel.
 
 Any future experiment requires physical acceptance: lid cycles in the library and a real NES game, all four combinations, Power sleep with the lid already open, closing during Power sleep, audio/input/SRAM after resume and comparison of standby drain. Static ABI compatibility is not proof of an actual hall interrupt waking the SoC. If hardware tests fail, disable wake-on-open and retain the original Power path while returning the experiment to the backlog.
+
+
+## Shut down and restart
+
+The root Settings list ends with Restart and Shut down, separated from the
+seven settings sections. Each section and system action has a Lucide icon.
+Power retains the battery percentage and lid sleep options. Both open a confirmation with Cancel selected; B also cancels. Only
+an explicit confirmation terminates Rondo. The process finishes its settings,
+SRAM and diagnostic lifecycle before the H700 launcher receives exit code 64
+(shutdown) or 65 (restart). The launcher runs `sync` and then `systemctl poweroff`
+or `systemctl reboot`; a failed sync prevents the system request. Ordinary exit
+and crashes never request either operation. Failure is recorded in the bounded
+RAM launcher log. Desktop runs only exit the app and cannot shut down the host.
+
+Wait for the console to turn off completely before removing its SD card.
+Sleep retains the old process and filesystem caches; never update a card while
+the console is asleep. This menu does not change the physical Power-button
+handler or implement automatic save-state slots. Physical H700 acceptance of
+shutdown/restart and FAT preservation is required separately from native tests.

@@ -10,6 +10,7 @@ Original Rondo code, scripts, synthetic test fixtures and original artwork are M
 | PicoSHA2 1.0.1 | vendor/sources.json | MIT grant in header |
 | stb image/read-write | vendor/sources.json | MIT option retained in vendor/stb-LICENSE and headers |
 | FCEUmm, including libretro-common helpers | docs/dependencies/core-source.json | GPLv2 baseline and exact per-file MIT/GPL notices; licenses/FCEUmm-GPLv2.txt |
+| SDL_GameControllerDB Micro profiles | assets/ControllerMappings/sources.json | zlib-style terms and upstream copyright; assets/ControllerMappings/LICENSE |
 | SDL2 Mali-fbdev fork | docs/dependencies/runtime-sources.json | zlib-style source terms; licenses/SDL-LICENSE.txt |
 | SDL yuv2rgb | same SDL source archive | BSD-3-Clause; licenses/SDL-yuv2rgb-BSD-3-Clause.txt |
 | SDL2_ttf 2.20.2 | docs/dependencies/runtime-sources.json | zlib-style source terms; licenses/SDL_ttf-LICENSE.txt |

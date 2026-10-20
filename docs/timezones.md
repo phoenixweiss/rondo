@@ -1,8 +1,8 @@
 # Time-zone selection
 
-Settings → General → Time zone opens a country list at the saved time zone's country. UTC is pinned first. Choose a country, then a city; the check marks the saved choice. Countries and cities are ordered by their localized display labels, with case/diacritic folding in the checked-in sort keys.
+Settings → Date & time → Time zone opens a country list at the saved time zone's country. UTC is pinned first. Choose a country, then a city; the check marks the saved choice. Countries and cities are ordered by their localized display labels, with case/diacritic folding in the checked-in sort keys.
 
-Up/Down selects; Left/Right jumps to another initial letter; L1/R1 pages (Q/E on a keyboard). Enter/A applies and Esc/B returns without saving. Info shows the technical IANA identifier. Choosing a city returns to General settings, where its localized name is shown.
+Up/Down selects; Left/Right jumps to another initial letter; L1/R1 pages (Q/E on a keyboard). Enter/A applies and Esc/B returns without saving. Info shows the technical IANA identifier. Choosing a city returns to Date & time, where its localized name is shown.
 
 Country/city names come from pinned Unicode CLDR data in assets/Timezones. The runtime is offline and has no additional localization-library dependency. tools/build_timezone_names.py regenerates the labels and records exact input/output hashes; retain the accompanying Unicode License v3. New zones absent from that data fall back to a readable IANA city name and country code until the catalog is updated. Incomplete third-party UI locales use the English name set.
 

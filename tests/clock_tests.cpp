@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
   App a(o);
   assert(!a.clockState.available && a.store.data["ntp_auto"] == true);
   a.action("Y");
-  for (int i = 0; i < 4; ++i)
+  for (int i = 0; i < 3; ++i)
     a.action("DOWN");
   a.action("A");
   assert(a.screen == Screen::Clock);
@@ -185,7 +185,7 @@ int main(int argc, char **argv) {
   a.capture("manual-set-failure-ru");
   a.action("B");
   a.action("B");
-  assert(a.screen == Screen::Settings && a.row == 4);
+  assert(a.screen == Screen::Settings && a.row == 3);
   assert(saveSequence(Json{{"save_sequence", "bad"}}) == 0 &&
          saveSequence(Json{{"save_sequence", -1}}) == 0);
   std::cout << "PASS: native time settings, one-shot sync without enabling automatic mode, "

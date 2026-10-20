@@ -24,7 +24,10 @@ int main(int argc, char **argv) {
       assert(app.timezoneNames[language]["countries"].contains(zone.country));
       assert(app.timezoneNames[language]["cities"].contains(zone.id));
     }
-    app.action("Y"); app.action("DOWN"); app.action("A");
+    app.action("Y"); for(int i=0;i<3;++i) { app.action("DOWN"); }
+    app.action("A");
+    for(int i=0;i<3;++i) { app.action("DOWN"); }
+    app.action("A");
     auto countries = app.regions(); assert(countries.front() == "UTC");
     assert(countries[app.row] == "RU");
     app.capture("countries");
@@ -49,7 +52,7 @@ int main(int argc, char **argv) {
     assert(app.store.data["timezone"] == "Europe/Moscow");
     assert(readBytes(options.state / "config.json") == configBefore); app.capture("write-failure");
     app.requestSettings = {}; app.action("A");
-    assert(app.screen == Screen::Settings && app.store.data["timezone"] == nepal);
+    assert(app.screen == Screen::Clock && app.row == 3 && app.store.data["timezone"] == nepal);
     app.capture("applied");
     app.openTimezones(); assert(app.regions()[app.row] == "NP");
     app.row = 0; app.action("A"); assert(app.store.data["timezone"] == "Etc/UTC");
@@ -57,7 +60,7 @@ int main(int argc, char **argv) {
     assert(app.zones.offset("Europe/London", 1782864000) == "UTC+01:00");
     app.zones = Timezones(root / "missing-tzdata");
     app.action("A");
-    assert(app.screen == Screen::Settings && app.notice == app.locale.tr("timezone.unavailable"));
+    assert(app.screen == Screen::Clock && app.row == 3 && app.notice == app.locale.tr("timezone.unavailable"));
     app.capture("missing-data");
   }
   Options options; options.assets = argv[1]; options.state = root / "restart"; options.headless = true;

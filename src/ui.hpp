@@ -11,6 +11,9 @@ class UI {
   SDL_Window *window = nullptr;
   SDL_Renderer *display = nullptr;
   SDL_Texture *output = nullptr;
+  Timezones frameZones;
+  std::string frameZone, frameClock;
+  time_t frameSecond = -1;
   std::map<std::pair<int, int>, TTF_Font *> fonts;
   std::map<std::string, SDL_Texture *> textures;
 
@@ -28,6 +31,22 @@ public:
   std::optional<Telemetry> wifiOverride;
   void wifiIcon(int x, int y, const Telemetry &);
   bool showBatteryPercent = true;
+  bool bluetoothEnabled = false;
+  std::map<SDL_JoystickID,SDL_GameController *> controllers;
+  std::map<SDL_JoystickID,SDL_Joystick *> unmappedControllers;
+  struct ControllerActivity {uint64_t buttons=0,axes=0,hats=0,mappedButtons=0,mappedAxes=0;};
+  std::map<SDL_JoystickID,ControllerActivity> controllerActivity;
+  Json inputDiagnostic=Json::object();
+  uint64_t inputDiagnosticAt=0;
+  int controllerMappingsLoaded=0;
+  void controllerEvent(const SDL_Event &);
+  const Json &controllerDiagnostics();
+  std::map<SDL_JoystickID,std::pair<std::string,uint64_t>> axisRepeats;
+  void refreshControllers();
+  uint16_t controllerButtons() const;
+  std::vector<std::string> controllerNavigation();
+  // Values submitted to the renderer, not a claim about physical panel pixels.
+  Json batteryDisplay = Json::object();
   void battery(const Telemetry &, bool showPercent, int x = 599);
   int status(const std::string &clock, const Telemetry &);
   void inputHints(bool keyboard);
@@ -44,7 +63,7 @@ public:
   void rect(int, int, int, int, SDL_Color, int radius = 0);
   void line(int, int, int, int, SDL_Color);
   void icon(const std::string &, int, int, int = 22);
-  void frame(const std::string &, const std::string &, const std::string &timezone);
+  void frame(const std::string &, const std::string &, const std::string &timezone, const std::string &titleIcon = "");
   void row(const std::string &, int, bool, int = 672, const std::string &value = "",
            bool enabled = true, int h = 52, const std::string &endIcon = "", const std::string &startIcon = "");
   void circle(int, int, int, SDL_Color, bool filled = false);
@@ -57,7 +76,7 @@ public:
   void binaryRow(const std::string &, int, bool, std::optional<bool>, const Locale &, bool supported = true);
   bool image(const fs::path &, int, int, int, int, bool smooth);
   void pixels(const std::vector<uint32_t> &, int, int, int, int, int, int);
-  void scrollbar(double, double, double, bool library);
+  void scrollbar(double, double, double, bool library, int top = -1, int bottom = -1);
   void volumeOverlay(VolumeFeedback &, const Locale &, bool systemNotice = false);
   void present();
   void save(const fs::path &);

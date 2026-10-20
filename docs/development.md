@@ -17,6 +17,20 @@ make
 
 The core builder downloads the exact FCEUmm revision from docs/dependencies/core-source.json, verifies the archive SHA-256, retains that archive and builds it below build/cores. It also copies the resulting library to the stable path used by the demo/check entrypoints: build/cores/fceumm_libretro.dylib on macOS or build/cores/fceumm_libretro.so on Linux.
 
+## Incremental compilation
+
+`make -j4 native-programs` builds the frontend and all native test programs.
+Translation units share objects below `build/obj`; compiler-generated `.d` files
+track direct and transitive headers. Changing the compiler or compile flags
+invalidates the objects; changing link flags relinks the programs. Use a distinct
+`BUILD` directory for each toolchain or independent build. Existing individual
+targets, such as `make build/clock-tests`, remain available.
+
+H700 uses the same graph through `runtime/build-programs.sh`, with the pinned
+cross compiler, explicit SDK flags and adapter-specific link wrappers. Each full
+runtime build owns its objects; independent reproducibility builds do not share
+compiled outputs. Download caching and release gates are unchanged.
+
 ## Quiet checks
 
 ```sh
@@ -65,3 +79,45 @@ See [battery display](battery.md) for status and settings behavior.
 ## H700
 
 tools/build_h700.sh is a compile-only gate using the pinned Docker SDK. For a complete source-built SDL/Mali runtime, FCEUmm and frontend ZIP, use `python3 tools/build_h700_runtime.py --work build/h700-first`. See the [runtime build guide](../runtime/README.md) for two-run reproducibility checks and optional isolated BaseOS preflight. This frontend package is not an SD image. Firmware/rootfs files remain external test inputs.
+
+## Diagnostic and volume failure checks
+
+Device-policy tests inject rejected settings after a running game's sleep/resume,
+exercise keys and inline volume through mute/full scale, and verify that durable
+settings remain unchanged until writes recover. Integration tests also use a real
+shell/runner channel with a read-only settings authority and two runner sessions.
+Battery-log tests cover failed filesystem writes, errno/path retention, RAM
+recovery across logger instances and clearing fixed journal names without
+removing unrelated files. Native renders cover Diagnostics in English/Russian,
+disabled level selection, Info and clear confirmation. These checks do not prove
+physical suspend recovery or repair a card's forced read-only condition.
+
+## Settings navigation
+
+Settings opens a vertical list of Interface, Display, Sound, Date & time,
+Network, Power and Diagnostics. Up/down scrolls the list; returning from a
+section restores its selection and scroll position for the current session.
+The root list starts directly below the header and shows six rows before scrolling.
+Left/right edits values inside a section, without cycling sections.
+
+Battery percentage belongs to Power. Time-zone selection belongs to Date & time;
+last successful synchronization is available through Info. Network contains
+Wi-Fi and Bluetooth. Experimental wake-on-lid-open controls are hidden pending device support;
+existing configuration keys remain compatible. Sleep on lid close remains visible.
+
+### Library search and frame diagnostics
+
+Menu (Tab on desktop) opens title search within the current library section.
+Use the EN/RU on-screen keyboard or type on the desktop; Enter applies and Esc
+cancels. Search ignores ASCII/Cyrillic case. B/Esc clears an applied filter;
+editing and cancellation preserve the previous filter and focus. Search indexes
+already scanned titles when opened and never rescans ROM files while typing.
+Filters are session-only. X/C still toggles Favorites and Y/V opens Settings.
+
+SDL controllers are enumerated at startup and on hotplug events, not each frame.
+The header keeps its time-zone database in memory and updates the formatted
+clock once per second or when its zone changes. Detailed diagnostics include
+bounded two-second frame summaries (input/update/draw work, measured frame rate,
+maximum work and frames exceeding 16.667 ms), attached to existing journal
+samples without introducing per-frame disk writes. These measurements describe
+the active runtime, not a guarantee of device FPS.

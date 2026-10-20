@@ -260,6 +260,14 @@ void Core::save(int slot) {
     throw std::runtime_error("Save preview readback mismatch");
   flushSram();
 }
+void Core::deleteSlot(int slot) {
+  if (slot < 0 || slot > 2) throw std::runtime_error("Invalid save slot");
+  const auto path = saveRoot / ("slot-" + std::to_string(slot) + ".json");
+  // Remove the overwrite backup first; a failure keeps the active slot intact.
+  fs::remove(path.string() + ".previous");
+  fs::remove(path);
+  if (fs::exists(path)) throw std::runtime_error("Save deletion readback mismatch");
+}
 void Core::loadState(int slot) {
   auto j = envelope(saveRoot / ("slot-" + std::to_string(slot) + ".json"));
   if (j.at("core") != identity || j.at("rom") != romHash)

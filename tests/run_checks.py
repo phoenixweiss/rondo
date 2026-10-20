@@ -43,8 +43,42 @@ subprocess.run([str(ROOT/'build/rondo'),'--assets',str(ROOT/'assets'),'--state',
 # Timezone applies an IANA ID via the process-local adapter; never changes macOS timezone.
 zoneState=work/'zone-state';zoneState.mkdir();(zoneState/'config.json').write_text(json.dumps({'schema':1,'timezone':'Europe/Moscow'}))
 # The picker now opens at the saved country. Up reaches the pinned UTC entry.
-commands=[{'action':'Y'},{'action':'DOWN'},{'action':'A'}]+[{'action':'UP'}]*300+[{'action':'A','assert_screen':'global_settings','assert_config':{'timezone':'Etc/UTC'},'capture':'timezone-applied'}]
+commands=[{'action':'Y'}]+[{'action':'DOWN'}]*3+[{'action':'A'}]+[{'action':'DOWN'}]*3+[{'action':'A'}]+[{'action':'UP'}]*300+[{'action':'A','assert_screen':'clock','assert_config':{'timezone':'Etc/UTC'},'capture':'timezone-applied'}]
 failure.write_text(json.dumps(commands))
 subprocess.run([str(ROOT/'build/rondo'),'--assets',str(ROOT/'assets'),'--state',str(zoneState),'--headless','--script',str(failure),'--output',str(out)],check=True,stdout=(work/'timezone.log').open('w'),stderr=subprocess.STDOUT,timeout=30)
+# A real shell/runner round trip with the settings authority refusing writes.
+# A future schema provides a deterministic read-only authority without chmod/root assumptions.
+readonly=work/'readonly-authority';readonly.mkdir();future={'schema':2,'owner_data':'preserve'}
+(readonly/'config.json').write_text(json.dumps(future))
+quit_game=[{'action':'MENU'}]+[{'action':'DOWN'}]*4+[{'action':'A'},{'action':'DOWN'},{'action':'A'}]
+child=[{'assert_runtime_volume':75},{'action':'VOLUME_DOWN','assert_runtime_volume':70,'assert_notice':True}]+quit_game
+child2=[{'assert_runtime_volume':70},{'action':'VOLUME_UP','assert_runtime_volume':75,'assert_notice':True}]+quit_game
+readonly_script=work/'readonly-authority.json';readonly_script.write_text(json.dumps([
+ {'action':'VOLUME_DOWN','assert_runtime_volume':75,'assert_notice':True},
+ {'action':'A','runner_script':child}, {'assert_runtime_volume':70,'assert_screen':'library'},
+ {'action':'A','runner_script':child2}, {'assert_runtime_volume':75,'assert_screen':'library'}]))
+subprocess.run([str(ROOT/'build/rondo'),'--assets',str(ROOT/'assets'),'--state',str(readonly),
+ '--core',str(args.core.resolve()),'--volume',libs[0],'--headless','--script',str(readonly_script),'--output',str(work/'readonly-renders')],
+ check=True,stdout=(work/'readonly-authority.log').open('w'),stderr=subprocess.STDOUT,timeout=45)
+assert json.loads((readonly/'config.json').read_text())==future
 result={'native_build':True,'real_fceumm_state_roundtrip':True,'sram_restart':True,'shell_runner_sessions':2,'durable_restart':True,'runner_load_failure_recovered':True,'settings_write_failure_visible':True,'timezone_apply':True,'volume_master_persists_across_shell_runner':True,'software_mute_verified':True,'library_files_preserved':len(before),'render_backend':'SDL2 software surface, same UI as interactive window','audio_device_tested':False,'device_tested':False,'sd_modified':False}
 (work/'result.json').write_text(json.dumps(result,indent=2)+'\n');print(json.dumps(result))
+
+# Explicit power exit codes are emitted only after confirmed menu actions.
+# The native process never invokes a host power command.
+for index, code in [(8, 64), (7, 65)]:
+    power_state = work / ("power-state-" + str(index))
+    power_state.mkdir()
+    (power_state / "config.json").write_text(json.dumps({"schema":1,"debug_enabled":True,"debug_level":"events"}))
+    power_script = work / ("power-" + str(index) + ".json")
+    commands = ([{"action":"Y"}] + [{"action":"DOWN"}]*index + [{"action":"A","assert_screen":"system_confirm"},
+                {"action":"DOWN"},{"action":"A"}])
+    power_script.write_text(json.dumps(commands))
+    with (work / ("power-" + str(index) + ".log")).open("w") as log:
+        proc = subprocess.run([str(ROOT/"build/rondo"),"--assets",str(ROOT/"assets"),
+            "--state",str(power_state),"--headless","--script",str(power_script),
+            "--output",str(work/("power-output-"+str(index)))],
+            stdout=log,stderr=subprocess.STDOUT,timeout=20)
+    assert proc.returncode == code
+    events = [json.loads(line) for line in (power_state/"Logs/shell.jsonl").read_text().splitlines()]
+    assert events[-1]["event"] == "stop"
