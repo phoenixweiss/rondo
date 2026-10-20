@@ -4,3 +4,5 @@ VERSION text eol=lf
 *.md text eol=lf
 .bumpster/hooks/* text eol=lf
 website/VERSION text eol=lf
+# Preserve the byte-for-byte upstream controller database license.
+assets/ControllerMappings/LICENSE -whitespace
