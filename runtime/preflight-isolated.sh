@@ -24,6 +24,26 @@ printf '{"synthetic":true}\n' > /baseos/tmp/clock-test-guard.json
 export SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy RONDO_INPUT_HINTS=controller
 export LD_LIBRARY_PATH=/tmp/app/lib
 unset RONDO_DEVICE_INPUT RONDO_BOOTLOGO_TOOL
+# Exercise the actual BaseOS power wrappers with only their final BusyBox
+# operation replaced. No init signal or hardware power operation can run.
+for operation in poweroff reboot; do
+ grep -F 'BASEOS_BUSYBOX' "/baseos/usr/sbin/baseos-$operation" >/dev/null
+done
+cat > /baseos/tmp/rondo-power-busybox <<'POWER_STUB'
+#!/bin/sh
+set -eu
+case "$1" in
+ poweroff) test -f "$BASEOS_POWEROFF_MARKER" ;;
+ reboot) test ! -e "$BASEOS_POWEROFF_MARKER" ;;
+ *) exit 1 ;;
+esac
+printf '%s\n' "$1" >> /tmp/rondo-power-calls
+POWER_STUB
+chmod 755 /baseos/tmp/rondo-power-busybox
+export BASEOS_BUSYBOX=/tmp/rondo-power-busybox BASEOS_POWEROFF_MARKER=/tmp/rondo-power-requested
+chroot /baseos /bin/sh /tmp/app/tools/system-power.sh 64
+chroot /baseos /bin/sh /tmp/app/tools/system-power.sh 65
+unset BASEOS_BUSYBOX BASEOS_POWEROFF_MARKER
 chroot /baseos /bin/sh /tmp/app/tools/preflight.sh
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/device-tests /tmp/app/assets /tmp/device-state \
  /tmp/app/cores/fceumm_libretro.so '/tmp/app/Demo/card-a/NES/Rondo Test Cartridge/test.nes'
@@ -37,5 +57,6 @@ chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/bluetooth-tests /tmp/app/assets /
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/clock-tests /tmp/app/assets /tmp/clock-state
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/h700-clock-tests
 mkdir /results/captures
+cp /baseos/tmp/rondo-power-calls /results/captures/
 cp -R /baseos/tmp/rondo-preflight.* /baseos/tmp/device-state /baseos/tmp/timezone-state /baseos/tmp/battery-state /baseos/tmp/battery-log-state /baseos/tmp/wifi-state /baseos/tmp/clock-state /baseos/tmp/bluetooth-state /results/captures/
 printf 'PASS: packaged BaseOS userspace and synthetic hardware tests. No physical hardware accessed.\n'

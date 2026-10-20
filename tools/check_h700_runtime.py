@@ -62,7 +62,9 @@ def main():
                "--entrypoint", "/bin/bash", lock["toolchain_image"], "/check.sh"]
     with (work / "baseos-preflight.log").open("w") as log:
         subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=180)
-    summary = {"package_sha256": result["sha256"], "baseos_version": lock["baseos_version"],
+    if (work / "captures/rondo-power-calls").read_text().splitlines() != ["poweroff", "reboot"]:
+        raise ValueError("BaseOS native power wrapper sequence mismatch")
+    summary = {"native_power_wrappers_fake_busybox_passed": True, "package_sha256": result["sha256"], "baseos_version": lock["baseos_version"],
                "target": lock["target"], "packaged_preflight_passed": True,
                "synthetic_device_tests_passed": True, "rootfs_read_only": True,
                "physical_hardware_verified": False, "sd_accessed": False}

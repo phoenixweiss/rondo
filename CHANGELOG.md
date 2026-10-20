@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## [0.3.1] - 2026-10-20
+
+- Fix the 0.3.0 shutdown/restart requests to use the native BaseOS BusyBox-init wrappers instead of its no-op systemctl compatibility shim. Preserve filesystem sync and the native poweroff marker; shutdown and restart were confirmed on RG34XXSP. Bluetooth controller input remains experimental and is unchanged by this patch.
+
 ## [0.3.0] - 2026-10-20
 
 

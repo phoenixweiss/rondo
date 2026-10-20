@@ -38,8 +38,12 @@ seven settings sections. Each section and system action has a Lucide icon.
 Power retains the battery percentage and lid sleep options. Both open a confirmation with Cancel selected; B also cancels. Only
 an explicit confirmation terminates Rondo. The process finishes its settings,
 SRAM and diagnostic lifecycle before the H700 launcher receives exit code 64
-(shutdown) or 65 (restart). The launcher runs `sync` and then `systemctl poweroff`
-or `systemctl reboot`; a failed sync prevents the system request. Ordinary exit
+(shutdown) or 65 (restart). The launcher runs `sync` and then `/usr/sbin/baseos-poweroff`
+or `/usr/sbin/baseos-reboot`; a failed sync prevents the system request.
+BaseOS uses BusyBox init. Its compatibility `systemctl` silently ignores power
+verbs; those calls in 0.3.0 did not shut down or restart the device. The native
+wrappers set/clear `/run/poweroff-requested`, which `rcK` uses to distinguish
+PMIC poweroff from reboot. They must not be bypassed with forced applets. Ordinary exit
 and crashes never request either operation. Failure is recorded in the bounded
 RAM launcher log. Desktop runs only exit the app and cannot shut down the host.
 
