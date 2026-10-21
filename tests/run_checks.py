@@ -25,8 +25,10 @@ recent=report['config']['recent_games'];assert recent[0]['volume'] in {'TF1','TF
 assert any(x['event']=='resumed_auto' for x in report['runner_sessions'][1]['report']['trace'])
 assert all(x['type']=='stopped' and x['report']['frames']>0 and x['report']['audio_frames']>0 for x in report['runner_sessions'])
 (work/'vertical-report.json').write_text(json.dumps(report,indent=2))
-# Startup offers an explicit resume without launching until confirmed.
-execute('startup-offer',[{'assert_screen':'startup_resume','capture':'startup-offer'},{'action':'B','assert_screen':'library'}],False)
+# An explicitly closed runner retains its saves/history but is not offered at boot.
+assert report['config']['resume_game']==''
+assert all(x['game_closed'] for x in report['runner_sessions'])
+execute('startup-after-close',[{'assert_screen':'library','capture':'startup-after-close'}],False)
 # Restart verifies durable preference/focus; no automatic game launch.
 execute('restart',[{'capture':'restart','assert_screen':'library','assert_config':{'locale':'ru','artwork':'title'} }])
 assert before==sources(),'Source library changed'
@@ -55,7 +57,7 @@ subprocess.run([str(ROOT/'build/rondo'),'--assets',str(ROOT/'assets'),'--state',
 # Timezone applies an IANA ID via the process-local adapter; never changes macOS timezone.
 zoneState=work/'zone-state';zoneState.mkdir();(zoneState/'config.json').write_text(json.dumps({'schema':1,'timezone':'Europe/Moscow'}))
 # The picker now opens at the saved country. Up reaches the pinned UTC entry.
-commands=[{'action':'Y'}]+[{'action':'DOWN'}]*3+[{'action':'A'}]+[{'action':'DOWN'}]*3+[{'action':'A'}]+[{'action':'UP'}]*300+[{'action':'A','assert_screen':'clock','assert_config':{'timezone':'Etc/UTC'},'capture':'timezone-applied'}]
+commands=[{'action':'MENU'}]+[{'action':'DOWN'}]*3+[{'action':'A'}]+[{'action':'DOWN'}]*3+[{'action':'A'}]+[{'action':'UP'}]*300+[{'action':'A','assert_screen':'clock','assert_config':{'timezone':'Etc/UTC'},'capture':'timezone-applied'}]
 failure.write_text(json.dumps(commands))
 subprocess.run([str(ROOT/'build/rondo'),'--assets',str(ROOT/'assets'),'--state',str(zoneState),'--headless','--script',str(failure),'--output',str(out)],check=True,stdout=(work/'timezone.log').open('w'),stderr=subprocess.STDOUT,timeout=30)
 # A real shell/runner round trip with the settings authority refusing writes.
@@ -83,7 +85,7 @@ for index, code in [(8, 64), (7, 65)]:
     power_state.mkdir()
     (power_state / "config.json").write_text(json.dumps({"schema":1,"debug_enabled":True,"debug_level":"events"}))
     power_script = work / ("power-" + str(index) + ".json")
-    commands = ([{"action":"Y"}] + [{"action":"DOWN"}]*index + [{"action":"A","assert_screen":"system_confirm"},
+    commands = ([{"action":"MENU"}] + [{"action":"DOWN"}]*index + [{"action":"A","assert_screen":"system_confirm"},
                 {"action":"DOWN"},{"action":"A"}])
     power_script.write_text(json.dumps(commands))
     with (work / ("power-" + str(index) + ".log")).open("w") as log:

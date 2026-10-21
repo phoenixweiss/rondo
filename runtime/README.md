@@ -26,13 +26,13 @@ python3 tools/check_h700_runtime.py --build build/h700-first \
   --rootfs /path/to/extracted-baseos-rootfs --work build/h700-preflight
 ```
 
-The verifier checks target/version, ZIP integrity and complete checksums before extracting. It mounts the rootfs read-only, overlays tmpfs for /tmp, /sys and /dev, and substitutes a mixer stub only inside the container. No privileged container, host devices or real sysfs are exposed. The actual packaged preflight runs through the BaseOS loader, checks ELF dependencies (including dynamically opened EGL/GLES/ALSA), reports SDL capabilities and exercises NES save/resume and GB/GBC SRAM/RTC, manual/automatic states and startup continuation. Freshly compiled tests also check inline settings, slot previews, power/lid policy and all 21 brightness steps against synthetic ioctl/sysfs fixtures. Captures and logs are retained under the chosen work directory. No rootfs content is included in the ZIP.
+The verifier checks target/version, ZIP integrity and complete checksums before extracting. It mounts the rootfs read-only, overlays tmpfs for /tmp, /sys and /dev, and substitutes a mixer stub only inside the container. No privileged container, host devices or real sysfs are exposed. The actual packaged preflight runs through the BaseOS loader, checks ELF dependencies (including dynamically opened EGL/GLES/ALSA), reports SDL capabilities and exercises NES save/resume and GB/GBC SRAM/RTC and GBA cartridge persistence, manual/automatic states and startup continuation. Freshly compiled tests also check inline settings, slot previews, power/lid policy and all 21 brightness steps against synthetic ioctl/sysfs fixtures. Captures and logs are retained under the chosen work directory. No rootfs content is included in the ZIP.
 
 This is userspace/ABI and synthetic policy verification. Physical graphics, audio, controls, brightness and suspend still require an explicitly authorized device test. Building or verifying never installs to an SD card. See [installation and rollback](../docs/installation.md) for the separate manual operation.
 
 ## Distribution audit
 
-Run `python3 tools/audit_h700_package.py build/h700-first/output/Rondo-BaseOS-RG34XXSP-development-SOURCEID.zip` using the actual filename printed by the builder. It checks the ZIP against its own frozen source inputs and required distribution notices. The combined NES/GB/GBC package selects FreeType's GPLv2 alternative. See [shipping audit](../docs/shipping-audit.md) and [asset policy](../assets/LICENSE.md).
+Run `python3 tools/audit_h700_package.py build/h700-first/output/Rondo-BaseOS-RG34XXSP-development-SOURCEID.zip` using the actual filename printed by the builder. It checks the ZIP against its own frozen source inputs and required distribution notices. The combined NES/GB/GBC/GBA package selects FreeType's GPLv2 alternative. See [shipping audit](../docs/shipping-audit.md) and [asset policy](../assets/LICENSE.md).
 
 Frontend and test compilation share the root Makefile object graph within each
 `/work/programs` directory. Header dependencies and command configuration changes

@@ -434,7 +434,7 @@ void App::action(const std::string &a) {
       wifiAction(a);record("wifi:"+a);return;
     }
     if (screen == Screen::Library) {
-      if(a=="MENU") {
+      if(a=="Y") {
         searchNames.clear();for(const auto &entry:games)searchNames.push_back(searchFold(entry.title));
         searchDraft=searchQuery;searchRow=searchColumn=0;
         screen=Screen::Search;SDL_StartTextInput();return;
@@ -476,7 +476,7 @@ void App::action(const std::string &a) {
         auto updated = visible();
         selected = updated.empty() ? 0 : std::min(selected, int(updated.size()) - 1);
       }
-      if (a == "Y") {
+      if (a == "MENU") {
         returnToSettings();
       }
       if (a == "A" && !v.empty()) {
@@ -877,6 +877,7 @@ void App::action(const std::string &a) {
           noticeUntil = monotonicMs() + 2000;
         } else {
           saveOnExit(row==2);
+          gameClosed = true;
           stop = true;
         }
       }
@@ -919,6 +920,7 @@ std::string App::infoKey() const {
 void App::rememberLaunch() {
   auto next=store.data;
   next["recent_games"]=recentAfterLaunch(next.at("recent_games"),game,options.volumes);
+  next["resume_game"]=game.id;
   persist(next);
   if (section=="Recent") { selected=0;scroll=0; }
 }
@@ -1016,11 +1018,16 @@ void App::saveOnExit(bool skipAutomatic) {
     } catch(...) {screen=origin;autosaveError=locale.tr("autosave.failed");notice=autosaveError;throw;}
   } else core->flushSram();
 }
+void App::rememberClosedGame() {
+  auto next=store.data;
+  next["resume_game"]="";
+  persist(next);
+}
 void App::offerStartupResume() {
   if(!store.data.value("startup_resume",true) || !store.warning.empty())return;
-  const auto &history=store.data.at("recent_games");
-  if(history.empty())return;
-  auto id=history[0].at("id").get<std::string>();
+  // Recent history survives an explicit close; only an unfinished session is offered.
+  auto id=store.data.value("resume_game",std::string());
+  if(id.empty())return;
   auto found=std::find_if(games.begin(),games.end(),[&](const Game &candidate){return candidate.id==id && candidate.available;});
   if(found==games.end() || !fs::is_regular_file(options.coreFor(found->system)) || !fs::is_regular_file(found->path))return;
   game=*found;
@@ -1235,7 +1242,7 @@ void App::draw() {
   if (screen == Screen::Running) {
     ui->rect(0, 0, 720, 480, gameBackground());
     int w = 720, h = 480;
-    if(game.system=="GB" || game.system=="GBC") {
+    if(game.system=="GB" || game.system=="GBC" || game.system=="GBA") {
       double scale=std::min(720.0/core->width,480.0/core->height);
       w=int(core->width*scale);h=int(core->height*scale);
     }
@@ -1280,7 +1287,10 @@ void App::draw() {
                    ? locale.tr("empty.favorites_help", {{"button", ui->buttonLabel("X")}})
                    : tr(section == "Recent" ? "empty.recent_help" : "empty.library_help"), 32, 224,
                17, 500, ui->secondary);
-      ui->hints({{"MENU",tr("search.title")},{searchQuery.empty()?"Y":"B",tr(searchQuery.empty()?"screen.settings":"search.clear")},{"L1/R1",tr("action.section")}});
+      std::vector<std::pair<std::string,std::string>> hints={{"Y",tr("search.title")},{"MENU",tr("screen.settings")}};
+      if(!searchQuery.empty())hints.push_back({"B",tr("search.clear")});
+      else hints.push_back({"L1/R1",tr("action.section")});
+      ui->hints(hints);
     } else {
       selected = std::clamp(selected, 0, int(v.size()) - 1);
       auto &g = games[v[selected]];
@@ -1332,9 +1342,10 @@ void App::draw() {
       ui->text(source,594-ui->measure(source,17)/2,399,17,500,ui->secondary,204);
       std::vector<std::pair<std::string,std::string>> hints;
       if (g.available) hints.push_back({"A",tr("action.play")});
-      hints.push_back({"X",tr("screen.favorites")});
-      hints.push_back({"MENU",tr("search.title")});
-      hints.push_back({searchQuery.empty()?"Y":"B",tr(searchQuery.empty()?"screen.settings":"search.clear")});
+      if(searchQuery.empty())hints.push_back({"X",tr("screen.favorites")});
+      hints.push_back({"Y",tr("search.title")});
+      hints.push_back({"MENU",tr("screen.settings")});
+      if(!searchQuery.empty())hints.push_back({"B",tr("search.clear")});
       ui->hints(hints);
     }
   } else if(screen==Screen::Search) {

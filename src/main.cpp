@@ -128,6 +128,8 @@ static void held(App &a) {
   put(RETRO_DEVICE_ID_JOYPAD_DOWN, k[SDL_SCANCODE_DOWN]);
   put(RETRO_DEVICE_ID_JOYPAD_LEFT, k[SDL_SCANCODE_LEFT]);
   put(RETRO_DEVICE_ID_JOYPAD_RIGHT, k[SDL_SCANCODE_RIGHT]);
+  put(RETRO_DEVICE_ID_JOYPAD_L, k[SDL_SCANCODE_Q]);
+  put(RETRO_DEVICE_ID_JOYPAD_R, k[SDL_SCANCODE_E]);
   auto &raw = *a.ui->handheldKeys;
   put(RETRO_DEVICE_ID_JOYPAD_A, raw.pressed("A"));
   put(RETRO_DEVICE_ID_JOYPAD_B, raw.pressed("B"));
@@ -137,6 +139,8 @@ static void held(App &a) {
   put(RETRO_DEVICE_ID_JOYPAD_DOWN, raw.pressed("DOWN"));
   put(RETRO_DEVICE_ID_JOYPAD_LEFT, raw.pressed("LEFT"));
   put(RETRO_DEVICE_ID_JOYPAD_RIGHT, raw.pressed("RIGHT"));
+  put(RETRO_DEVICE_ID_JOYPAD_L, raw.pressed("L1"));
+  put(RETRO_DEVICE_ID_JOYPAD_R, raw.pressed("R1"));
   mask |= a.ui->controllerButtons();
   a.core->buttons = a.gameButtons(mask);
 }
@@ -278,6 +282,8 @@ static Json supervise(App &a, const Json &runnerScript) {
                                    std::to_string(channel[1])};
   auto gbCore=a.options.coreFor("GB");
   if(!gbCore.empty()) {args.push_back("--gb-core");args.push_back(gbCore.string());}
+  auto gbaCore=a.options.coreFor("GBA");
+  if(!gbaCore.empty()) {args.push_back("--gba-core");args.push_back(gbaCore.string());}
   if (a.options.headless)
     args.push_back("--headless");
   if (a.resume)
@@ -378,6 +384,13 @@ static Json supervise(App &a, const Json &runnerScript) {
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
       failure = "Runner failed; unsaved progress may be lost";
   }
+  if (failure.empty() && result.value("game_closed",false)) {
+    try { a.rememberClosedGame(); }
+    catch (const std::exception &e) {
+      historyWarning=a.locale.tr("recent.write_failed");
+      std::cerr << "Closed-game state: " << e.what() << "\n";
+    }
+  }
   a.ui = std::make_unique<UI>(a.options.assets, a.options.headless);
   // Time spent in the runner is not idle time in the library.
   a.lastActivity=monotonicMs();
@@ -414,6 +427,8 @@ int main(int argc, char **argv) {
         opts.core = fs::absolute(value());
       else if (flag == "--gb-core")
         opts.gbCore = fs::absolute(value());
+      else if (flag == "--gba-core")
+        opts.gbaCore = fs::absolute(value());
       else if (flag == "--output")
         opts.output = fs::absolute(value());
       else if (flag == "--script")
@@ -453,7 +468,7 @@ int main(int argc, char **argv) {
         return 0;
       } else if (flag == "--help") {
         std::cout << "rondo --volume CARD_ID=ROMS_PATH --state NEW_STATE_PATH "
-                     "--core FCEUMM_LIBRARY [--gb-core GAMBATTE_LIBRARY] [--headless --script SCRIPT.json "
+                     "--core FCEUMM_LIBRARY [--gb-core GAMBATTE_LIBRARY] [--gba-core GPSP_LIBRARY] [--headless --script SCRIPT.json "
                      "--output DIR]\n";
         return 0;
       } else
@@ -571,7 +586,7 @@ int main(int argc, char **argv) {
       report["audio_frames"] = app.core->audioFrames;
       report["state_hash"] = app.core->stateHash();
       message(fd,
-              {{"type", "stopped"}, {"report", report}, {"feedback", app.volumeFeedback.json()},
+              {{"type", "stopped"}, {"game_closed", app.gameClosed}, {"report", report}, {"feedback", app.volumeFeedback.json()},
                {"runtime_volume", app.previewVolume},
                {"keyboard_hints", app.ui->keyboardHints}});
       close(fd);

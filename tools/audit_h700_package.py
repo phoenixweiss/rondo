@@ -38,6 +38,8 @@ def audit(path):
                     'lib/libSDL2-2.0.so.0', 'lib/libSDL2_ttf-2.0.so.0']}
         if 'System/Rondo/cores/gambatte_libretro.so' in names:
             expected.add('System/Rondo/cores/gambatte_libretro.so')
+        if 'System/Rondo/cores/gpsp_libretro.so' in names:
+            expected.add('System/Rondo/cores/gpsp_libretro.so')
         if 'System/Rondo/modules/rondo_lid_wake.ko' in names:
             expected.add('System/Rondo/modules/rondo_lid_wake.ko')
         require(set(binaries) == expected, 'Unexpected installed ELF set')
@@ -84,6 +86,14 @@ def audit(path):
             with tarfile.open(fileobj=io.BytesIO(data)) as archive:
                 license_bytes=archive.extractfile('gambatte-libretro-'+gb['revision']+'/COPYING').read()
             require(license_bytes==package.read('Licenses/Gambatte-GPLv2.txt'), 'Gambatte license mismatch')
+        gba = json.loads(source['docs/dependencies/gba-core-source.json']) if 'docs/dependencies/gba-core-source.json' in source else None
+        if gba:
+            require('System/Rondo/cores/gpsp_libretro.so' in names, 'Missing GBA core')
+            data=package.read('Sources/gpsp.tar.gz')
+            require(digest(data)==gba['archive_sha256'], 'gpSP source hash mismatch')
+            with tarfile.open(fileobj=io.BytesIO(data)) as archive:
+                for src, notice in [('COPYING','gpSP-GPLv2.txt'),('bios/README.md','gpSP-Open-BIOS.txt')]:
+                    require(archive.extractfile('gpsp-'+gba['revision']+'/'+src).read()==package.read('Licenses/'+notice), 'gpSP notice mismatch')
         upstream = {}
         for name, checksum in [('sdl', runtime['sdl']['sha256']), ('ttf', runtime['ttf']['sha256']),
                                ('fceumm', core['archive_sha256'])]:
@@ -91,6 +101,7 @@ def audit(path):
             require(digest(data) == checksum, 'Upstream archive hash mismatch: ' + name)
             upstream[name] = checksum
         if gb: upstream['gambatte']=gb['archive_sha256']
+        if gba: upstream['gpsp']=gba['archive_sha256']
         with tarfile.open(fileobj=io.BytesIO(package.read('Sources/ttf.tar.gz'))) as archive:
             gpl = archive.extractfile('SDL2_ttf-2.20.2/external/freetype/docs/GPLv2.TXT').read()
             require(gpl == package.read('Licenses/FreeType-GPLv2.txt'), 'Wrong FreeType license text')

@@ -11,7 +11,7 @@ python3 /src/runtime/inputs.py
 /bin/bash /src/runtime/build-lid-module.sh
 prefix=/opt/aarch64-nextui-linux-gnu/bin/aarch64-nextui-linux-gnu
 mkdir /work/evidence
-for name in rondo fceumm_libretro.so gambatte_libretro.so; do
+for name in rondo fceumm_libretro.so gambatte_libretro.so gpsp_libretro.so; do
   "$prefix-readelf" -h -d --version-info "/work/programs/$name" > "/work/evidence/$name.elf.txt"
 done
 for name in libSDL2-2.0.so.0 libSDL2_ttf-2.0.so.0; do

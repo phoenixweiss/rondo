@@ -133,6 +133,11 @@ bool Core::environment(unsigned cmd, void *data) {
         while (!values.empty() && values[0] == ' ')
           values.erase(0, 1);
         c.variables[v->key] = values.substr(0, values.find('|'));
+        // The handheld GBA policy uses wall time and hardware-rate audio;
+        // link-cable sessions are outside this frontend's supported scope.
+        if(std::string(v->key)=="gpsp_rtc_time_source")c.variables[v->key]="system";
+        if(std::string(v->key)=="gpsp_sound_rate")c.variables[v->key]="32768";
+        if(std::string(v->key)=="gpsp_serial")c.variables[v->key]="disabled";
       }
     }
     return true;

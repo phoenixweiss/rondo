@@ -44,7 +44,7 @@ This list grows with device testing and user feedback; it is not a complete inve
 
 ## Next: game systems and library support
 
-- GB/GBC play, saves, continuation and sleep passed bounded owner testing on RG34XXSP. Investigate GBA, SNES, MD and PSX (CHD only) individually, covering licensing, builds, controls, performance, SRAM, save states, resume and sleep on the console. Retain NES regression checks.
+- GB/GBC play, saves, continuation and sleep passed bounded owner testing on RG34XXSP. GBA play, saves, continuation and sleep were also accepted with candidate 4ce045a0d3fe. Investigate SNES, MD and PSX (CHD only) individually, covering licensing, builds, controls, performance, SRAM, save states, resume and sleep on the console. Retain NES regression checks.
 - Investigate two-card library behavior, duplicate handling, missing cards and state-storage placement.
 - Investigate wider H700 hardware support separately before promising compatibility. PSP is outside the project scope.
 

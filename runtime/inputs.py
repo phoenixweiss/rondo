@@ -23,6 +23,7 @@ def records(root):
     core = json.loads((dependencies / "core-source.json").read_text())
     revision = core["revision"]
     gb = json.loads((dependencies / "gb-core-source.json").read_text())
+    gba = json.loads((dependencies / "gba-core-source.json").read_text())
     return {
         "sdl": {**data["sdl"], "directory": "SDL-malifbdev-rot-" +
                 data["sdl"]["url"].rsplit("/", 1)[1]},
@@ -32,6 +33,8 @@ def records(root):
                    "directory": "libretro-fceumm-" + revision},
         "gambatte": {"url": gb["repository"].replace("github.com/","codeload.github.com/")+"/tar.gz/"+gb["revision"],
                      "sha256":gb["archive_sha256"],"directory":"gambatte-libretro-"+gb["revision"]},
+        "gpsp": {"url": gba["repository"].replace("github.com/","codeload.github.com/")+"/tar.gz/"+gba["revision"],
+                 "sha256":gba["archive_sha256"],"directory":"gpsp-"+gba["revision"]},
         "linux": data["linux"], "bc": data["bc"]
     }
 

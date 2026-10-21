@@ -161,6 +161,7 @@ std::vector<Game> scan(const std::vector<Volume> &volumes) {
       if (ext == ".nes")system = "NES";
       else if(ext==".gb")system="GB";
       else if(ext==".gbc")system="GBC";
+      else if(ext==".gba")system="GBA";
       auto identity = v.id + "\n" + rel.generic_string();
       std::vector<uint8_t> bytes(identity.begin(), identity.end());
       std::string title = path.stem().string();
@@ -219,7 +220,7 @@ static void validateConfig(const Json &candidate, const Json &defaults) {
   if (!candidate.is_object() || candidate.value("schema", 0) != 1)
     throw std::runtime_error("Unsupported configuration");
   for (const auto &key : {"revision", "locale", "artwork", "section", "focus", "timezone", "volume",
-                          "favorites", "game_options", "replace_boot_logo", "brightness", "lid_sleep", "wake_on_lid_open", "show_battery_percent", "wifi_enabled", "bluetooth_enabled", "bluetooth_device", "ntp_auto", "debug_enabled", "debug_level", "integer_scaling", "game_background", "autosave_enabled", "startup_resume", "idle_screen_minutes", "battery_warning"})
+                          "favorites", "game_options", "replace_boot_logo", "brightness", "lid_sleep", "wake_on_lid_open", "show_battery_percent", "wifi_enabled", "bluetooth_enabled", "bluetooth_device", "ntp_auto", "debug_enabled", "debug_level", "integer_scaling", "game_background", "autosave_enabled", "startup_resume", "resume_game", "idle_screen_minutes", "battery_warning"})
     if (candidate.contains(key) && candidate[key].type() != defaults[key].type() &&
         !(candidate[key].is_number() && defaults[key].is_number()))
       throw std::runtime_error("Invalid configuration field");
@@ -256,6 +257,7 @@ Store::Store(fs::path p) : root(std::move(p)) {
           {"game_background", "black"},
           {"autosave_enabled", true},
           {"startup_resume", true},
+          {"resume_game", ""},
           {"idle_screen_minutes", 5},
           {"battery_warning", true},
           {"lid_sleep", true},

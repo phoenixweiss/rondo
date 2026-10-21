@@ -276,7 +276,7 @@ int main(int argc, char **argv) {
   opts.headless = true;
   App app(opts);
   assert(!app.wifi.available && !app.store.data["wifi_enabled"].get<bool>());
-  app.action("Y");
+  app.action("MENU");
   for (int i = 0; i < 4; ++i)
     app.action("DOWN");
   app.action("A");app.action("A");

@@ -1,7 +1,7 @@
 # Automatic saves and startup continuation
 
 Settings → Power enables Automatic save and Continue on startup by default.
-An orderly exit from an NES game writes `autosave.json` in that game's existing
+An orderly exit from a supported game writes `autosave.json` in that game's existing
 save directory. It never replaces manual slots 1–3. SRAM is flushed before the
 state, which includes a preview and the current ROM/core compatibility identity.
 Rondo shows Saving… during the write. The previous valid automatic generation
@@ -12,9 +12,13 @@ files, not a multi-file transaction or a power-loss guarantee.
 Continue chooses the newest compatible manual or automatic state using save
 sequence, then UTC time. A corrupt automatic file falls back to its compatible
 previous generation. New game still starts from reset. On a fresh frontend start,
-the most recent available game with a compatible state offers Continue / Library;
+the last unfinished available game with a compatible state offers Continue / Library;
 it never launches without confirmation. B opens the library. Sleep/resume does
-not reopen this prompt or serialize the already running core.
+not reopen this prompt or serialize the already running core. Explicitly closing a
+game clears its startup offer after a successful runner exit, preserving its
+autosave, manual slots and Recent entry. Shutdown during a game keeps the offer.
+Older configurations without an unfinished-session marker open the library;
+their existing saves remain available from the game’s Continue menu.
 
 If automatic saving fails, the game stays open and paused. Retry or cancel is
 available, with an explicit Exit without automatic save choice after the failure.

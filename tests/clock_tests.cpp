@@ -57,7 +57,7 @@ int main(int argc, char **argv) {
   o.headless = true;
   App a(o);
   assert(!a.clockState.available && a.store.data["ntp_auto"] == true);
-  a.action("Y");
+  a.action("MENU");
   for (int i = 0; i < 3; ++i)
     a.action("DOWN");
   a.action("A");

@@ -144,7 +144,7 @@ const std::string address="AA:BB:CC:DD:EE:FF";
   auto fake=std::make_shared<FakeBluez>();fake->entries[address]={address,"Очень длинное имя беспроводного контроллера",false,false,false};
   for(int i=0;i<7;++i) {auto id="10:20:30:40:50:0"+std::to_string(i);fake->entries[id]={id,"Controller "+std::to_string(i),true,true,false};}
   app.btDevice=fake;app.bt.available=true;app.btPollAt=monotonicMs()+15000;
-  app.action("Y");for(int i=0;i<4;++i)app.action("DOWN");app.action("A");app.action("DOWN");app.action("A");
+  app.action("MENU");for(int i=0;i<4;++i)app.action("DOWN");app.action("A");app.action("DOWN");app.action("A");
   assert(app.screen==Screen::Bluetooth);
   app.requestSettings=[](Json){return false;};app.action("RIGHT");wait(app);assert(!fake->on && !app.store.data["bluetooth_enabled"].get<bool>());
   app.requestSettings={};app.action("RIGHT");wait(app);assert(fake->on && app.bt.enabled && app.store.data["bluetooth_enabled"]==true);

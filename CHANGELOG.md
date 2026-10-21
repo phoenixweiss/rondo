@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## [0.6.0] - 2026-10-21
+
+- Add GBA through pinned gpSP, with A/B/L/R/Start/Select input, cartridge SRAM, manual/automatic states, startup continuation and aspect/integer scaling. The owner accepted GBA play, saves, continuation and sleep on RG34XXSP.
+- Use gpSP's bundled open BIOS replacement when no user BIOS is supplied; preserve its GPLv2 source and attribution. Select system-clock RTC, 32768 Hz audio and disabled link cable. H700 uses the ARM64 dynarec; macOS checks use the interpreter.
+- Swap library shortcuts: Menu/Tab opens settings; Y/V opens search. In-game Menu/Tab continues to open the game menu. Show updated footer hints, including filtered/empty lists.
+- Offer startup continuation only for an unfinished game session. Explicitly closing a game returns the next boot to the library while retaining recent history, manual slots and automatic saves. Older configurations without a session marker start in the library.
+
+### Verification and known limitations
+
+- All 115 owner-provided GBA ROMs passed automated native launch, save/load and process-restart continuation checks; commercial ROMs and artwork are excluded from the public package. The owner accepted GBA play, saves, continuation and sleep with candidate 4ce045a0d3fe and the startup-continuation fix with candidate a87f004c7129.
+- The owner reports mild GBA slowdown in Breath of Fire’s fire intro and slight audio crackling/stutter near the start of play. Performance and audio pacing remain in the optimization backlog; the cause is not established.
+- Bluetooth remains experimental. Battery-gauge jumps, wake-on-lid-open, recurring FAT inconsistencies and slight interface/game stutter remain in the backlog; this release does not establish full-game compatibility or measured sustained performance.
+
 ## [0.5.0] - 2026-10-21
 
 - Add Game Boy and Game Boy Color through a pinned, source-built Gambatte core, with independent cartridge SRAM/RTC, manual slots, automatic exit saves and startup continuation.

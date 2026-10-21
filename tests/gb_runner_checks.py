@@ -39,7 +39,7 @@ assert len(slots) == 2
 for slot in slots:
     assert json.loads(slot.read_text())['core'] == hashlib.sha256(gb_core.read_bytes()).hexdigest()
 report = execute('startup-resume', [
-    {'assert_screen': 'startup_resume'}, {'action': 'A', 'runner_script': run_game},
+    {'assert_screen': 'library'}, {'action': 'A'}, {'action': 'A', 'runner_script': run_game},
     {'assert_screen': 'library'}])
 assert any(t['event'] == 'resumed_auto' for t in report['runner_sessions'][0]['report']['trace'])
 print('PASS: separate GB/GBC runners, core routing, audio, exit autosave, MRU and startup continuation.')

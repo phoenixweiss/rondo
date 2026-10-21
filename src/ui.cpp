@@ -238,6 +238,8 @@ uint16_t UI::controllerButtons() const {
     auto put=[&](int button,bool pressed){if(pressed)mask|=uint16_t(1<<button);};
     put(RETRO_DEVICE_ID_JOYPAD_A,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_A));
     put(RETRO_DEVICE_ID_JOYPAD_B,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_B));
+    put(RETRO_DEVICE_ID_JOYPAD_L,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_LEFTSHOULDER));
+    put(RETRO_DEVICE_ID_JOYPAD_R,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_RIGHTSHOULDER));
     put(RETRO_DEVICE_ID_JOYPAD_START,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_START));
     put(RETRO_DEVICE_ID_JOYPAD_SELECT,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_BACK));
     for(int d=0;d<4;++d)put(RETRO_DEVICE_ID_JOYPAD_UP+d,SDL_GameControllerGetButton(controller,SDL_GameControllerButton(SDL_CONTROLLER_BUTTON_DPAD_UP+d)));

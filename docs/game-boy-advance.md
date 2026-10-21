@@ -1,0 +1,13 @@
+# Game Boy Advance
+
+The owner accepted GBA play, saves, continuation and sleep on RG34XXSP with candidate 4ce045a0d3fe. The startup-continuation fix was accepted with candidate a87f004c7129. This bounded acceptance does not establish compatibility with every game or sustained performance. Mild slowdown in Breath of Fire’s fire intro and slight audio crackling/stutter near the start of play remain under investigation. `.gba` files route to pinned gpSP, independently of NES/FCEUmm and GB/GBC/Gambatte. `--gba-core` overrides the default sibling `gpsp_libretro` library. Missing cores remain a recoverable library error. Game/save identities retain volume and relative path.
+
+H700 builds gpSP with platform=arm64 and its ARM64 dynamic recompiler. Native Mac checks use platform=osx with HAVE_DYNAREC=0, avoiding executable-memory requirements. Desktop timing is not a measurement of H700 performance. The core uses 32768 Hz audio, system-clock RTC for detected RTC cartridges and disabled link-cable connectivity. It does not expose separate RETRO_MEMORY_RTC, so there is no invented rtc.bin; RTC state and elapsed wall time follow gpSP's implementation. RTC requires correct device time. Rumble and link cable are not implemented by this frontend.
+
+The bundled GPLv2 open BIOS replacement credits Normmatt and the VBA/VBA-M teams. Its prebuilt image, full source and build Makefile are retained in the pinned upstream archive; the core build embeds that exact upstream image, it does not rebuild it with the H700 SDK. No Nintendo BIOS is supplied or downloaded. A user-provided `gba_bios.bin` in the game's state/bios directory is detected by gpSP's existing Auto policy. The open replacement may differ in compatibility from the official BIOS; no claim covers every game.
+
+Controls: A/B, L/R, Start/Select and directions. Keyboard: Z/X, Q/E, Enter/Right Shift and arrows. Menu/Tab opens the game menu. In the library, Menu/Tab opens settings and Y/V opens search. Guard held buttons after returning from a menu or sleep as with existing systems.
+
+Video is 240×160. Aspect fit at 720×480 is exactly 3×, so integer and aspect fit currently occupy the same full display. SRAM is 128 KiB as exposed by gpSP, regardless of the underlying cartridge's save type. Manual slots/previews, autosave with previous generation, startup continuation and suspend reuse the existing policies and core/ROM compatibility hashes. This does not establish cross-core save-state compatibility.
+
+Original technical fixtures are source/CI material. Private ROM/artwork test kits are separate from the generic source-complete H700 package and must not be published or added to Git.

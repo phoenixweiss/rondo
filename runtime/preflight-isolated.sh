@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 cp -R /package/System/Rondo /baseos/tmp/app
-cp /programs/gb-tests /programs/bluetooth-tests /programs/battery-log-tests /programs/clock-tests /programs/h700-clock-tests /programs/battery-tests /programs/timezone-tests /programs/device-tests /programs/h700-device-tests /programs/wifi-tests /programs/h700-wifi-tests /baseos/tmp/
+cp /programs/gba-tests /programs/gb-tests /programs/bluetooth-tests /programs/battery-log-tests /programs/clock-tests /programs/h700-clock-tests /programs/battery-tests /programs/timezone-tests /programs/device-tests /programs/h700-device-tests /programs/wifi-tests /programs/h700-wifi-tests /baseos/tmp/
 mkdir -p /baseos/sys/power /baseos/sys/class/graphics/fb0 /baseos/sys/class/power_supply/axp2202-battery
 printf mem > /baseos/sys/power/state
 printf 0 > /baseos/sys/class/graphics/fb0/blank
@@ -58,7 +58,8 @@ chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/clock-tests /tmp/app/assets /tmp/
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/h700-clock-tests
 cp -R /programs/test-fixtures /baseos/tmp/test-fixtures
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/gb-tests /tmp/app/assets /tmp/gb-state /tmp/app/cores/fceumm_libretro.so /tmp/app/cores/gambatte_libretro.so /tmp/test-fixtures/gb
+chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/gba-tests /tmp/app/assets /tmp/gba-state /tmp/app/cores/fceumm_libretro.so /tmp/app/cores/gpsp_libretro.so /tmp/test-fixtures/gba
 mkdir /results/captures
 cp /baseos/tmp/rondo-power-calls /results/captures/
-cp -R /baseos/tmp/rondo-preflight.* /baseos/tmp/device-state /baseos/tmp/timezone-state /baseos/tmp/battery-state /baseos/tmp/battery-log-state /baseos/tmp/wifi-state /baseos/tmp/clock-state /baseos/tmp/bluetooth-state /baseos/tmp/gb-state /results/captures/
+cp -R /baseos/tmp/rondo-preflight.* /baseos/tmp/device-state /baseos/tmp/timezone-state /baseos/tmp/battery-state /baseos/tmp/battery-log-state /baseos/tmp/wifi-state /baseos/tmp/clock-state /baseos/tmp/bluetooth-state /baseos/tmp/gb-state /baseos/tmp/gba-state /results/captures/
 printf 'PASS: packaged BaseOS userspace and synthetic hardware tests. No physical hardware accessed.\n'

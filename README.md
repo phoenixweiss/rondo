@@ -22,7 +22,7 @@ A personal frontend project for the Anbernic RG34XXSP. I enjoy using this handhe
 - English and Russian localization, with English as the fallback.
 - Shared SDL drawing components, typography, icons and keyboard/controller hints.
 - Compact volume feedback with confirmed, muted, pending and error states.
-- NES (FCEUmm) and Game Boy / Game Boy Color (Gambatte) execution in a separate process, using pinned cores.
+- NES (FCEUmm), Game Boy / Game Boy Color (Gambatte) and Game Boy Advance (gpSP) execution in a separate process, using pinned cores.
 - Cartridge SRAM and GB/GBC RTC persistence, manual save slots with game previews and resume from a saved state.
 - A library, favorites, settings and game menu.
 - Model tests, UI rendering checks and headless launch/save/resume scenarios.
@@ -41,6 +41,8 @@ See [automatic saves](docs/autosave.md), [display settings](docs/display.md) and
 
 The owner tested GB/GBC play, saves, continuation and sleep on RG34XXSP. Slight interface/game stutter remains under investigation; performance and compatibility are not established for every game. See [Game Boy support](docs/game-boy.md).
 
+The owner accepted GBA play, saves, continuation and sleep on RG34XXSP with candidate 4ce045a0d3fe. See [GBA support](docs/game-boy-advance.md).
+
 ## Development
 
 Requires a C++17 compiler, make, pkg-config, SDL2, SDL2_ttf and Python 3.11+.
@@ -52,7 +54,7 @@ python3 -m venv .venv
 .venv/bin/python tools/check.py --work build/native-check
 ```
 
-The default build produces build/rondo. Both cores are built separately from source, with verified SHA-256 downloads and pinned revisions in docs/dependencies/core-source.json and gb-core-source.json. The check command builds the application and runs source, model, UI rendering, NES/GB/GBC save/resume and device-policy tests with dummy video/audio drivers and an original test cartridge. The build/native-check directory must be new; omit --work to create a temporary directory automatically. Logs, renders and summary.json are saved there. Tests do not access an SD card or validate physical controls, brightness or suspend.
+The default build produces build/rondo. All three cores are built separately from source, with verified SHA-256 downloads and pinned revisions in docs/dependencies/core-source.json, gb-core-source.json and gba-core-source.json. The check command builds the application and runs source, model, UI rendering, NES/GB/GBC/GBA save/resume and device-policy tests with dummy video/audio drivers and an original test cartridge. The build/native-check directory must be new; omit --work to create a temporary directory automatically. Logs, renders and summary.json are saved there. Tests do not access an SD card or validate physical controls, brightness or suspend.
 
 GitHub Actions runs these checks on Ubuntu and macOS for pushes to dev/main and pull requests. Workflow permissions are read-only; external actions are pinned to full commit hashes.
 
@@ -64,9 +66,9 @@ PYTHON=.venv/bin/python sh tools/demo.sh
 
 This command opens a window and plays the test cartridge sound. The demo library and state live under build/demo; set RONDO_DEMO_DIR to choose another location.
 
-Menus use arrows, Enter/Z to confirm, Esc/X to go back, C for favorites/info, V for settings, Q/E for sections, Tab for the game menu and =/- for volume. In NES/GB/GBC play, Z/X are A/B, Enter is Start and Right Shift is Select.
+Menus use arrows, Enter/Z to confirm, Esc/X to go back, C for favorites/info, V for search, Tab for settings, Q/E for sections, Tab for the in-game menu and =/- for volume. In NES/GB/GBC/GBA play, Z/X are A/B, Enter is Start and Right Shift is Select; Q/E are L/R for GBA.
 
-Commercial ROMs, BIOS files and user saves are not included in the repository.
+Commercial ROMs, proprietary BIOS images and user saves are not included in the repository.
 
 ## H700 development package
 
@@ -79,7 +81,7 @@ python3 tools/build_h700_runtime.py --work build/h700-second
 
 The package targets RG34XXSP with BaseOS 1.3.0. It includes the frontend, pinned runtime, original test cartridge, corresponding source and distribution notices. It is a frontend ZIP for an existing BaseOS installation, not a bootable SD image. The builder never accesses a card. The [macOS installer](docs/installation.md) backs up the original boot image and applies Rondo branding before the first frontend boot, unless disabled in existing preferences.
 
-See the [runtime guide](runtime/README.md) for package audit and optional isolated BaseOS verification, [compatibility](docs/compatibility.md) for verification limits and [manual installation](docs/installation.md) for backup and rollback. The combined NES/GB/GBC distribution follows GPLv2; Rondo code and original artwork remain MIT. See the [configured shipping audit](docs/shipping-audit.md).
+See the [runtime guide](runtime/README.md) for package audit and optional isolated BaseOS verification, [compatibility](docs/compatibility.md) for verification limits and [manual installation](docs/installation.md) for backup and rollback. The combined NES/GB/GBC/GBA distribution follows GPLv2; Rondo code and original artwork remain MIT. See the [configured shipping audit](docs/shipping-audit.md).
 
 ## Documentation
 
@@ -99,6 +101,6 @@ Created and maintained by [Pavel Tkachev (@phoenixweiss)](https://github.com/pho
 
 ## License
 
-Rondo code and original artwork are MIT-licensed. Fonts, icons, runtime libraries and emulators retain [their own terms](THIRD_PARTY_NOTICES.md); the complete NES/GB/GBC package follows GPLv2 distribution requirements.
+Rondo code and original artwork are MIT-licensed. Fonts, icons, runtime libraries and emulators retain [their own terms](THIRD_PARTY_NOTICES.md); the complete NES/GB/GBC/GBA package follows GPLv2 distribution requirements.
 
 [MIT](LICENSE) © 2026 PAVEL TKACHEV

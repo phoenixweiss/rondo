@@ -1,0 +1,29 @@
+"""Check real GBA shell/runner routing and continuation without an SD card."""
+from pathlib import Path
+import json,subprocess,sys,hashlib
+ROOT=Path(__file__).resolve().parent.parent
+work=Path(sys.argv[1]).resolve();work.mkdir(parents=True,exist_ok=False)
+core,gba_core=[Path(x).resolve() for x in sys.argv[2:4]]
+base=[str(ROOT/'build/rondo'),'--assets',str(ROOT/'assets'),'--state',str(work/'state'),'--core',str(core),
+      '--volume','GBAFIXTURE='+str(ROOT/'runtime/test-fixtures/gba'),'--headless','--output',str(work/'renders')]
+exit_game=[{'action':'MENU'}]+[{'action':'DOWN'}]*4+[{'action':'A'},{'action':'DOWN'},{'action':'A'}]
+play=[{'frames':120,'assert_screen':'running'}]+exit_game
+for name,commands,extra in [
+ ('sibling',[{'action':'MENU','assert_screen':'global_settings'},{'action':'B'},{'action':'Y','assert_screen':'search'},{'action':'B'},{'action':'A','runner_script':play}],[]),
+ ('explicit-resume',[{'assert_screen':'library'},{'action':'A'},{'action':'A','runner_script':play}],['--gba-core',str(gba_core)]),
+ ('unfinished',[{'assert_screen':'library'},{'action':'A'},{'action':'A','runner_script':[{'frames':5}]}],[]),
+ ('startup-resume',[{'assert_screen':'startup_resume'},{'action':'A','runner_script':play}],[])]:
+ script=work/(name+'.json');script.write_text(json.dumps(commands))
+ with (work/(name+'.log')).open('w') as log:subprocess.run(base+extra+['--script',str(script)],check=True,stdout=log,stderr=subprocess.STDOUT,timeout=45)
+ report=json.loads((work/'renders/shell-report.json').read_text());assert len(report['runner_sessions'])==1
+ assert bool(report['config']['resume_game'])==(name=='unfinished')
+ if name=='unfinished':
+  # An interrupted runner does not acknowledge an explicit close.
+  assert report['runner_sessions'][0] is None
+ else:
+  assert report['runner_sessions'][0]['report']['audio_frames']>0
+  assert report['runner_sessions'][0]['game_closed']
+ if name in {'explicit-resume','startup-resume'}:assert any(e['event']=='resumed_auto' for e in report['runner_sessions'][0]['report']['trace'])
+slots=list((work/'state/games').glob('*/autosave.json'));assert len(slots)==1
+assert json.loads(slots[0].read_text())['core']==hashlib.sha256(gba_core.read_bytes()).hexdigest()
+print('PASS: GBA separate runner, sibling/explicit core selection, library keys, audio and startup continuation.')

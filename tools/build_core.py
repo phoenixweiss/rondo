@@ -1,4 +1,4 @@
-"""Build pinned NES and GB/GBC cores; never access user ROMs."""
+"""Build pinned NES, GB/GBC and GBA cores; never access user ROMs."""
 from pathlib import Path
 import argparse, hashlib, io, json, platform, shutil, subprocess, tarfile, urllib.request
 ROOT=Path(__file__).resolve().parent.parent
@@ -6,7 +6,8 @@ p=argparse.ArgumentParser();p.add_argument('--directory',type=Path,default=ROOT/
 directory=args.directory.resolve();directory.mkdir(parents=True,exist_ok=True)
 for metadata,upstream,name,extra in [
     ('core-source.json','libretro-fceumm','fceumm',['HAVE_HDPACK=0','HAVE_NTSC=0']),
-    ('gb-core-source.json','gambatte-libretro','gambatte',['-f','Makefile.libretro','HAVE_NETWORK=0','GIT_VERSION='])]:
+    ('gb-core-source.json','gambatte-libretro','gambatte',['-f','Makefile.libretro','HAVE_NETWORK=0','GIT_VERSION=']),
+    ('gba-core-source.json','gpsp','gpsp',['GIT_VERSION=','HAVE_DYNAREC=0'])]:
     meta=json.loads((ROOT/'docs/dependencies'/metadata).read_text());rev=meta['revision']
     source=directory/(upstream+'-'+rev)
     if not source.exists():

@@ -47,12 +47,16 @@ enum class Screen {
   Recovery
 };
 struct Options {
-  fs::path assets, state, core, gbCore, executable, script, output;
+  fs::path assets, state, core, gbCore, gbaCore, executable, script, output;
   fs::path coreFor(const std::string &system) const {
     if(system=="NES")return core;
     if(system=="GB" || system=="GBC") {
       if(!gbCore.empty())return gbCore;
       if(!core.empty())return core.parent_path()/("gambatte_libretro"+core.extension().string());
+    }
+    if(system=="GBA") {
+      if(!gbaCore.empty())return gbaCore;
+      if(!core.empty())return core.parent_path()/("gpsp_libretro"+core.extension().string());
     }
     return {};
   }
@@ -90,6 +94,8 @@ public:
   void batteryWarning(const Telemetry &,uint64_t);
   void saveOnExit(bool skipAutomatic=false);
   void offerStartupResume();
+  void rememberClosedGame();
+  bool gameClosed=false;
   std::unique_ptr<BatteryLog> batteryLog;
   bool batteryLogWarning = false;
   bool diagnosticRunner = false;

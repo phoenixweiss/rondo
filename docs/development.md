@@ -60,7 +60,7 @@ This explicit manual command opens a window and plays the original test cartridg
 
 Set RONDO_DEMO_DIR to a separate writable location to override this root. The demo preserves an existing fixture library; it does not mirror/delete user directories. Avoid editing active configuration/state files while Rondo is running.
 
-Keyboard menus: arrows, Enter/Z confirm, Esc/X back, C favorite/info, V settings, Q/E section, Tab game menu and =/- volume. During NES play Z/X are A/B, Enter is Start and Right Shift is Select. Input hints follow the active keyboard/controller mode.
+Keyboard menus: arrows, Enter/Z confirm, Esc/X back, C favorite/info, V search, Q/E section, Tab settings (in-game: game menu) and =/- volume. During NES play Z/X are A/B, Enter is Start and Right Shift is Select. Input hints follow the active keyboard/controller mode.
 
 ## Assets and source boundaries
 

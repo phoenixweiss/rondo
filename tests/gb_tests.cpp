@@ -12,7 +12,7 @@ int main(int argc,char **argv) {
  auto games=scan(o.volumes);assert(games.size()==2);
  for(const auto &game:games) {
   assert(game.system=="GB" || game.system=="GBC");
-  assert(o.coreFor(game.system)==o.gbCore && o.coreFor("NES")==o.core && o.coreFor("GBA").empty());
+  assert(o.coreFor(game.system)==o.gbCore && o.coreFor("NES")==o.core && !o.coreFor("GBA").empty());
   auto dir=o.state/"games"/game.id;fs::create_directories(dir);
   std::vector<uint8_t> seed(32768,0);seed[0]=0x5a;atomicWrite(dir/"sram.bin",seed);
   { App a(o,true,game);a.ticks(60);assert(a.core->width==160 && a.core->height==144 && a.core->audioFrames>0);
@@ -25,7 +25,7 @@ int main(int argc,char **argv) {
     a.store.data["integer_scaling"]=true;a.capture(game.system+"-integer");
     a.store.data["integer_scaling"]=false;a.capture(game.system+"-aspect");
     assert(fs::file_size(dir/"rtc.bin")>0);
-    auto config=a.store.data;config["recent_games"]=recentAfterLaunch(config["recent_games"],game,o.volumes);a.store.commit(config);
+    a.rememberLaunch();
     a.action("MENU");a.row=4;a.action("A");a.row=1;a.action("A");assert(a.stop);
   }
   auto rtc=readBytes(dir/"rtc.bin");seed[0]=0x33;atomicWrite(dir/"sram.bin",seed);
