@@ -38,8 +38,15 @@ public:
   bool pressed(const std::string &) const;
   std::vector<std::string> poll();
 };
+struct VolumeInputState {
+  bool dropped = false;
+  std::map<unsigned, uint64_t> held;
+  std::vector<std::string> event(unsigned type, unsigned code, int value, uint64_t now);
+  std::vector<std::string> repeat(uint64_t now);
+};
 class VolumeKeys {
-  std::vector<int> devices;
+  struct Device { int fd; VolumeInputState state; };
+  std::vector<Device> devices;
 
 public:
   VolumeKeys();

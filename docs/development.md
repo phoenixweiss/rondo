@@ -60,7 +60,7 @@ This explicit manual command opens a window and plays the original test cartridg
 
 Set RONDO_DEMO_DIR to a separate writable location to override this root. The demo preserves an existing fixture library; it does not mirror/delete user directories. Avoid editing active configuration/state files while Rondo is running.
 
-Keyboard menus: arrows, Enter/Z confirm, Esc/X back, C favorite/info, V search, Q/E section, Tab settings (in-game: game menu) and =/- volume. During NES play Z/X are A/B, Enter is Start and Right Shift is Select. Input hints follow the active keyboard/controller mode.
+Keyboard menus: arrows, Enter/Z confirm, Esc/X back, C favorite/info, V search, Q/E section, Tab settings (in-game: game menu) and =/- volume. During NES play Z/X are A/B, Enter is Start and Right Shift is Select. SNES uses S/A for X/Y and Q/E for L/R. Input hints follow the active keyboard/controller mode.
 
 ## Assets and source boundaries
 
@@ -88,7 +88,7 @@ settings remain unchanged until writes recover. Integration tests also use a rea
 shell/runner channel with a read-only settings authority and two runner sessions.
 Battery-log tests cover failed filesystem writes, errno/path retention, RAM
 recovery across logger instances and clearing fixed journal names without
-removing unrelated files. Native renders cover Diagnostics in English/Russian,
+removing unrelated files. A deliberately blocked PMIC FIFO verifies that 10,000 diagnostic submissions return without waiting for a system read and that the queue stays bounded. Native renders cover Diagnostics in English/Russian,
 disabled level selection, Info and clear confirmation. These checks do not prove
 physical suspend recovery or repair a card's forced read-only condition.
 
@@ -131,3 +131,47 @@ Gameplay input waits for all game buttons to be released after a menu resume,
 save-state load, initial runner start or suspend/resume. Confirm/back presses
 therefore cannot become a game action; a fresh press works without a timed delay.
 This applies after keyboard, built-in evdev and SDL controller input are combined.
+
+### Diagnostics and gameplay input
+
+Game buttons update the held input mask; they do not create shell action traces
+or trigger battery snapshots. Menu, sleep and volume retain their shell actions.
+Periodic diagnostic context is copied at most once per five seconds, with event
+records added separately. Runtime diagnostics use one worker for sysfs/proc
+reads, JSONL rotation/recovery and SD writes. The producer queues at most 64
+records; if the consumer falls behind, new records are dropped and the cumulative
+`diagnostic_events_dropped` count is attached to later records. Logging is best
+effort and never waits for queue space in the frame loop. Existing errors/events/
+detailed level selection and default-off policy are unchanged.
+
+Queued records drain while the game/audio are paused before suspend, when
+turning diagnostics off, before clearing logs and at shutdown. A worker avoids
+blocking input on system/SD latency; it does not establish sustained H700 FPS or
+rule out other sources of stutter. Recheck SNES and GBA with logging off and with
+detailed logging on using matching scenes and repeated button presses.
+
+### Volume persistence during gameplay
+
+The runner changes its software gain immediately and keeps already queued audio
+playing. It presents the overlay with the normal frame, without an extra render
+inside the input handler. After 200 ms without another change, a volume-only
+request goes to the shell from a worker. At most one request is in flight and
+one latest value is pending. The shell merges only the gain into current settings;
+other settings requests drain the volume request first so the shared channel has
+one reader at a time. Authoritative acknowledgements are applied on the main
+thread and never roll the current runtime gain back to an older queued value.
+
+Pending volume requests finish while paused before sleep/exit and before other
+settings writes. A rejected/timed-out write keeps the live gain and shows the
+existing persistence warning. This does not weaken atomic settings writes. Tests
+block the volume writer while game/audio frames and repeated gain changes
+continue, check coalescing, read-only failure, recovery, sleep and real runner/
+shell acknowledgements. Physical audio continuity still requires device checks.
+
+Handheld volume keys have an application-controlled repeat cadence: one 5% step
+on press, the first repeat after 350 ms and subsequent repeats every 100 ms.
+Kernel auto-repeat events are ignored to avoid double steps. Release, a dropped
+input stream or device EOF/error clears the held state; suspend recreates the
+input adapters. Holding both volume directions suspends repetition. A delayed
+frame produces at most one repeat rather than catching up with a burst. Volume
+continues to use deferred/coalesced persistence during gameplay.

@@ -24,6 +24,7 @@ def records(root):
     revision = core["revision"]
     gb = json.loads((dependencies / "gb-core-source.json").read_text())
     gba = json.loads((dependencies / "gba-core-source.json").read_text())
+    snes = json.loads((dependencies / "snes-core-source.json").read_text())
     return {
         "sdl": {**data["sdl"], "directory": "SDL-malifbdev-rot-" +
                 data["sdl"]["url"].rsplit("/", 1)[1]},
@@ -35,6 +36,8 @@ def records(root):
                      "sha256":gb["archive_sha256"],"directory":"gambatte-libretro-"+gb["revision"]},
         "gpsp": {"url": gba["repository"].replace("github.com/","codeload.github.com/")+"/tar.gz/"+gba["revision"],
                  "sha256":gba["archive_sha256"],"directory":"gpsp-"+gba["revision"]},
+        "supafaust": {"url": snes["repository"].replace("github.com/","codeload.github.com/")+"/tar.gz/"+snes["revision"],
+                      "sha256":snes["archive_sha256"],"directory":"supafaust-"+snes["revision"]},
         "linux": data["linux"], "bc": data["bc"]
     }
 

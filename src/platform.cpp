@@ -235,9 +235,33 @@ std::vector<std::string> H700Keys::poll() {
   return actions;
 }
 std::string volumeKeyAction(unsigned type, unsigned code, int value) {
-  if (type != 1 || (value != 1 && value != 2))
+  if (type != 1 || value != 1)
     return "";
   return code == 115 ? "VOLUME_UP" : code == 114 ? "VOLUME_DOWN" : "";
+}
+std::vector<std::string> VolumeInputState::event(unsigned type, unsigned code, int value, uint64_t now) {
+  if(type==0 && code==3) {held.clear();dropped=true;return {}; } // SYN_DROPPED
+  if(dropped) {
+    if(type==0 && code==0)dropped=false; // Discard through SYN_REPORT.
+    return {};
+  }
+  if(type!=1 || (code!=114 && code!=115))return {};
+  if(value==0)held.erase(code);
+  else if(value==1 && !held.count(code)) {
+    held[code]=now+350;
+    return {volumeKeyAction(type,code,value)};
+  }
+  // Own the repeat cadence even when the device emits EV_KEY value 2.
+  return {};
+}
+std::vector<std::string> VolumeInputState::repeat(uint64_t now) {
+  std::vector<std::string> actions;
+  if(held.size()!=1)return actions; // Do not fight simultaneous +/- holds.
+  for(auto &[code,deadline]:held)if(now>=deadline) {
+    actions.push_back(volumeKeyAction(1,code,1));
+    deadline=now+100; // Never catch up with a burst after a delayed frame.
+  }
+  return actions;
 }
 VolumeKeys::VolumeKeys() {
 #ifdef __linux__
@@ -261,7 +285,7 @@ VolumeKeys::VolumeKeys() {
       return (bits[code / (8 * sizeof(unsigned long))] >> (code % (8 * sizeof(unsigned long)))) & 1;
     };
     if (has(KEY_VOLUMEUP) || has(KEY_VOLUMEDOWN))
-      devices.push_back(fd);
+      devices.push_back({fd,{}});
     else
       close(fd);
   }
@@ -269,20 +293,25 @@ VolumeKeys::VolumeKeys() {
 }
 VolumeKeys::~VolumeKeys() {
 #ifdef __linux__
-  for (int fd : devices)
-    close(fd);
+  for (auto &device : devices)
+    close(device.fd);
 #endif
 }
 std::vector<std::string> VolumeKeys::poll() {
   std::vector<std::string> actions;
 #ifdef __linux__
-  for (int fd : devices) {
+  const auto now=monotonicMs();
+  for (auto &device : devices) {
     input_event event;
-    while (read(fd, &event, sizeof(event)) == sizeof(event)) {
-      auto action = volumeKeyAction(event.type, event.code, event.value);
-      if (!action.empty())
-        actions.push_back(action);
+    ssize_t count;
+    while ((count=read(device.fd, &event, sizeof(event))) == sizeof(event)) {
+      auto next=device.state.event(event.type,event.code,event.value,now);
+      actions.insert(actions.end(),next.begin(),next.end());
     }
+    if(count==0 || (count<0 && errno!=EAGAIN && errno!=EWOULDBLOCK && errno!=EINTR))
+      device.state=VolumeInputState{};
+    auto next=device.state.repeat(now);
+    actions.insert(actions.end(),next.begin(),next.end());
   }
 #endif
   return actions;

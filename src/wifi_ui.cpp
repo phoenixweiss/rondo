@@ -5,6 +5,7 @@
 #include <iostream>
 namespace rondo {
 App::~App() {
+  volumeTick(true);
   try {wakeScreen();}catch(const std::exception &error){std::cerr<<error.what()<<"\n";}
   btSleep();
   batterySample("stop");

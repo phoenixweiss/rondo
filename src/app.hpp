@@ -47,7 +47,7 @@ enum class Screen {
   Recovery
 };
 struct Options {
-  fs::path assets, state, core, gbCore, gbaCore, executable, script, output;
+  fs::path assets, state, core, gbCore, gbaCore, snesCore, executable, script, output;
   fs::path coreFor(const std::string &system) const {
     if(system=="NES")return core;
     if(system=="GB" || system=="GBC") {
@@ -57,6 +57,10 @@ struct Options {
     if(system=="GBA") {
       if(!gbaCore.empty())return gbaCore;
       if(!core.empty())return core.parent_path()/("gpsp_libretro"+core.extension().string());
+    }
+    if(system=="SNES") {
+      if(!snesCore.empty())return snesCore;
+      if(!core.empty())return core.parent_path()/("mednafen_supafaust_libretro"+core.extension().string());
     }
     return {};
   }
@@ -98,6 +102,7 @@ public:
   bool gameClosed=false;
   std::unique_ptr<BatteryLog> batteryLog;
   bool batteryLogWarning = false;
+  uint64_t diagnosticSampleAt = 0;
   bool diagnosticRunner = false;
   Json frameDiagnostic=Json::object();
   uint64_t frameWindow=0,frameCount=0,frameSlow=0;
@@ -130,6 +135,12 @@ public:
   int previewVolume = 80;
   void applyVolume(int);
   bool changeVolume(int);
+  // Only the dedicated volume worker calls this; it must not touch SDL/App.
+  std::function<Json(int)> requestVolume;
+  std::future<Json> volumeSaveJob;
+  std::optional<int> queuedVolume;
+  uint64_t volumeSaveAt = 0;
+  void volumeTick(bool drain = false);
   VolumeFeedback volumeFeedback;
   std::string section = "All", artwork = "cover", notice, region;
   std::unique_ptr<Core> core;

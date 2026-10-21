@@ -2,6 +2,10 @@
 // Copyright (c) 2026 PAVEL TKACHEV
 #include "battery_log.hpp"
 #include <fstream>
+#include <condition_variable>
+#include <deque>
+#include <mutex>
+#include <thread>
 #include <ctime>
 #include <fcntl.h>
 #include <sys/file.h>
@@ -330,12 +334,64 @@ void clearDiagnosticLogs(const fs::path &directory, const fs::path &fallback) {
         fs::remove(root / (std::string(role) + suffix));
   }
 }
+// The producer never reads sysfs/proc or touches the card. A bounded queue
+// protects both frame pacing and memory when a driver or SD write is slow.
+struct BatteryLog::Worker {
+  struct Entry { uint64_t now; Json context; std::string event; };
+  BatteryLog sink;
+  std::mutex mutex;
+  std::condition_variable changed;
+  std::deque<Entry> queue;
+  bool stopping = false, busy = false;
+  uint64_t dropped = 0;
+  Json error = Json::object();
+  std::thread thread;
+  Worker(const fs::path &directory, const std::string &role, const fs::path &sys,
+         const fs::path &proc, size_t limit, const fs::path &fallback)
+      : sink(directory, role, sys, proc, limit, fallback), thread([this] { run(); }) {}
+  void run() {
+    std::unique_lock<std::mutex> lock(mutex);
+    for (;;) {
+      changed.wait(lock, [this] { return stopping || !queue.empty(); });
+      if (queue.empty() && stopping) return;
+      auto entry = std::move(queue.front()); queue.pop_front(); busy = true;
+      entry.context["diagnostic_events_dropped"] = dropped;
+      lock.unlock();
+      sink.sample(entry.now, entry.context, entry.event);
+      auto result = sink.lastError;
+      lock.lock(); error = std::move(result); busy = false; changed.notify_all();
+    }
+  }
+  ~Worker() {
+    { std::lock_guard<std::mutex> lock(mutex); stopping = true; }
+    changed.notify_all(); thread.join();
+  }
+};
+BatteryLog::~BatteryLog() = default;
+void BatteryLog::drain() {
+  if (!worker) return;
+  std::unique_lock<std::mutex> lock(worker->mutex);
+  worker->changed.wait(lock, [this] { return worker->queue.empty() && !worker->busy; });
+  lastError = worker->error;
+}
+bool BatteryLog::sample(uint64_t now, const Json &context, const std::string &event) {
+  if (!worker) return sampleSync(now, context, event);
+  std::lock_guard<std::mutex> lock(worker->mutex);
+  lastError = worker->error;
+  if (event.empty() && now < enqueuePollAt) return lastError.empty();
+  enqueuePollAt = now + 5000;
+  if (worker->queue.size() == 64) { ++worker->dropped; return lastError.empty(); }
+  worker->queue.push_back({now, context, event});
+  worker->changed.notify_one();
+  return lastError.empty();
+}
 BatteryLog::BatteryLog(fs::path directory, std::string role, fs::path sys, fs::path proc,
-                       size_t limit, fs::path fallback)
+                       size_t limit, fs::path fallback, bool background)
     : directory(std::move(directory)), sys(std::move(sys)), proc(std::move(proc)),
       fallback(std::move(fallback)), role(std::move(role)), limit(limit) {
   if (this->role != "shell" && this->role != "runner")
     throw std::invalid_argument("Invalid battery log role");
+  if (background) worker = std::make_unique<Worker>(this->directory, this->role, this->sys, this->proc, limit, this->fallback);
 }
 static Json displayComparison(const Json &snapshot, const Json &context, uint64_t now) {
   Json percent = nullptr;
@@ -358,7 +414,7 @@ static Json displayComparison(const Json &snapshot, const Json &context, uint64_
   }
   return {{"system_percent", percent}, {"display", display}, {"display_age_ms", age}};
 }
-bool BatteryLog::sample(uint64_t now, const Json &context, const std::string &event) {
+bool BatteryLog::sampleSync(uint64_t now, const Json &context, const std::string &event) {
   if (event.empty() && now < pollAt) return lastError.empty();
   pollAt = now + 5000;
   Json snapshot;

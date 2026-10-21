@@ -176,7 +176,33 @@ int main(int argc, char **argv) {
     assert(mixVolume(pcm, 2, 50) == std::vector<int16_t>({-16384, 16383, -50, 50}));
     assert(mixVolume(pcm, 2, 100) == std::vector<int16_t>(pcm, pcm + 4));
     assert(volumeKeyAction(1, 115, 1) == "VOLUME_UP" &&
-           volumeKeyAction(1, 114, 2) == "VOLUME_DOWN" && volumeKeyAction(1, 115, 0).empty());
+           volumeKeyAction(1, 114, 1) == "VOLUME_DOWN" && volumeKeyAction(1, 114, 2).empty() && volumeKeyAction(1, 115, 0).empty());
+    VolumeInputState volume;
+    assert(volume.event(1,115,1,1000)==std::vector<std::string>{"VOLUME_UP"});
+    assert(volume.event(1,115,1,1100).empty());
+    assert(volume.event(1,115,2,1200).empty());
+    assert(volume.repeat(1349).empty());
+    assert(volume.repeat(1350)==std::vector<std::string>{"VOLUME_UP"});
+    assert(volume.repeat(1449).empty());
+    assert(volume.repeat(1450)==std::vector<std::string>{"VOLUME_UP"});
+    assert(volume.repeat(9000)==std::vector<std::string>{"VOLUME_UP"});
+    assert(volume.repeat(9000).empty());
+    assert(volume.event(1,115,0,9001).empty() && volume.repeat(9999).empty());
+    assert(volume.event(1,114,1,10000)==std::vector<std::string>{"VOLUME_DOWN"});
+    assert(volume.repeat(10350)==std::vector<std::string>{"VOLUME_DOWN"});
+    assert(volume.event(1,115,1,10351)==std::vector<std::string>{"VOLUME_UP"});
+    assert(volume.repeat(11000).empty()); // Both held: neither repeats.
+    volume.event(1,114,0,11001);
+    assert(volume.repeat(11002)==std::vector<std::string>{"VOLUME_UP"});
+    volume.event(0,3,0,11003);assert(volume.held.empty() && volume.repeat(12000).empty());
+    assert(volume.event(1,115,1,12001).empty()); // Ignore stale events until SYN_REPORT.
+    volume.event(0,0,0,12002);
+    assert(volume.event(1,116,1,13000).empty() && volume.event(3,115,1,13000).empty());
+    for(int i=0;i<3;++i) {
+      assert(volume.event(1,115,1,14000+i*10)==std::vector<std::string>{"VOLUME_UP"});
+      volume.event(1,115,0,14001+i*10);
+    }
+    assert(volume.repeat(15000).empty());
     VolumeFeedback feedback;
     feedback.confirmed = 80;
     auto firstVolumeOperation = feedback.begin(1000);

@@ -84,7 +84,7 @@ def main():
     app = payload / "System/Rondo"
     for directory in ["bin", "cores", "lib", "tools", "modules"]:
         (app / directory).mkdir(parents=True, exist_ok=True)
-    for name in ["rondo", "fceumm_libretro.so", "gambatte_libretro.so", "gpsp_libretro.so"]:
+    for name in ["rondo", "fceumm_libretro.so", "gambatte_libretro.so", "gpsp_libretro.so", "mednafen_supafaust_libretro.so"]:
         shutil.copyfile(work / "programs" / name, app / ("bin" if name == "rondo" else "cores") / name)
     for name in ["libSDL2-2.0.so.0", "libSDL2_ttf-2.0.so.0"]:
         shutil.copyfile(work / "sdk/lib" / name, app / "lib" / name)
@@ -109,6 +109,7 @@ def main():
             "build_flags": {"core": ["platform=unix", "ARCH=arm64", "HAVE_HDPACK=0", "HAVE_NTSC=0"],
                             "gambatte": ["platform=unix", "HAVE_NETWORK=0", "GIT_VERSION="],
                             "gpsp": ["platform=arm64", "HAVE_DYNAREC=1", "GIT_VERSION="],
+                            "supafaust": ["platform=unix", "-mcpu=cortex-a53", "-mtune=cortex-a53", "GIT_VERSION="],
                             "ttf": ["embedded FreeType", "--disable-harfbuzz"]}}
     if (root / "VERSION").is_file():
         version = (root / "VERSION").read_text().strip()
@@ -126,7 +127,8 @@ def main():
         (work / "sources" / sources["fceumm"]["directory"] / "Copying", "FCEUmm-GPLv2.txt"),
         (work / "sources" / sources["gambatte"]["directory"] / "COPYING", "Gambatte-GPLv2.txt"),
         (work / "sources" / sources["gpsp"]["directory"] / "COPYING", "gpSP-GPLv2.txt"),
-        (work / "sources" / sources["gpsp"]["directory"] / "bios/README.md", "gpSP-Open-BIOS.txt")
+        (work / "sources" / sources["gpsp"]["directory"] / "bios/README.md", "gpSP-Open-BIOS.txt"),
+        (work / "sources" / sources["supafaust"]["directory"] / "COPYING", "Supafaust-GPLv2.txt")
     ]:
         shutil.copyfile(src, licenses / name)
     shutil.copyfile(work / "sources/linux-4.9.170/COPYING", licenses / "Linux-GPLv2.txt")
@@ -156,7 +158,7 @@ def main():
         "A successful preflight is not a physical panel/input/suspend test.\n\n"
         "Original Rondo source is MIT; third-party components retain their own licenses. "
         "Corresponding source archives, build scripts and notices accompany this package. "
-        "The combined NES/GB/GBC/GBA binary distribution follows GPLv2, with original Rondo code/artwork remaining MIT. "
+        "The combined NES/GB/GBC/GBA/SNES binary distribution follows GPLv2, with original Rondo code/artwork remaining MIT. "
         "FreeType uses its GPLv2 alternative here, not FTL. This is early development software; consult release metadata for publication status.\n")
     write_manifest(app, "manifest.sha256")
     write_manifest(payload, "PACKAGE.sha256")
@@ -176,7 +178,7 @@ def main():
     verify_zip(package)
     result = {"package": package.name, "sha256": sha(package), "source_id": source_id,
               "payload_files": len(files(payload)), "embedded_freetype": version,
-              "binaries": {n: sha(app / n) for n in ["bin/rondo", "cores/fceumm_libretro.so", "cores/gambatte_libretro.so", "cores/gpsp_libretro.so",
+              "binaries": {n: sha(app / n) for n in ["bin/rondo", "cores/fceumm_libretro.so", "cores/gambatte_libretro.so", "cores/gpsp_libretro.so", "cores/mednafen_supafaust_libretro.so",
                            "lib/libSDL2-2.0.so.0", "lib/libSDL2_ttf-2.0.so.0"]}}
     (output / (package.name + ".sha256")).write_text(result["sha256"] + "  " + package.name + "\n")
     (output / "build-result.json").write_text(json.dumps(result, sort_keys=True, indent=2) + "\n")

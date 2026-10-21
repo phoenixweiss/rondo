@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## [0.7.0] - 2026-10-22
+
+- Repeat handheld volume changes while a button is held: one immediate 5% step, then a 350 ms delay and 100 ms repeats. Ignore duplicate/kernel repeats and cancel held state on release or lost input.
+
+- Apply in-game volume without clearing queued audio or waiting for SD settings writes. Coalesce rapid gain changes and persist the final value through a background shell-authority request; finish pending changes before other settings, sleep or exit.
+
+- Keep gameplay button presses out of shell action diagnostics. Collect battery/system diagnostics and append SD journals on a background worker with a bounded queue, including detailed logging. Drain pending records while paused before suspend and before clearing logs.
+
+- Add experimental SNES / Super Famicom through pinned GPLv2 Supafaust, with SFC/SMC routing, all twelve joypad buttons, cartridge SRAM, manual/automatic save states, continuation and sleep policy. The owner accepted SNES play on RG34XXSP; sustained performance and full-game compatibility remain unmeasured.
+- Preserve SNES display aspect ratio from core geometry and support centred integer scaling, PAL timing and copier-header SMC input. Keep previous systems and save identities unchanged.
+- Include complete Supafaust source/notices and reproducible H700 build flags; use the existing condition-variable semaphore implementation for native macOS checks.
+
+### Verification and known limitations
+
+- All 304 owner-provided SNES ROMs passed automated native launch, save/load and process-restart continuation probes. Commercial ROMs and artwork are excluded from the public package; short probes do not establish full-game compatibility.
+- The owner accepted SNES play and the gameplay-button/volume stutter fixes on RG34XXSP, most recently with candidate 228786831d10. The owner also accepted hold-to-repeat volume on the physical console with candidate 31da354d2018. Native timing/regression checks, H700/BaseOS checks and the package source/license audit passed.
+- Bluetooth remains experimental: the tested Micro D pairs/connects, but controller input does not work. Battery-gauge jumps, wake-on-lid-open, recurring FAT inconsistencies and broader frame/audio pacing optimization remain in the backlog. The input-related fixes do not establish sustained performance across games.
+
 ## [0.6.0] - 2026-10-21
 
 - Add GBA through pinned gpSP, with A/B/L/R/Start/Select input, cartridge SRAM, manual/automatic states, startup continuation and aspect/integer scaling. The owner accepted GBA play, saves, continuation and sleep on RG34XXSP.

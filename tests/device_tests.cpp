@@ -1,5 +1,7 @@
 #include "app.hpp"
 #include <cassert>
+#include <atomic>
+#include <chrono>
 #include <fstream>
 #include <iostream>
 using namespace rondo;
@@ -383,6 +385,33 @@ int main(int argc,char **argv) {
     Store reload(o.state);assert(reload.data.value("lid_sleep",true));
   }
   {
+    o.state=root/"volume-background";Game game{"volume-background","TEST","NES","Fixture",argv[4]};App a(o,true,game);
+    auto release=std::make_shared<std::promise<void>>();auto gate=release->get_future().share();
+    auto started=std::make_shared<std::promise<void>>();auto ready=started->get_future();std::atomic<int> writes{0};
+    const auto state=o.state;
+    auto writer=[state](int value) {Store authority(state);auto next=authority.data;next["volume"]=value;authority.commit(next);return authority.data;};
+    a.requestVolume=[&,writer,gate,started](int value) {
+      if(++writes==1) {started->set_value();gate.wait();}
+      return writer(value);
+    };
+    a.action("VOLUME_DOWN");assert(a.previewVolume==75 && writes==0);
+    a.volumeSaveAt=0;a.ticks(0);assert(ready.wait_for(std::chrono::seconds(2))==std::future_status::ready);
+    auto frames=a.core->frames;auto audio=a.core->audioFrames;auto began=std::chrono::steady_clock::now();
+    for(int i=0;i<10;++i) {a.action("VOLUME_DOWN");a.ticks(1);}
+    auto elapsed=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-began).count();
+    assert(elapsed<500 && writes==1 && a.previewVolume==25 && a.core->volume==25);
+    assert(a.core->frames==frames+10 && a.core->audioFrames>audio);
+    release->set_value();a.volumeTick(true);assert(writes==2 && a.store.data["volume"]==25 && a.previewVolume==25);
+    assert(Store(state).data["volume"]==25);
+    a.requestVolume=[](int)->Json {throw std::runtime_error("Injected delayed volume write failure");};
+    a.action("VOLUME_UP");a.volumeTick(true);assert(a.previewVolume==30 && a.core->volume==30 && a.store.data["volume"]==25 && !a.notice.empty());
+    a.requestVolume=writer;a.action("VOLUME_UP");
+    auto fake=std::make_unique<FakeDevice>();auto *d=fake.get();a.device=std::move(fake);
+    d->before=[&]{assert(a.core->paused && Store(state).data["volume"]==35);};
+    a.sleep();assert(d->sleeps==1 && a.previewVolume==35 && !a.core->paused);
+    std::cout<<"PASS: game/audio progress during blocked volume persistence, ten steps in "<<elapsed<<" ms, coalesced final gain, failure and sleep drain.\n";
+  }
+  {
     o.state=root/"volume-write-failure";Game game{"volume-failure","TEST","NES","Fixture",argv[4]};App a(o,true,game);
     auto fake=std::make_unique<FakeDevice>();auto *d=fake.get();a.device=std::move(fake);
     a.requestSettings=[](Json){throw std::runtime_error("Read-only file system");return false;};
@@ -400,21 +429,32 @@ int main(int argc,char **argv) {
     Store restart(o.state);assert(restart.data["volume"]==95);
   }
   {
+    o.state=root/"gameplay-input-fast-path";App a(o);a.screen=Screen::Running;
+    for(const auto *level:{"errors","events","detailed"}) {
+      a.store.data["debug_enabled"]=true;a.store.data["debug_level"]=level;
+      const auto trace=a.trace.size();
+      for(int i=0;i<1000;++i)
+        for(const auto *button:{"A","B","X","Y","UP","DOWN","LEFT","RIGHT","L1","R1","START","SELECT"})a.action(button);
+      assert(a.screen==Screen::Running && a.trace.size()==trace);
+    }
+  }
+  {
     o.state=root/"debug-settings";App a(o);
     assert(!a.store.data.value("debug_enabled",true) && !a.batteryLog && !fs::exists(o.state/"Logs"));
     a.action("MENU");for(int i=0;i<6;++i)a.action("DOWN");a.action("A");assert(a.category==4);a.action("DOWN");
     a.action("RIGHT");assert(a.store.data["debug_level"]=="events" && !a.batteryLog);
     a.action("UP");a.requestSettings=[](Json){return false;};a.action("RIGHT");assert(!a.batteryLog && !a.store.data["debug_enabled"].get<bool>());
-    a.requestSettings={};a.action("RIGHT");assert(a.batteryLog && fs::exists(o.state/"Logs/shell.jsonl"));
+    a.requestSettings={};a.action("RIGHT");assert(a.batteryLog);a.batteryLog->drain();assert(fs::exists(o.state/"Logs/shell.jsonl"));
     for(const auto *language:{"en","ru"}) {
       a.locale.select(o.assets,language);a.capture(std::string("debug-on-")+language);
       a.action("X");a.capture(std::string("debug-info-")+language);a.action("B");
     }
     a.action("DOWN");a.action("RIGHT");assert(a.store.data["debug_level"]=="detailed");
     a.action("LEFT");a.action("LEFT");assert(a.store.data["debug_level"]=="errors");
+    a.batteryLog->drain();
     auto path=o.state/"Logs/shell.jsonl";auto size=fs::file_size(path);
     a.record("safe-event");a.batterySample();assert(fs::file_size(path)==size);
-    a.batterySample("operation_failed");assert(fs::file_size(path)>size);
+    a.batterySample("operation_failed");a.batteryLog->drain();assert(fs::file_size(path)>size);
     a.action("DOWN");a.action("A");assert(a.screen==Screen::LogClear);
     a.capture("debug-clear-confirm");a.action("B");assert(fs::exists(path));
     std::ofstream(o.state/"keep-me")<<"user data";

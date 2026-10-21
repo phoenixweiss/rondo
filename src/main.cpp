@@ -2,6 +2,7 @@
 // Copyright (c) 2026 PAVEL TKACHEV
 #include "app.hpp"
 #include <fstream>
+#include <atomic>
 #include <iostream>
 #include <poll.h>
 #include <signal.h>
@@ -128,6 +129,8 @@ static void held(App &a) {
   put(RETRO_DEVICE_ID_JOYPAD_DOWN, k[SDL_SCANCODE_DOWN]);
   put(RETRO_DEVICE_ID_JOYPAD_LEFT, k[SDL_SCANCODE_LEFT]);
   put(RETRO_DEVICE_ID_JOYPAD_RIGHT, k[SDL_SCANCODE_RIGHT]);
+  put(RETRO_DEVICE_ID_JOYPAD_X, k[SDL_SCANCODE_S]);
+  put(RETRO_DEVICE_ID_JOYPAD_Y, k[SDL_SCANCODE_A]);
   put(RETRO_DEVICE_ID_JOYPAD_L, k[SDL_SCANCODE_Q]);
   put(RETRO_DEVICE_ID_JOYPAD_R, k[SDL_SCANCODE_E]);
   auto &raw = *a.ui->handheldKeys;
@@ -139,6 +142,8 @@ static void held(App &a) {
   put(RETRO_DEVICE_ID_JOYPAD_DOWN, raw.pressed("DOWN"));
   put(RETRO_DEVICE_ID_JOYPAD_LEFT, raw.pressed("LEFT"));
   put(RETRO_DEVICE_ID_JOYPAD_RIGHT, raw.pressed("RIGHT"));
+  put(RETRO_DEVICE_ID_JOYPAD_X, raw.pressed("X"));
+  put(RETRO_DEVICE_ID_JOYPAD_Y, raw.pressed("Y"));
   put(RETRO_DEVICE_ID_JOYPAD_L, raw.pressed("L1"));
   put(RETRO_DEVICE_ID_JOYPAD_R, raw.pressed("R1"));
   mask |= a.ui->controllerButtons();
@@ -243,6 +248,7 @@ static void script(App &a, const Json &commands, const std::function<void(const 
       a.ticks(c.at("frames"));
     if (c.contains("wait_ms"))
       SDL_Delay(c.at("wait_ms").get<unsigned>());
+    if(c.value("flush_volume",false))a.volumeTick(true);
     if (c.contains("capture"))
       a.capture(c.at("capture"));
     if (c.contains("assert_screen") && a.screenName() != c.at("assert_screen"))
@@ -284,6 +290,8 @@ static Json supervise(App &a, const Json &runnerScript) {
   if(!gbCore.empty()) {args.push_back("--gb-core");args.push_back(gbCore.string());}
   auto gbaCore=a.options.coreFor("GBA");
   if(!gbaCore.empty()) {args.push_back("--gba-core");args.push_back(gbaCore.string());}
+  auto snesCore=a.options.coreFor("SNES");
+  if(!snesCore.empty()) {args.push_back("--snes-core");args.push_back(snesCore.string());}
   if (a.options.headless)
     args.push_back("--headless");
   if (a.resume)
@@ -345,11 +353,12 @@ static Json supervise(App &a, const Json &runnerScript) {
           }
           a.record("runner_ready");
         }
-        else if (type == "settings") {
+        else if (type == "settings" || type == "volume") {
           try {
             auto next = a.store.data;
-            next["game_options"] = reply.at("data").at("game_options");
-            next["volume"] = reply.at("data").value("volume", 80);
+            if(type=="settings")next["game_options"] = reply.at("data").at("game_options");
+            next["volume"] = type=="volume"?reply.at("volume").get<int>():reply.at("data").value("volume", 80);
+            if(next["volume"].get<int>()<0 || next["volume"].get<int>()>100)throw std::runtime_error("Invalid volume");
             // Runtime audio is independent from durable settings acknowledgement.
             a.applyVolume(next["volume"].get<int>());
             a.store.commit(next);
@@ -429,6 +438,8 @@ int main(int argc, char **argv) {
         opts.gbCore = fs::absolute(value());
       else if (flag == "--gba-core")
         opts.gbaCore = fs::absolute(value());
+      else if (flag == "--snes-core")
+        opts.snesCore = fs::absolute(value());
       else if (flag == "--output")
         opts.output = fs::absolute(value());
       else if (flag == "--script")
@@ -468,7 +479,7 @@ int main(int argc, char **argv) {
         return 0;
       } else if (flag == "--help") {
         std::cout << "rondo --volume CARD_ID=ROMS_PATH --state NEW_STATE_PATH "
-                     "--core FCEUMM_LIBRARY [--gb-core GAMBATTE_LIBRARY] [--gba-core GPSP_LIBRARY] [--headless --script SCRIPT.json "
+                     "--core FCEUMM_LIBRARY [--gb-core GAMBATTE_LIBRARY] [--gba-core GPSP_LIBRARY] [--snes-core SUPAFAUST_LIBRARY] [--headless --script SCRIPT.json "
                      "--output DIR]\n";
         return 0;
       } else
@@ -493,13 +504,26 @@ int main(int argc, char **argv) {
     if (!initialFeedback.is_null())
       app.volumeFeedback.restore(initialFeedback);
     Json results = Json::array();
-    uint64_t requestCounter = 0;
+    auto requestCounter = std::make_shared<std::atomic<uint64_t>>(0);
     if (runner) {
       if (fd < 0)
         throw std::runtime_error("Runner requires shell authority");
 
+      app.requestVolume = [fd,requestCounter](int value) {
+        auto request=++*requestCounter;
+        message(fd,{{"type","volume"},{"request_id",request},{"volume",value}});
+        const auto deadline=monotonicMs()+2000;
+        for(;;) {
+          auto now=monotonicMs();
+          if(now>=deadline)throw std::runtime_error("Volume authority timed out");
+          auto reply=receive(fd,int(deadline-now));
+          if(reply.value("request_id",uint64_t(0))!=request)continue;
+          if(!reply.value("ok",false))throw std::runtime_error("Volume authority: "+reply.value("error","write rejected"));
+          return reply.at("data");
+        }
+      };
       app.requestSettings = [&](Json next) {
-        auto request = ++requestCounter;
+        auto request = ++*requestCounter;
         message(fd, {{"type", "settings"}, {"request_id", request}, {"data", next}});
         auto deadline = monotonicMs() + 2000;
         Json reply;
@@ -573,6 +597,7 @@ int main(int argc, char **argv) {
           next = now;
       }
     }
+    app.volumeTick(true);
     // The adapter has its own bounded deadline; finish its acknowledgement on exit.
     while (app.bootPending()) { app.ticks(0); SDL_Delay(5); }
     Json report = {{"trace", app.trace},

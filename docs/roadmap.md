@@ -10,7 +10,7 @@ The [core feature review](feature-review.md) compares NextUI, MinUI and muOS wit
 
 ## Agreed next steps
 
-1. Continue game-system integration with GBA, then SNES, MD and PSX (CHD only), retaining NES/GB/GBC regression checks and individual license/performance/device acceptance gates.
+1. Continue game-system integration with MD and PSX (CHD only), retaining NES/GB/GBC/GBA/SNES regression checks and individual license/performance/device acceptance gates.
 2. Design a console-first library list with full system names before replacing the accepted handheld layout.
 3. Keep slight interface/game stutter in the optimization backlog. Compare disabled, normal and detailed diagnostic logging under matched conditions; logging is a hypothesis, not a demonstrated cause.
 4. Browser file transfer, network backup/save synchronization, online updates and artwork retrieval remain deferred; the website follows core functionality.

@@ -38,7 +38,7 @@ public:
   std::vector<uint32_t> frame;
   int width = 256, height = 240;
   uint16_t buttons = 0;
-  double fps = 60, sampleRate = 48000;
+  double fps = 60, sampleRate = 48000, aspectRatio = 4.0/3.0;
   std::string identity, romHash;
   uint64_t frames = 0, audioFrames = 0;
   int volume = 80, audioPeak = 0;

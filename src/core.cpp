@@ -63,6 +63,7 @@ Core::Core(const fs::path &path, const Game &game, const fs::path &saves, bool s
     loaded = true;
     retro_system_av_info av{};
     sym<void (*)(retro_system_av_info *)>("retro_get_system_av_info")(&av);
+    if(std::isfinite(av.geometry.aspect_ratio) && av.geometry.aspect_ratio>0 && av.geometry.aspect_ratio<=8)aspectRatio=av.geometry.aspect_ratio;
     fps = av.timing.fps;
     sampleRate = av.timing.sample_rate;
     if (!std::isfinite(fps) || fps < 1 || fps > 240)
@@ -138,6 +139,9 @@ bool Core::environment(unsigned cmd, void *data) {
         if(std::string(v->key)=="gpsp_rtc_time_source")c.variables[v->key]="system";
         if(std::string(v->key)=="gpsp_sound_rate")c.variables[v->key]="32768";
         if(std::string(v->key)=="gpsp_serial")c.variables[v->key]="disabled";
+        // Leave thread placement to the OS on desktop, constrained test containers
+        // and H700; do not inherit the core's fixed CPU 0/1 affinity defaults.
+        if(std::string(v->key)=="supafaust_thread_affinity_emu" || std::string(v->key)=="supafaust_thread_affinity_ppu")c.variables[v->key]="0x0";
       }
     }
     return true;

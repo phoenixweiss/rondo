@@ -298,6 +298,7 @@ void App::record(const std::string &event) {
                    {"notice", notice}});
 }
 void App::persist(Json next) {
+  volumeTick(true); // Serialize other settings with the volume authority.
   // A failed disk write must not roll the live mixer back on a later setting change.
   next["volume"] = previewVolume;
   try {
@@ -316,15 +317,39 @@ void App::persist(Json next) {
 }
 void App::applyVolume(int value) {
   previewVolume = std::clamp(value, 0, 100);
-  if (core) { core->volume = previewVolume; core->silence(); }
+  if (core) core->volume = previewVolume; // Keep queued audio flowing across gain changes.
   volumeFeedback.confirmed = previewVolume;
 }
 bool App::changeVolume(int value) {
   applyVolume(value);
+  if(screen==Screen::Running && requestVolume) {
+    queuedVolume=previewVolume;volumeSaveAt=monotonicMs()+200;
+    return true;
+  }
   auto next = store.data;
   next["volume"] = previewVolume;
   try { persist(next); return true; }
   catch (const std::exception &) { return false; }
+}
+void App::volumeTick(bool drain) {
+  for(;;) {
+    if(volumeSaveJob.valid()) {
+      if(!drain && volumeSaveJob.wait_for(std::chrono::milliseconds(0))!=std::future_status::ready)return;
+      try {
+        store.data=volumeSaveJob.get();
+        if(notice==locale.tr("notice.not_persisted"))notice.clear();
+      }catch(const std::exception &error) {
+        notice=locale.tr("notice.not_persisted");
+        std::cerr<<"Volume persistence: "<<error.what()<<"\n";
+        batterySample("settings_write_failed");
+      }
+    }
+    if(!queuedVolume || (!drain && monotonicMs()<volumeSaveAt))return;
+    int target=*queuedVolume;queuedVolume.reset();
+    auto writer=requestVolume;
+    volumeSaveJob=std::async(std::launch::async,[writer,target]{return writer(target);});
+    if(!drain)return;
+  }
 }
 static bool anySlots(App &a) {
   for (int i = 0; i < 3; i++)
@@ -396,6 +421,10 @@ uint16_t App::gameButtons(uint16_t held) {
 void App::action(const std::string &a) {
   if (stop || screen == Screen::SystemProgress || screen==Screen::SavingAutomatic) return;
   if(activity())return;
+  // Gameplay buttons are sampled as a held bitmask, not shell actions. In
+  // particular, do not run diagnostic snapshots/journaling for every press.
+  if(screen==Screen::Running && a!="MENU" && a!="SLEEP" &&
+     a!="VOLUME_UP" && a!="VOLUME_DOWN")return;
   for (auto id : {"notice.language_changed", "notice.favorite_added", "notice.favorite_removed",
                   "notice.saved", "notice.loaded"})
     if (notice == locale.tr(id))
@@ -406,7 +435,7 @@ void App::action(const std::string &a) {
     if (a == "SLEEP") { sleep(); record(a); return; }
     if (a == "VOLUME_UP" || a == "VOLUME_DOWN") {
       volumeFeedback.begin(monotonicMs());
-      draw();
+      if(screen!=Screen::Running)draw();
       bool saved = changeVolume(previewVolume + (a == "VOLUME_UP" ? 5 : -5));
       volumeFeedback.result(volumeFeedback.sequence, previewVolume, true,
                             monotonicMs());
@@ -526,6 +555,7 @@ void App::action(const std::string &a) {
     } else if (screen == Screen::LogClear) {
       if (a == "B") { screen = Screen::SettingsSection; category = 4; row = 2; }
       if (a == "A") {
+        batteryLog.reset(); // Drain the writer before deleting its files.
         clearDiagnosticLogs(options.state / "Logs", options.headless ? options.state / "ram-logs" : fs::path("/tmp/rondo-diagnostics/Logs"));
         clearDiagnosticLogs(options.state / "Battery");
         fs::remove(options.state / "launcher.log");
@@ -534,7 +564,7 @@ void App::action(const std::string &a) {
             fs::remove(fs::path("/tmp/rondo-output") / name);
         notice = locale.tr("debug.cleared");
         screen = Screen::SettingsSection; category = 4; row = 2;
-        batteryLog.reset(); configureDiagnostics();
+        configureDiagnostics();
       }
     } else if (screen == Screen::Settings) {
       if (a == "UP") settingsFocus = std::max(0, settingsFocus - 1);
@@ -969,8 +999,8 @@ void App::configureDiagnostics() {
   if (!batteryLog) {
     batteryLog = std::make_unique<BatteryLog>(options.state / "Logs", diagnosticRunner ? "runner" : "shell",
         "/sys", "/proc", 2 * 1024 * 1024,
-        options.headless ? options.state / "ram-logs" : fs::path("/tmp/rondo-diagnostics/Logs"));
-    batteryLogWarning = false;
+        options.headless ? options.state / "ram-logs" : fs::path("/tmp/rondo-diagnostics/Logs"), true);
+    batteryLogWarning = false;diagnosticSampleAt = 0;
     batterySample("start");
   }
 }
@@ -993,7 +1023,10 @@ void App::batterySample(const std::string &event) {
   bool failure = event.find("failed") != std::string::npos;
   if ((level == "errors" && !failure) || (level != "detailed" && event.empty())) return;
   if (!ui && event.find("action:") == 0) return;
-  bool ok = batteryLog->sample(monotonicMs(), {{"screen", screenName()},
+  const auto now=monotonicMs();
+  if(event.empty() && now<diagnosticSampleAt)return;
+  diagnosticSampleAt=now+5000;
+  bool ok = batteryLog->sample(now, {{"screen", screenName()},
       {"brightness_percent", brightness ? Json(*brightness) : Json(nullptr)},
       {"volume_percent", previewVolume},
       {"stored_volume_percent", store.data.value("volume", 80)},
@@ -1009,6 +1042,7 @@ void App::batterySample(const std::string &event) {
   if (ok) batteryLogWarning = false;
 }
 void App::saveOnExit(bool skipAutomatic) {
+  volumeTick(true);
   if(!core)return;
   if(!skipAutomatic && store.data.value("autosave_enabled",true)) {
     auto origin=screen;
@@ -1098,6 +1132,7 @@ void App::powerTick(uint64_t now) {
   if(now>=powerSampleAt) {powerSampleAt=now+15000;if(device->canSleep() || brightness)batteryWarning(readTelemetry(),now);}
 }
 void App::ticks(unsigned n) {
+  volumeTick();
   if(ui)powerTick(monotonicMs());
   wifiTick();
   btTick();
@@ -1160,8 +1195,10 @@ void App::sleep() {
   try {
     while (bootPending()) { ticks(0);SDL_Delay(5); }
     if (core) { core->paused=true;core->buttons=0;core->silence();core->flushSram();core->closeAudio(); }
+    volumeTick(true); // Audio/emulation are paused; finish the last requested gain.
     batterySample("sleep_before");
     record("sleep:prepared");
+    if(batteryLog)batteryLog->drain(); // The game/audio are already paused.
     device->sleep(store.data.value("wake_on_lid_open",true) && device->canWakeOnLid(),
                   store.data.value("lid_sleep",true));
     if(ui) {
@@ -1245,6 +1282,10 @@ void App::draw() {
     if(game.system=="GB" || game.system=="GBC" || game.system=="GBA") {
       double scale=std::min(720.0/core->width,480.0/core->height);
       w=int(core->width*scale);h=int(core->height*scale);
+    }
+    if(game.system=="SNES") {
+      h=480;w=int(h*core->aspectRatio);
+      if(w>720) {w=720;h=int(w/core->aspectRatio);}
     }
     if (store.integerScaling(game.id)) {
       int scale = std::max(1, std::min(720 / core->width, 480 / core->height));

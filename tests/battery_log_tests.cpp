@@ -8,6 +8,9 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <signal.h>
+#include <chrono>
+#include <fcntl.h>
+#include <thread>
 using namespace rondo;
 static void put(const fs::path &path, const std::string &value) {
   fs::create_directories(path.parent_path()); std::ofstream(path) << value;
@@ -57,6 +60,36 @@ int main(int argc, char **argv) {
     assert(WIFEXITED(status) && WEXITSTATUS(status)==0);
     assert(rows(root/"peripheral-guard/shell.jsonl").size()==1);
     assert(hashFile(battery/"capacity")==hashBytes({'8','5','\n'}));
+  }
+  {
+    // Hold a known PMIC read in the kernel. Producers must still return, with
+    // bounded memory even under a flood of events; no timing claim about SD.
+    pid_t child=fork();assert(child>=0);
+    if(child==0) {
+      alarm(10);
+      fs::remove(battery/"capacity");assert(mkfifo((battery/"capacity").c_str(),0600)==0);
+      BatteryLog journal(root/"async-stall","runner",sys,proc,2*1024*1024,{},true);
+      journal.sample(1,Json::object(),"start");
+      int writer=-1;
+      for(int i=0;i<1000 && writer<0;++i) {
+        writer=open((battery/"capacity").c_str(),O_WRONLY|O_NONBLOCK);
+        if(writer<0)usleep(1000);
+      }
+      assert(writer>=0); // Worker reached the deliberately blocked read.
+      auto before=std::chrono::steady_clock::now();
+      for(int i=0;i<10000;++i)journal.sample(i+2,{{"screen","running"}},"test:event");
+      auto elapsed=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-before).count();
+      assert(elapsed<500); // Far below one wait per event; generous for slow CI.
+      fs::remove(battery/"capacity");put(battery/"capacity","85\n");
+      assert(write(writer,"85\n",3)==3);close(writer);
+      journal.drain();auto entries=rows(root/"async-stall/runner.jsonl");
+      assert(entries.size()<=65 && entries.size()>1);
+      assert(entries.back()["context"]["diagnostic_events_dropped"].get<int>()>0);
+      std::cout<<"PASS: 10000 diagnostic submissions during blocked PMIC read: "<<elapsed<<" ms, bounded queue.\n"<<std::flush;
+      alarm(0);_exit(0);
+    }
+    int status=0;while(waitpid(child,&status,0)<0 && errno==EINTR){}
+    assert(WIFEXITED(status) && WEXITSTATUS(status)==0);
   }
   put(battery / "temp", "broken\n");
   assert(batterySnapshot(sys, proc)["supplies"]["axp2202-battery"]["temp"] == "broken");

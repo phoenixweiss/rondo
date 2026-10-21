@@ -65,8 +65,8 @@ subprocess.run([str(ROOT/'build/rondo'),'--assets',str(ROOT/'assets'),'--state',
 readonly=work/'readonly-authority';readonly.mkdir();future={'schema':2,'owner_data':'preserve'}
 (readonly/'config.json').write_text(json.dumps(future))
 quit_game=[{'action':'MENU'}]+[{'action':'DOWN'}]*4+[{'action':'A'},{'action':'DOWN'},{'action':'A'}]
-child=[{'assert_runtime_volume':75},{'action':'VOLUME_DOWN','assert_runtime_volume':70,'assert_notice':True}]+quit_game
-child2=[{'assert_runtime_volume':70},{'action':'VOLUME_UP','assert_runtime_volume':75,'assert_notice':True}]+quit_game
+child=[{'assert_runtime_volume':75},{'action':'VOLUME_DOWN','flush_volume':True,'assert_runtime_volume':70,'assert_notice':True}]+quit_game
+child2=[{'assert_runtime_volume':70},{'action':'VOLUME_UP','flush_volume':True,'assert_runtime_volume':75,'assert_notice':True}]+quit_game
 readonly_script=work/'readonly-authority.json';readonly_script.write_text(json.dumps([
  {'action':'VOLUME_DOWN','assert_runtime_volume':75,'assert_notice':True},
  {'action':'A','runner_script':child}, {'assert_runtime_volume':70,'assert_screen':'library'},
@@ -75,6 +75,20 @@ subprocess.run([str(ROOT/'build/rondo'),'--assets',str(ROOT/'assets'),'--state',
  '--core',str(args.core.resolve()),'--volume',libs[0],'--headless','--script',str(readonly_script),'--output',str(work/'readonly-renders')],
  check=True,stdout=(work/'readonly-authority.log').open('w'),stderr=subprocess.STDOUT,timeout=45)
 assert json.loads((readonly/'config.json').read_text())==future
+# A successful deferred volume-only request must retain other settings and
+# the last requested gain across runner exit and a new Store/runner session.
+volume_state=work/'volume-authority';volume_script=work/'volume-authority.json'
+volume_commands=[{'action':'A','runner_script':[
+ {'action':'VOLUME_DOWN'},{'action':'VOLUME_DOWN'},{'frames':10},
+ {'action':'VOLUME_UP','assert_runtime_volume':75},
+ {'flush_volume':True,'assert_config':{'volume':75}},
+ {'action':'VOLUME_DOWN','assert_runtime_volume':70}]+quit_game},
+ {'assert_screen':'library','assert_runtime_volume':70,'assert_config':{'volume':70}}]
+volume_script.write_text(json.dumps(volume_commands))
+subprocess.run([str(ROOT/'build/rondo'),'--assets',str(ROOT/'assets'),'--state',str(volume_state),
+ '--core',str(args.core.resolve()),'--volume',libs[0],'--headless','--script',str(volume_script),'--output',str(work/'volume-renders')],
+ check=True,stdout=(work/'volume-authority.log').open('w'),stderr=subprocess.STDOUT,timeout=45)
+assert json.loads((volume_state/'config.json').read_text())['volume']==70
 result={'native_build':True,'real_fceumm_state_roundtrip':True,'sram_restart':True,'shell_runner_sessions':2,'durable_restart':True,'runner_load_failure_recovered':True,'settings_write_failure_visible':True,'timezone_apply':True,'volume_master_persists_across_shell_runner':True,'software_mute_verified':True,'library_files_preserved':len(before),'render_backend':'SDL2 software surface, same UI as interactive window','audio_device_tested':False,'device_tested':False,'sd_modified':False}
 (work/'result.json').write_text(json.dumps(result,indent=2)+'\n');print(json.dumps(result))
 
