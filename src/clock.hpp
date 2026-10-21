@@ -23,6 +23,7 @@ public:
   virtual bool supported() const { return false; }
 };
 std::shared_ptr<ClockAdapter> clockAdapter(const fs::path &notify, bool enabled);
+bool clockBaseosPlatformSupported(const std::string &release, const std::string &os);
 struct ClockFields {
   int year = 2026, month = 1, day = 1, hour = 0, minute = 0;
 };

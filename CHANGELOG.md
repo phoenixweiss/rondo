@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## [0.7.1] - 2026-10-22
+
+- Enable the RG34XXSP time adapter by BaseOS/H700 identity, its callback and executable time-service dependencies instead of an exact BaseOS version. Compatible system updates no longer hide network synchronization and manual date/time controls; other devices/OSes and missing services stay unavailable.
+- Add an explicit BaseOS-version selector to isolated runtime checks, reporting the tested version separately from the unchanged 1.3.0 package baseline.
+
+### Verification and known limitations
+
+- The same candidate passed native macOS checks and complete isolated BaseOS 1.3.0 and 1.5.2 userspace/synthetic checks, including NTP, manual time, UTC RTC acknowledgement and failure handling. Regression checks cover platform rejection and version-independent detection.
+- The owner accepted the BaseOS 1.5.2 update and candidate 847da83a5e4b on RG34XXSP after the requested boot, time and gameplay/sleep checks. BaseOS 1.5.2 is an upstream prerelease; this is bounded device acceptance, not a compatibility guarantee for every hardware variant or future service interface.
+- Bluetooth remains experimental: Micro D pairs/connects, but controller input does not work. Battery-gauge jumps, recurring FAT inconsistencies, wake-on-lid-open and broader performance optimization remain in the backlog.
+
 ## [0.7.0] - 2026-10-22
 
 - Repeat handheld volume changes while a button is held: one immediate 5% step, then a 350 ms delay and 100 ms repeats. Ignore duplicate/kernel repeats and cancel held state on release or lost input.

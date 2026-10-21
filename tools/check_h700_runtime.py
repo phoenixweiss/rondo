@@ -18,12 +18,15 @@ def main():
     parser.add_argument("--rootfs", type=Path, required=True,
                         help="Owner-supplied extracted BaseOS rootfs; mounted read-only")
     parser.add_argument("--work", type=Path, required=True, help="New validation directory")
+    parser.add_argument("--baseos-version", choices=["1.3.0", "1.5.2"],
+                        help="Explicit compatibility probe; defaults to the package baseline")
     args = parser.parse_args()
     build, rootfs, work = args.build.resolve(), args.rootfs.resolve(), args.work.resolve()
     lock = json.loads((build / "source/runtime/build-lock.json").read_text())
+    expected_version = args.baseos_version or lock["baseos_version"]
     release = (rootfs / "etc/baseos-release").read_text().splitlines()
     for marker in ["BASEOS_PLATFORM=h700", "BASEOS_TARGET=" + lock["target"],
-                   "BASEOS_VERSION=" + lock["baseos_version"]]:
+                   "BASEOS_VERSION=" + expected_version]:
         if marker not in release:
             raise ValueError("Wrong rootfs: expected " + marker)
     if "ID=baseos" not in (rootfs / "etc/os-release").read_text().splitlines():
@@ -64,7 +67,8 @@ def main():
         subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=180)
     if (work / "captures/rondo-power-calls").read_text().splitlines() != ["poweroff", "reboot"]:
         raise ValueError("BaseOS native power wrapper sequence mismatch")
-    summary = {"native_power_wrappers_fake_busybox_passed": True, "package_sha256": result["sha256"], "baseos_version": lock["baseos_version"],
+    summary = {"native_power_wrappers_fake_busybox_passed": True, "package_sha256": result["sha256"], "baseos_version": expected_version,
+               "package_baseos_baseline": lock["baseos_version"],
                "target": lock["target"], "packaged_preflight_passed": True,
                "synthetic_device_tests_passed": True, "rootfs_read_only": True,
                "physical_hardware_verified": False, "sd_accessed": False}

@@ -50,6 +50,14 @@ static void wait(App &app, const std::function<bool()> &done) {
 }
 int main(int argc, char **argv) {
   assert(argc == 3);
+  const std::string platform = "BASEOS_TARGET=rg34xxsp\nBASEOS_PLATFORM=h700\n";
+  for (auto version : {"1.3.0", "1.5.2", "9.9.9", ""})
+    assert(clockBaseosPlatformSupported(platform + "BASEOS_VERSION=" + version + "\n", "ID=baseos\n"));
+  assert(!clockBaseosPlatformSupported(platform, "ID=other\n"));
+  assert(!clockBaseosPlatformSupported("BASEOS_PLATFORM=h700\nBASEOS_TARGET=rg35xxsp\n", "ID=baseos\n"));
+  assert(!clockBaseosPlatformSupported("BASEOS_TARGET=rg34xxsp\n", "ID=baseos\n"));
+  assert(!clockBaseosPlatformSupported("BASEOS_PLATFORM=other\nBASEOS_TARGET=rg34xxsp\n", "ID=baseos\n"));
+  assert(!clockBaseosPlatformSupported("", "ID=baseos\n"));
   Options o;
   o.assets = fs::absolute(argv[1]);
   o.state = argv[2];

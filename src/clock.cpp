@@ -4,7 +4,20 @@
 #include "platform.hpp"
 #include <algorithm>
 #include <ctime>
+#include <sstream>
 namespace rondo {
+bool clockBaseosPlatformSupported(const std::string &release, const std::string &os) {
+  std::istringstream platformInfo(release), osInfo(os);
+  std::string line;
+  bool target = false, h700 = false, baseos = false;
+  while (std::getline(platformInfo, line)) {
+    target |= line == "BASEOS_TARGET=rg34xxsp";
+    h700 |= line == "BASEOS_PLATFORM=h700";
+  }
+  while (std::getline(osInfo, line))
+    baseos |= line == "ID=baseos";
+  return target && h700 && baseos;
+}
 int clockDays(int year, int month) {
   if (month < 1 || month > 12)
     throw ClockError("invalid");
@@ -212,17 +225,11 @@ namespace rondo {
 std::shared_ptr<ClockAdapter> clockAdapter(const fs::path &notify, bool enabled) {
 #ifdef __linux__
   std::ifstream release("/etc/baseos-release"), os("/etc/os-release");
-  std::string line;
-  bool target = false, version = false, baseos = false;
-  while (std::getline(release, line)) {
-    target |= line == "BASEOS_TARGET=rg34xxsp";
-    version |= line == "BASEOS_VERSION=1.3.0";
-  }
-  while (std::getline(os, line))
-    baseos |= line == "ID=baseos";
-  if (enabled && target && version && baseos && fs::is_regular_file(notify) &&
-      fs::exists("/usr/bin/timedatectl") && fs::exists("/usr/sbin/baseos-ntp") &&
-      fs::exists("/usr/sbin/ntpd"))
+  const std::string releaseInfo((std::istreambuf_iterator<char>(release)), {});
+  const std::string osInfo((std::istreambuf_iterator<char>(os)), {});
+  if (enabled && clockBaseosPlatformSupported(releaseInfo, osInfo) &&
+      fs::is_regular_file(notify) && access("/usr/bin/timedatectl", X_OK) == 0 &&
+      access("/usr/sbin/baseos-ntp", X_OK) == 0 && access("/usr/sbin/ntpd", X_OK) == 0)
     try {
       return std::make_shared<BaseClock>(notify);
     } catch (...) {

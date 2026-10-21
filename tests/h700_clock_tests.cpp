@@ -62,6 +62,8 @@ int main() {
   setenv("BASEOS_NTP_RETRY_SECONDS", "1", 1);
   fs::permissions("/tmp/app/tools/ntp-notify.sh",
                   fs::perms::owner_read); // Simulate FAT masking executable bits.
+  assert(!clockAdapter("/tmp/app/tools/ntp-notify.sh", false)->supported());
+  assert(!clockAdapter("/tmp/missing-clock-notify.sh", true)->supported());
   auto device = clockAdapter("/tmp/app/tools/ntp-notify.sh", true);
   assert(device->supported());
   assert((fs::status("/run/rondo-ntp-notify.sh").permissions() & fs::perms::owner_exec) !=

@@ -6,7 +6,7 @@ synchronization. Automatic sync
 defaults to On; it does not enable Wi-Fi. Without a connection it waits. Time-zone
 selection is on the same Date & time page and does not change the UTC clock.
 
-Rondo uses BaseOS 1.3.0's timedatectl/baseos-ntp service and BusyBox ntpd, with
+Rondo uses BaseOS's timedatectl/baseos-ntp service and BusyBox ntpd, with
 BaseOS's configured time servers. It starts asynchronously and restarts when
 Wi-Fi obtains an address, including after sleep. Enabling the preference is not
 reported as a successful synchronization. A filtered callback event and a
@@ -67,3 +67,5 @@ Owner testing on RG34XXSP accepted network time and candidate 1c1ac5e705d3 for o
 The callback event contract was checked against [BusyBox 1.36.1 ntpd](https://raw.githubusercontent.com/mirror/busybox/1_36_1/networking/ntpd.c).
 Kernel state is read with [adjtimex modes=0](https://man7.org/linux/man-pages/man2/adjtimex.2.html).
 No BusyBox or BaseOS implementation is copied into Rondo's MIT code.
+
+The time adapter requires BaseOS/H700/RG34XXSP identity, an available callback and executable timedatectl, baseos-ntp and ntpd. It does not gate on the BaseOS version. Command results, bounded deadlines and state readback still govern each operation. Isolated checks cover BaseOS 1.3.0 and 1.5.2; the owner accepted the 1.5.2 update with candidate 847da83a5e4b. Future service interfaces require their own verification.
