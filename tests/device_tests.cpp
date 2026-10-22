@@ -74,7 +74,7 @@ int main(int argc,char **argv) {
   }
   {
     for(const auto *language:{"en","ru"}) {
-      for(int target:{7,8}) {
+      for(int target:{8,9}) {
         o.state=root/(std::string("system-power-")+language+std::to_string(target));App a(o);
         a.locale.select(o.assets,language);a.settingsFocus=0;a.screen=Screen::Settings;
         a.capture(std::string("settings-icons-top-")+language);
@@ -89,7 +89,7 @@ int main(int argc,char **argv) {
         a.action("A");assert(a.screen==Screen::Settings && a.row==target && !a.stop);
         a.action("A");a.action("DOWN");a.action("B");assert(!a.stop && a.row==target);
         a.action("A");a.action("DOWN");a.action("A");
-        assert(a.stop && a.systemExitCode==(target==8?64:65) && a.store.data==before);
+        assert(a.stop && a.systemExitCode==(target==9?64:65) && a.store.data==before);
         assert(a.screen==Screen::SystemProgress);
         a.capture(std::string("power-progress-")+language+std::to_string(target));
         a.action("B");a.action("A");a.action("VOLUME_UP");a.action("SLEEP");

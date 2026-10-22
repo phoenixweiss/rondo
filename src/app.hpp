@@ -7,6 +7,7 @@
 #include "wifi.hpp"
 #include "bluetooth.hpp"
 #include "ui.hpp"
+#include "system_info.hpp"
 #include <functional>
 #include <future>
 namespace rondo {
@@ -15,6 +16,7 @@ enum class Screen {
   Search,
   Settings,
   SettingsSection,
+  SystemInfo,
   LogClear,
   SystemConfirm,
   SystemProgress,
@@ -47,7 +49,7 @@ enum class Screen {
   Recovery
 };
 struct Options {
-  fs::path assets, state, core, gbCore, gbaCore, snesCore, executable, script, output;
+  fs::path assets, state, core, gbCore, gbaCore, snesCore, mdCore, executable, script, output;
   fs::path coreFor(const std::string &system) const {
     if(system=="NES")return core;
     if(system=="GB" || system=="GBC") {
@@ -61,6 +63,10 @@ struct Options {
     if(system=="SNES") {
       if(!snesCore.empty())return snesCore;
       if(!core.empty())return core.parent_path()/("mednafen_supafaust_libretro"+core.extension().string());
+    }
+    if(system=="MD") {
+      if(!mdCore.empty())return mdCore;
+      if(!core.empty())return core.parent_path()/("picodrive_libretro"+core.extension().string());
     }
     return {};
   }
@@ -129,6 +135,19 @@ public:
   int settingsFocus = 0;
   double settingsScroll = 0;
   void returnToSettings();
+  struct SystemInfoRow { std::string label,value,source,state,page; };
+  SystemInfoProcess systemInfoJob;
+  Json systemInfoData=Json::object();
+  std::string systemInfoPage="root",systemInfoError;
+  int systemInfoRow=0,systemInfoSourceScroll=0;
+  double systemInfoScroll=0;
+  bool systemInfoSource=false;
+  std::vector<std::tuple<std::string,int,double>> systemInfoStack;
+  std::vector<SystemInfoRow> systemInfoRows() const;
+  void systemInfoRefresh();
+  void systemInfoTick();
+  void systemInfoAction(const std::string &);
+  void systemInfoDraw();
   std::string libraryTitle() const;
   void rememberLaunch();
   SDL_Color gameBackground() const;

@@ -90,6 +90,22 @@ std::string utf8Prefix(std::string s, size_t n) {
     --n;
   return s.substr(0, n);
 }
+// Fold ASCII and Cyrillic without depending on the host locale.
+std::string searchFold(std::string text) {
+  for(size_t i=0;i<text.size();++i) {
+    auto c=static_cast<unsigned char>(text[i]);
+    if(c>='A' && c<='Z')text[i]=char(c+32);
+    else if(i+1<text.size()) {
+      auto next=static_cast<unsigned char>(text[i+1]);
+      if(c==0xd0 && next==0x81) {text[i]=char(0xd1);text[++i]=char(0x91);}
+      else if(c==0xd0 && next>=0x90 && next<=0xaf) {
+        if(next<0xa0)text[++i]=char(next+32);
+        else {text[i]=char(0xd1);text[++i]=char(next-32);}
+      }
+    }
+  }
+  return text;
+}
 static bool inside(const fs::path &p, const fs::path &root) {
   auto r = p.lexically_relative(root);
   return !r.empty() && *r.begin() != "..";
@@ -163,6 +179,7 @@ std::vector<Game> scan(const std::vector<Volume> &volumes) {
       else if(ext==".gbc")system="GBC";
       else if(ext==".gba")system="GBA";
       else if(ext==".sfc" || ext==".smc")system="SNES";
+      else if(ext==".md" || ext==".gen")system="MD";
       auto identity = v.id + "\n" + rel.generic_string();
       std::vector<uint8_t> bytes(identity.begin(), identity.end());
       std::string title = path.stem().string();
@@ -171,8 +188,19 @@ std::vector<Game> scan(const std::vector<Volume> &volumes) {
       out.push_back({hashBytes(bytes), v.id, system, title, path});
     }
   }
-  std::sort(out.begin(), out.end(), [](auto &a, auto &b) {
-    return std::tie(a.system, a.title, a.id) < std::tie(b.system, b.title, b.id);
+  // Build collation keys once while scanning, never in the render loop. Russian
+  // Yo sorts with Ye; search keeps their distinction. Equal titles have a stable
+  // system/identity tie-breaker across volumes and filesystem enumeration order.
+  std::map<std::string, std::string> titles;
+  for (const auto &game : out) {
+    auto key = searchFold(game.title);
+    for (size_t at = 0; (at = key.find("ё", at)) != std::string::npos; at += 2)
+      key.replace(at, 2, "е");
+    titles.emplace(game.id, std::move(key));
+  }
+  std::sort(out.begin(), out.end(), [&](const auto &a, const auto &b) {
+    return std::tie(titles.at(a.id), a.system, a.id) <
+           std::tie(titles.at(b.id), b.system, b.id);
   });
   return out;
 }

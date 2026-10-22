@@ -96,6 +96,26 @@ int main(int argc, char **argv) {
     std::string playlist = "a.cue\nb.cue\n";
     atomicWrite(root / "moved/PS/Disc/game.m3u", {playlist.begin(), playlist.end()});
     assert(scan({{"a", root / "moved"}}).size() == 2);
+    // All platforms share one title order, independent of case and host locale.
+    const std::vector<std::pair<std::string,std::string>> library = {
+        {"NES/zebra", ".nes"}, {"GBA/alpha", ".gba"}, {"GB/Beta", ".gb"},
+        {"SNES/Якорь", ".sfc"}, {"NES/ёлка", ".nes"}, {"GBC/Енот", ".gbc"},
+        {"GBA/АЛЬФА", ".gba"}, {"NES/alpha", ".nes"}};
+    for (const auto &[name, ext] : library)
+      atomicWrite(root / "sorted" / (name + ext), {1});
+    auto ordered = scan({{"sorted", root / "sorted"}});
+    const std::vector<std::string> expected = {"alpha", "alpha", "Beta", "zebra",
+                                              "АЛЬФА", "ёлка", "Енот", "Якорь"};
+    for (size_t i = 0; i < expected.size(); ++i) assert(ordered.at(i).title == expected[i]);
+    assert(ordered[0].system == "GBA" && ordered[1].system == "NES");
+    auto reversedVolumes = scan({{"b", root / "card-b"}, {"a", root / "moved"}});
+    auto forwardVolumes = scan({{"a", root / "moved"}, {"b", root / "card-b"}});
+    for (size_t i = 0; i < forwardVolumes.size(); ++i)
+      assert(forwardVolumes[i].id == reversedVolumes[i].id);
+    auto lastPlayed = recentAfterLaunch(Json::array(), ordered.back(), {{"sorted",root/"sorted"}});
+    lastPlayed = recentAfterLaunch(lastPlayed, ordered.front(), {{"sorted",root/"sorted"}});
+    assert(lastPlayed[0]["id"] == ordered.front().id && lastPlayed[1]["id"] == ordered.back().id);
+
     auto full = scrollGeometry(500, 280, 500, 268);
     assert(full.visible && full.position + full.thumb <= 268.001);
     assert(!scrollGeometry(100, 280, 0, 268).visible);

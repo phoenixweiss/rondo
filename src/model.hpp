@@ -19,6 +19,7 @@ std::string hashFile(const fs::path &);
 void atomicWrite(const fs::path &, const std::vector<uint8_t> &);
 Json readJson(const fs::path &);
 std::string utf8Prefix(std::string, size_t);
+std::string searchFold(std::string);
 struct Volume {
   std::string id;
   fs::path root;

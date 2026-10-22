@@ -51,3 +51,12 @@ gpSP 5819380c2ffb0900219d700a382ee68c464ebb99 is revision/SHA-256 pinned in gba-
 ## SNES candidate (2026-10-21)
 
 Supafaust 642d1d1b6684aa7e306a02a89885f3f5456a5157 is revision/archive-SHA pinned in snes-core-source.json. GPLv2 and per-file attribution are retained; COPYING and the full unmodified archive accompany the frontend. This uses the existing GPLv2 combined-package policy, retaining MIT for original Rondo code/artwork. Native macOS selects the existing condition-variable semaphore implementation through a compiler define. H700 builds use platform=unix and Cortex-A53 tuning, with fixed GIT_VERSION and no source patch. No proprietary SNES firmware or commercial games are supplied. The audit checks the exact core ELF, source archive and license bytes against frozen source metadata. Hardware acceptance remains separate.
+
+
+## Mega Drive / PicoDrive runtime
+
+The normal ZIP now also carries PicoDrive under its own noncommercial terms. This is an alternative core, not code linked into FCEUmm, Gambatte, gpSP or Supafaust. Each game runner loads one selected core. The original MIT frontend is available with the complete corresponding source, so its use with a GPL core can satisfy the existing GPL policy without purporting to relicense PicoDrive under GPL. The ZIP as a whole must not be advertised as GPL-only, MIT-only or suitable for unrestricted commercial use.
+
+For the alternative MIT/PicoDrive runner, FreeType's FTL grant is used, retaining the notice: this software is based in part on the work of the FreeType Team. GPL-core runners continue to use FreeType's GPLv2 alternative. The library source and both grants are included. No noncommercial source is copied into Rondo's MIT code or a GPL core. A changed linking/core topology needs a fresh review; dlopen alone is not a license exemption.
+
+The pinned PicoDrive archive and required libpicofe/emu2413/dr_libs archives accompany the binaries. Packaging retains COPYING, FAME documentation/license, dependency license/README files and embedded per-file notices. `use_libchdr=0`, `use_sh2drc=0`, `use_svpdrc=0`, `PLATFORM_TREMOR=1` and empty `GIT_REVISION` are recorded in build metadata. Only MD cartridges are exposed; no firmware or owner ROM is included. Auditing checks the core ELF, source archive hashes and exact license against the ZIP's frozen source metadata.

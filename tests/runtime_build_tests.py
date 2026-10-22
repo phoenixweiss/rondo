@@ -50,6 +50,14 @@ class RuntimeBuildTests(unittest.TestCase):
         self.assertIsNotNone(native)
         self.assertEqual(native, packaged)
 
+    def test_md_fixture_is_reproducible(self):
+        import importlib.util
+        root = Path(__file__).resolve().parent.parent
+        spec = importlib.util.spec_from_file_location('md_fixture', root / 'tools/md_fixture.py')
+        module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        output = self.root / 'technical-test.gen'; module.create(output)
+        self.assertEqual(output.read_bytes(), (root / 'runtime/test-fixtures/md/MD/technical-test.gen').read_bytes())
+
     def test_pinned_archive_extension_is_preserved(self):
         self.assertEqual(archive_name('linux', {'archive_suffix': '.tar.xz'}), 'linux.tar.xz')
         self.assertEqual(archive_name('bc', {}), 'bc.tar.gz')

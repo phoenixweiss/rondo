@@ -34,7 +34,7 @@ This is userspace/ABI and synthetic policy verification. Physical graphics, audi
 
 ## Distribution audit
 
-Run `python3 tools/audit_h700_package.py build/h700-first/output/Rondo-BaseOS-RG34XXSP-development-SOURCEID.zip` using the actual filename printed by the builder. It checks the ZIP against its own frozen source inputs and required distribution notices. The combined NES/GB/GBC/GBA/SNES package selects FreeType's GPLv2 alternative. See [shipping audit](../docs/shipping-audit.md) and [asset policy](../assets/LICENSE.md).
+Run `python3 tools/audit_h700_package.py build/h700-first/output/Rondo-BaseOS-RG34XXSP-development-SOURCEID.zip` using the actual filename printed by the builder. It checks the ZIP against its own frozen source inputs and required distribution notices. GPL-core runners use FreeType's GPLv2 alternative; the alternative MIT/PicoDrive runner uses FTL with its attribution. PicoDrive retains its noncommercial terms in the same ZIP. See [shipping audit](../docs/shipping-audit.md) and [asset policy](../assets/LICENSE.md).
 
 Frontend and test compilation share the root Makefile object graph within each
 `/work/programs` directory. Header dependencies and command configuration changes

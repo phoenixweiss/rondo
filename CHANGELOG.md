@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## [0.8.0] - 2026-10-22
+
+- Add read-only Settings → System information in English and Russian: device profile and OS memory, installed Rondo/BaseOS/kernel/core revisions, physical cards and mounted partition space, and named handheld battery readings. X reveals full values and sources; Y refreshes through a single bounded helper process without hardware reads on the UI thread. Unknown, absent and failed readings remain explicit.
+
+- Add Mega Drive / Genesis cartridge support through pinned PicoDrive, with `.gen`/`.md` routing, six-button controls, SRAM, slots, automatic continuation and the existing sleep policy. Cartridge play does not require a Sega BIOS. Sega CD, 32X and Master System are outside this integration.
+- Ship PicoDrive and its required pinned dependencies in the regular H700 ZIP, with full source and component notices. PicoDrive retains its noncommercial terms; original Rondo code/artwork remain MIT. The complete package must not be described as MIT-only or GPL-only.
+- Sort the library by title across systems, ignoring ASCII/Cyrillic case and sorting Russian Ё with Е. Keep stable duplicate ordering and preserve Recent launch order and game/save identities.
+
+### Verification and known limitations
+
+- The owner accepted Mega Drive gameplay, save states, continuation, sleep and System information on RG34XXSP / BaseOS 1.5.2 using candidate 27c4f81aaeac on 2026-10-22. This is bounded device acceptance, not a full compatibility or sustained-performance claim for every cartridge.
+- All 264 owner-provided MD ROMs passed short automated native launch, state and process-restart continuation probes. The combined candidate passed native checks, isolated BaseOS 1.3.0 and 1.5.2 regression checks, and the corresponding-source/license audit. Owner ROMs and artwork are excluded from the public ZIP.
+- System information separates manufacturer specifications from observed data. Battery readings remain vendor estimates, not a health measurement or calibration; unavailable values remain explicit.
+- Bluetooth remains experimental: Micro D pairs/connects, but controller input does not work. Battery-gauge jumps, recurring FAT inconsistencies, wake-on-lid-open and broader performance optimization remain in the backlog.
+
 ## [0.7.1] - 2026-10-22
 
 - Enable the RG34XXSP time adapter by BaseOS/H700 identity, its callback and executable time-service dependencies instead of an exact BaseOS version. Compatible system updates no longer hide network synchronization and manual date/time controls; other devices/OSes and missing services stay unavailable.

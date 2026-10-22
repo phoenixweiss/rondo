@@ -72,22 +72,6 @@ App::App(Options opts, bool runner, const Game &entry)
   configureDiagnostics();
   record("ready");
 }
-// Library search folds ASCII and Cyrillic without depending on the host locale.
-static std::string searchFold(std::string text) {
-  for(size_t i=0;i<text.size();++i) {
-    auto c=static_cast<unsigned char>(text[i]);
-    if(c>='A' && c<='Z')text[i]=char(c+32);
-    else if(i+1<text.size()) {
-      auto next=static_cast<unsigned char>(text[i+1]);
-      if(c==0xd0 && next==0x81) {text[i]=char(0xd1);text[++i]=char(0x91);}
-      else if(c==0xd0 && next>=0x90 && next<=0xaf) {
-        if(next<0xa0)text[++i]=char(next+32);
-        else {text[i]=char(0xd1);text[++i]=char(next-32);}
-      }
-    }
-  }
-  return text;
-}
 static void eraseGlyph(std::string &text) {
   if(text.empty())return;
   auto i=text.size()-1;
@@ -248,6 +232,7 @@ std::string App::screenName() const {
   case Screen::Settings:
     return "global_settings";
   case Screen::SettingsSection: return "settings_section";
+  case Screen::SystemInfo: return "system_info";
   case Screen::LogClear: return "log_clear";
   case Screen::SystemConfirm: return "system_confirm";
   case Screen::SystemProgress: return "system_progress";
@@ -456,6 +441,7 @@ void App::action(const std::string &a) {
       record("info:open");
       return;
     }
+    if(screen==Screen::SystemInfo){systemInfoAction(a);record("system_info:"+a);return;}
     if(screen==Screen::Search) {searchAction(a);record("search:"+a);return;}
     if(screen==Screen::Bluetooth || screen==Screen::BluetoothDevices || screen==Screen::BluetoothDevice || screen==Screen::BluetoothForget){btAction(a);record("bluetooth:"+a);return;}
     if(screen==Screen::Clock || screen==Screen::ClockEdit){clockAction(a);record("clock:"+a);return;}
@@ -568,15 +554,19 @@ void App::action(const std::string &a) {
       }
     } else if (screen == Screen::Settings) {
       if (a == "UP") settingsFocus = std::max(0, settingsFocus - 1);
-      if (a == "DOWN") settingsFocus = std::min(8, settingsFocus + 1);
+      if (a == "DOWN") settingsFocus = std::min(9, settingsFocus + 1);
       row = settingsFocus;
       if (a == "B") screen = Screen::Library;
-      if (a == "A" && settingsFocus >= 7) {
-        restartRequested = settingsFocus == 7;
+      if (a == "A" && settingsFocus >= 8) {
+        restartRequested = settingsFocus == 8;
         screen = Screen::SystemConfirm; row = 0;
         record("system:confirm"); return;
       }
       if (a == "A") {
+        if(settingsFocus==7) {
+          screen=Screen::SystemInfo;systemInfoPage="root";systemInfoRow=0;systemInfoScroll=0;systemInfoStack.clear();systemInfoSource=false;
+          if(systemInfoData.empty())systemInfoRefresh();record("system_info:open");return;
+        }
         static const int categories[] = {0, 1, 2, 6, 5, 3, 4};
         category = categories[settingsFocus];
         screen = category == 6 ? Screen::Clock : Screen::SettingsSection;
@@ -939,7 +929,7 @@ std::string App::infoKey() const {
   if (screen == Screen::GameSettings) return "scaling";
   if (screen == Screen::SaveSlots || screen == Screen::LoadSlots) return "slots";
   if (screen == Screen::Regions || screen == Screen::Zones) return "timezone";
-  if (screen == Screen::Settings && settingsFocus >= 7) return "system_power";
+  if (screen == Screen::Settings && settingsFocus >= 8) return "system_power";
   if (screen != Screen::SettingsSection) return "";
   if (category == 4) return "debug";
   if (category == 0) return row == 0 ? "language" : "boot";
@@ -1133,6 +1123,7 @@ void App::powerTick(uint64_t now) {
 }
 void App::ticks(unsigned n) {
   volumeTick();
+  systemInfoTick();
   if(ui)powerTick(monotonicMs());
   wifiTick();
   btTick();
@@ -1283,7 +1274,7 @@ void App::draw() {
       double scale=std::min(720.0/core->width,480.0/core->height);
       w=int(core->width*scale);h=int(core->height*scale);
     }
-    if(game.system=="SNES") {
+    if(game.system=="SNES" || game.system=="MD") {
       h=480;w=int(h*core->aspectRatio);
       if(w>720) {w=720;h=int(w/core->aspectRatio);}
     }
@@ -1389,6 +1380,8 @@ void App::draw() {
       if(!searchQuery.empty())hints.push_back({"B",tr("search.clear")});
       ui->hints(hints);
     }
+  } else if(screen==Screen::SystemInfo) {
+    systemInfoDraw();
   } else if(screen==Screen::Search) {
     searchDraw();
   } else if(screen==Screen::Clock || screen==Screen::ClockEdit) {
@@ -1399,27 +1392,27 @@ void App::draw() {
     wifiDraw();
   } else if (screen == Screen::Settings) {
     const std::vector<std::string> labels = {"section.interface", "section.display", "section.sound",
-      "clock.title", "section.network", "section.power", "section.debug", "power.restart", "power.shutdown"};
-    const std::vector<std::string> icons = {"panels-top-left","monitor","volume-2","clock","wifi","battery","bug","rotate-cw","power"};
+      "clock.title", "section.network", "section.power", "section.debug", "sysinfo.title", "power.restart", "power.shutdown"};
+    const std::vector<std::string> icons = {"panels-top-left","monitor","volume-2","clock","wifi","battery","bug","panels-top-left","rotate-cw","power"};
     ui->frame(tr("screen.settings"), "", zone, "settings");
-    constexpr double viewport = 324, content = 9 * 54 + 16;
-    const double top = settingsFocus * 54 + (settingsFocus >= 7 ? 16 : 0);
+    constexpr double viewport = 324, content = 10 * 54 + 16;
+    const double top = settingsFocus * 54 + (settingsFocus >= 8 ? 16 : 0);
     if (top < settingsScroll) settingsScroll = top;
     if (top + 54 > settingsScroll + viewport) settingsScroll = top + 54 - viewport;
     settingsScroll = std::clamp(settingsScroll, 0.0, content - viewport);
     SDL_Rect clip{16, 84, 672, 324};
     SDL_RenderSetClipRect(ui->renderer, &clip);
-    const int divider = 84 + 7 * 54 + 7 - int(settingsScroll);
+    const int divider = 84 + 8 * 54 + 7 - int(settingsScroll);
     ui->line(32,divider,672,divider,ui->separator);
-    for (int i = 0; i < 9; ++i) {
-      int y = 84 + i * 54 + (i >= 7 ? 16 : 0) - int(settingsScroll);
+    for (int i = 0; i < 10; ++i) {
+      int y = 84 + i * 54 + (i >= 8 ? 16 : 0) - int(settingsScroll);
       if (y + 52 > 84 && y < 408)
         ui->row(tr(labels[i]), y, i == settingsFocus, 672, "", true, 52, "chevron-right", icons[i]);
     }
     SDL_RenderSetClipRect(ui->renderer, nullptr);
     ui->scrollbar(content, viewport, settingsScroll, false, 91, 406);
     std::vector<std::pair<std::string,std::string>> hints{{"A",tr("action.open")},{"B",tr("action.back")}};
-    if(settingsFocus >= 7) hints.push_back({"X",tr("footer.info")});
+    if(settingsFocus >= 8) hints.push_back({"X",tr("footer.info")});
     ui->hints(hints);
   } else if (screen == Screen::SettingsSection) {
     const std::vector<std::string> labels = {"section.interface", "section.display", "section.sound",

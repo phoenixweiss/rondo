@@ -17,6 +17,9 @@ cp gpsp_libretro.so /work/programs/
 cd "/work/sources/$(python3 -c 'import json; print("supafaust-"+json.load(open("/src/docs/dependencies/snes-core-source.json"))["revision"])')"
 CXXFLAGS='-mcpu=cortex-a53 -mtune=cortex-a53' make -j"$jobs" platform=unix CC="$CC" CXX="$CXX" GIT_VERSION= > /work/snes-core-build.log 2>&1
 cp mednafen_supafaust_libretro.so /work/programs/
+cd "/work/sources/$(python3 -c 'import json; print("picodrive-"+json.load(open("/src/docs/dependencies/md-core-source.json"))["revision"])')"
+make -f Makefile.libretro -j"$jobs" platform=aarch64 CC="$CC" CXX="$CXX" use_libchdr=0 use_sh2drc=0 use_svpdrc=0 GIT_REVISION= PLATFORM_TREMOR=1 > /work/md-core-build.log 2>&1
+cp picodrive_libretro.so /work/programs/
 make -C /src -j"$jobs" h700-programs BUILD=/work/programs PKG_CONFIG=true \
  CXX="$CXX" CXXFLAGS='-std=c++17 -O2 -Wall -Wextra' \
  CPPFLAGS='-I/src/src -I/src/vendor -I/work/sdk/include/SDL2' \

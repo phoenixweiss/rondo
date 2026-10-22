@@ -17,7 +17,7 @@ Rondo is in early development. The initial handheld target is Anbernic RG34XXSP,
 | Compact volume | Latest prototype appearance approved by owner; native state/collision checks | Physical legibility on other screens remains unverified |
 | Bluetooth (experimental) | Micro D paired/connected on RG34XXSP; the previous multi-second HID-battery stalls were absent in a cold-start test | Buttons do not work; SDL reports no external device. Audio/PIN are not implemented; no working wireless controller claim |
 | Shutdown / restart menu | Native confirmation, teardown and mocked launcher/sync tests pass | Physical H700 shutdown/reboot and FAT durability still need acceptance |
-| Other emulators | Planned MD/PSX (CHD only) | Not integrated, benchmarked or cleared for distribution by this source candidate |
+| Other emulators | Planned PSX (CHD only) | Not integrated, benchmarked or cleared for distribution by this source candidate |
 | Two-card integration | Model identity tests | Live TF1/TF2 mounting/integration not established |
 
 Saves and preferences are treated conservatively, but a successful atomic write test is not proof of durability under every power-loss or FAT failure. Back up important state before testing development builds.
@@ -49,3 +49,9 @@ The owner accepted GBA/gpSP play, saves, continuation and sleep on RG34XXSP with
 SNES/Supafaust is an experimental development candidate. Native tests cover all twelve joypad buttons, NTSC/PAL timing, SFC/copier-header SMC loading, aspect/integer output, manual/automatic states, SRAM and injected sleep. H700/BaseOS results are recorded separately. The owner accepted SNES play and the gameplay-button/volume stutter fixes with candidate 228786831d10; sustained performance remains unmeasured. The owner also accepted hold-to-repeat volume with candidate 31da354d2018. See [SNES support](super-nintendo.md).
 
 BaseOS 1.5.2 compatibility: the time adapter checks BaseOS/H700/RG34XXSP identity and executable service dependencies, without a version allowlist. Isolated userspace and synthetic tests are recorded separately for both rootfs versions. BaseOS 1.5.2 is an upstream prerelease with a new bootloader; the owner accepted the update and candidate 847da83a5e4b on RG34XXSP after the requested boot, time and gameplay/sleep checks. This is bounded owner acceptance, not exhaustive compatibility across hardware variants.
+
+Mega Drive / Genesis is an experimental PicoDrive integration in the development tree. Only `.gen`/`.md` cartridges are routed. See [Mega Drive support](mega-drive.md) for controls, scope and license conditions; physical acceptance is separate from native/userspace checks.
+
+## Mega Drive and System information acceptance (2026-10-22)
+
+The owner accepted candidate **27c4f81aaeac** on RG34XXSP / BaseOS 1.5.2: Mega Drive gameplay, saves, continuation, sleep and System information. This is bounded device acceptance. All 264 private MD ROMs also passed short automated native state/restart probes; it is not evidence of full-game compatibility. The combined candidate passed native and isolated BaseOS 1.3.0/1.5.2 checks. See [Mega Drive](mega-drive.md) and [System information](system-information.md). Battery sensor accuracy, Bluetooth controller input and sustained performance remain separate limits.

@@ -42,6 +42,8 @@ def audit(path):
             expected.add('System/Rondo/cores/gpsp_libretro.so')
         if 'System/Rondo/cores/mednafen_supafaust_libretro.so' in names:
             expected.add('System/Rondo/cores/mednafen_supafaust_libretro.so')
+        if 'System/Rondo/cores/picodrive_libretro.so' in names:
+            expected.add('System/Rondo/cores/picodrive_libretro.so')
         if 'System/Rondo/modules/rondo_lid_wake.ko' in names:
             expected.add('System/Rondo/modules/rondo_lid_wake.ko')
         require(set(binaries) == expected, 'Unexpected installed ELF set')
@@ -103,6 +105,17 @@ def audit(path):
             require(digest(data)==snes['archive_sha256'], 'Supafaust source hash mismatch')
             with tarfile.open(fileobj=io.BytesIO(data)) as archive:
                 require(archive.extractfile('supafaust-'+snes['revision']+'/COPYING').read()==package.read('Licenses/Supafaust-GPLv2.txt'), 'Supafaust license mismatch')
+        md = json.loads(source['docs/dependencies/md-core-source.json']) if 'docs/dependencies/md-core-source.json' in source else None
+        if md:
+            require('System/Rondo/cores/picodrive_libretro.so' in names, 'Missing MD core')
+            for component, record in [('picodrive', md)] + [(d['name'], d) for d in md['dependencies']]:
+                data = package.read('Sources/' + component + '.tar.gz')
+                require(digest(data) == record['archive_sha256'], 'MD source hash mismatch: ' + component)
+                if component == 'picodrive':
+                    with tarfile.open(fileobj=io.BytesIO(data)) as archive:
+                        require(archive.extractfile('picodrive-'+md['revision']+'/COPYING').read() == package.read('Licenses/PicoDrive-Noncommercial.txt'), 'PicoDrive license mismatch')
+            for notice in ['FAME-License.html', 'libpicofe-README.txt', 'emu2413-MIT.txt', 'dr_libs-License.txt']:
+                require('Licenses/'+notice in names, 'Missing MD dependency notice: '+notice)
         upstream = {}
         for name, checksum in [('sdl', runtime['sdl']['sha256']), ('ttf', runtime['ttf']['sha256']),
                                ('fceumm', core['archive_sha256'])]:
@@ -112,6 +125,8 @@ def audit(path):
         if gb: upstream['gambatte']=gb['archive_sha256']
         if gba: upstream['gpsp']=gba['archive_sha256']
         if snes: upstream['supafaust']=snes['archive_sha256']
+        if md:
+            for name, record in [('picodrive', md)] + [(d['name'], d) for d in md['dependencies']]: upstream[name]=record['archive_sha256']
         with tarfile.open(fileobj=io.BytesIO(package.read('Sources/ttf.tar.gz'))) as archive:
             gpl = archive.extractfile('SDL2_ttf-2.20.2/external/freetype/docs/GPLv2.TXT').read()
             require(gpl == package.read('Licenses/FreeType-GPLv2.txt'), 'Wrong FreeType license text')

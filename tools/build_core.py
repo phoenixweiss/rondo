@@ -26,3 +26,22 @@ for metadata,upstream,name,extra in [
     subprocess.run(['make','-j4',*flags],cwd=source,env=environment,check=True)
     filename=name+'_libretro.'+('dylib' if platform.system()=='Darwin' else 'so')
     shutil.copy2(source/filename,directory/filename);print(directory/filename)
+
+# PicoDrive includes pinned submodules; a GitHub source tarball alone is incomplete.
+import sys
+sys.path.insert(0, str(ROOT / 'runtime'))
+from inputs import records, extract, assemble_md
+md=json.loads((ROOT/'docs/dependencies/md-core-source.json').read_text())
+for name in ['picodrive']+[d['name'] for d in md['dependencies']]:
+    item=records(ROOT)[name];archive=directory/(name+'.tar.gz')
+    if not archive.exists():
+        with urllib.request.urlopen(item['url'],timeout=60) as response:archive.write_bytes(response.read())
+    if not (directory/item['directory']).exists():extract(archive,directory,item['sha256'],item['directory'])
+    elif hashlib.sha256(archive.read_bytes()).hexdigest()!=item['sha256']:raise RuntimeError('Source checksum mismatch')
+assemble_md(ROOT,directory)
+source=directory/('picodrive-'+md['revision'])
+subprocess.run(['make','-f','Makefile.libretro','-j4',
+                'platform=osx' if platform.system()=='Darwin' else 'platform=unix',
+                'use_libchdr=0','use_sh2drc=0','use_svpdrc=0','GIT_REVISION=','PLATFORM_TREMOR=1'],cwd=source,check=True)
+filename='picodrive_libretro.'+('dylib' if platform.system()=='Darwin' else 'so')
+shutil.copy2(source/filename,directory/filename);print(directory/filename)

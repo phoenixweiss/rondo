@@ -10,7 +10,7 @@ The [core feature review](feature-review.md) compares NextUI, MinUI and muOS wit
 
 ## Agreed next steps
 
-1. Continue game-system integration with MD and PSX (CHD only), retaining NES/GB/GBC/GBA/SNES regression checks and individual license/performance/device acceptance gates.
+1. Continue game-system integration with PSX (CHD only), retaining NES/GB/GBC/GBA/SNES/MD regression checks and individual license/performance/device acceptance gates.
 2. Design a console-first library list with full system names before replacing the accepted handheld layout.
 3. Keep slight interface/game stutter in the optimization backlog. Compare disabled, normal and detailed diagnostic logging under matched conditions; logging is a hypothesis, not a demonstrated cause.
 4. Browser file transfer, network backup/save synchronization, online updates and artwork retrieval remain deferred; the website follows core functionality.
@@ -44,7 +44,7 @@ This list grows with device testing and user feedback; it is not a complete inve
 
 ## Next: game systems and library support
 
-- GB/GBC play, saves, continuation and sleep passed bounded owner testing on RG34XXSP. GBA play, saves, continuation and sleep were also accepted with candidate 4ce045a0d3fe. Investigate SNES, MD and PSX (CHD only) individually, covering licensing, builds, controls, performance, SRAM, save states, resume and sleep on the console. Retain NES regression checks.
+- GB/GBC play, saves, continuation and sleep passed bounded owner testing on RG34XXSP. GBA play, saves, continuation and sleep were also accepted with candidate 4ce045a0d3fe. SNES play and input/volume stutter fixes were accepted with the 0.7 series. Mega Drive gameplay, saves, continuation and sleep passed bounded owner acceptance with candidate 27c4f81aaeac; System information was accepted in the same test. Investigate PSX (CHD only) individually, covering licensing, builds, controls, performance, SRAM, save states, resume and sleep on the console. Retain NES regression checks.
 - Investigate two-card library behavior, duplicate handling, missing cards and state-storage placement.
 - Investigate wider H700 hardware support separately before promising compatibility. PSP is outside the project scope.
 
@@ -70,3 +70,8 @@ Versioned delivery is recorded in [CHANGELOG](../CHANGELOG.md), using [the relea
 Explore Android tablets and Android TV later, using the original Rondo layout
 as a possible large-screen direction. Touch, remote and gamepad interaction need
 separate design and implementation; these platforms are not currently supported.
+
+
+### Controller configuration
+
+Add per-core control mapping with persistent settings. Prefer a schematic of the original controller, live button highlighting and guided remapping, inspired by OpenEmu. If a readable diagram is impractical at 720×480, use a clear action/button list with live input indication, similar to NextUI's input tester. Keep built-in-console input diagnostics as a related but separate tool; include reset-to-default, unbound/duplicate handling and protection for menu/confirmation navigation.

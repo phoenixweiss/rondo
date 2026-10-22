@@ -1,0 +1,31 @@
+{
+  "repository": "https://github.com/libretro/picodrive",
+  "revision": "1890c2932234c9d30f4cd3851d02228baae8f09e",
+  "archive_sha256": "123871ce468bc31f824df9273415215527ded2bdaadffd0503a97149aa06d523",
+  "dependencies": [
+    {
+      "name": "picofe",
+      "repository": "https://github.com/irixxxx/libpicofe",
+      "revision": "9ed5822606dd7ff20a782a882e8fd611cb53ba88",
+      "archive_sha256": "458519aaa70916528e593f1f052aa45f704670fba094b409478a8197e6f076a7",
+      "path": "platform/libpicofe",
+      "directory": "libpicofe-9ed5822606dd7ff20a782a882e8fd611cb53ba88"
+    },
+    {
+      "name": "emu2413",
+      "repository": "https://github.com/digital-sound-antiques/emu2413",
+      "revision": "a2dfc20ff507e4fd075cd325620bcea655e2c1f7",
+      "archive_sha256": "bd816079cfbf13c56a260c095d6b8e260c2f877e5b13f50d4e570b96e8b92830",
+      "path": "pico/sound/emu2413",
+      "directory": "emu2413-a2dfc20ff507e4fd075cd325620bcea655e2c1f7"
+    },
+    {
+      "name": "dr_libs",
+      "repository": "https://github.com/mackron/dr_libs",
+      "revision": "dd762b861ecadf5ddd5fb03e9ca1db6707b54fbb",
+      "archive_sha256": "8f0be8a4aa27cd4ddaba41acbb845b1641964f2cc2f5a5f7b4b72f73368c1c12",
+      "path": "platform/common/dr_libs",
+      "directory": "dr_libs-dd762b861ecadf5ddd5fb03e9ca1db6707b54fbb"
+    }
+  ]
+}

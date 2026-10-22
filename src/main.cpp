@@ -290,6 +290,8 @@ static Json supervise(App &a, const Json &runnerScript) {
   if(!gbCore.empty()) {args.push_back("--gb-core");args.push_back(gbCore.string());}
   auto gbaCore=a.options.coreFor("GBA");
   if(!gbaCore.empty()) {args.push_back("--gba-core");args.push_back(gbaCore.string());}
+  auto mdCore=a.options.coreFor("MD");
+  if(!mdCore.empty()) {args.push_back("--md-core");args.push_back(mdCore.string());}
   auto snesCore=a.options.coreFor("SNES");
   if(!snesCore.empty()) {args.push_back("--snes-core");args.push_back(snesCore.string());}
   if (a.options.headless)
@@ -428,6 +430,11 @@ int main(int argc, char **argv) {
           throw std::runtime_error("Missing argument for " + flag);
         return std::string(argv[i]);
       };
+      if (flag == "--system-info-probe") {
+        auto request=Json::parse(value());
+        std::cout<<systemInfoSnapshot("/",request.at("app").get<std::string>(),request.at("cores")).dump()<<"\n";
+        return 0;
+      }
       if (flag == "--assets")
         opts.assets = fs::absolute(value());
       else if (flag == "--state")
@@ -438,6 +445,8 @@ int main(int argc, char **argv) {
         opts.gbCore = fs::absolute(value());
       else if (flag == "--gba-core")
         opts.gbaCore = fs::absolute(value());
+      else if (flag == "--md-core")
+        opts.mdCore = fs::absolute(value());
       else if (flag == "--snes-core")
         opts.snesCore = fs::absolute(value());
       else if (flag == "--output")
@@ -479,7 +488,7 @@ int main(int argc, char **argv) {
         return 0;
       } else if (flag == "--help") {
         std::cout << "rondo --volume CARD_ID=ROMS_PATH --state NEW_STATE_PATH "
-                     "--core FCEUMM_LIBRARY [--gb-core GAMBATTE_LIBRARY] [--gba-core GPSP_LIBRARY] [--snes-core SUPAFAUST_LIBRARY] [--headless --script SCRIPT.json "
+                     "--core FCEUMM_LIBRARY [--gb-core GAMBATTE_LIBRARY] [--gba-core GPSP_LIBRARY] [--snes-core SUPAFAUST_LIBRARY] [--md-core PICODRIVE_LIBRARY] [--headless --script SCRIPT.json "
                      "--output DIR]\n";
         return 0;
       } else

@@ -11,9 +11,9 @@ H700_SYSTEM_LIBS ?= -ldl -lpthread -lstdc++fs
 
 BASE = src/model.cpp src/platform.cpp
 UI = $(BASE) src/ui.cpp
-APP = $(UI) src/core.cpp src/app.cpp src/clock.cpp src/clock_ui.cpp src/wifi.cpp src/wifi_ui.cpp src/battery_log.cpp src/bluetooth.cpp src/bluetooth_ui.cpp
-NATIVE_TESTS = snes gba gb bluetooth battery-log model core device volume-ui timezone battery wifi clock
-H700_TESTS = snes gba gb bluetooth battery-log h700-device device timezone battery wifi h700-wifi clock h700-clock
+APP = $(UI) src/core.cpp src/app.cpp src/clock.cpp src/clock_ui.cpp src/wifi.cpp src/wifi_ui.cpp src/battery_log.cpp src/bluetooth.cpp src/bluetooth_ui.cpp src/system_info.cpp src/system_info_ui.cpp
+NATIVE_TESTS = system-info md snes gba gb bluetooth battery-log model core device volume-ui timezone battery wifi clock
+H700_TESTS = system-info md snes gba gb bluetooth battery-log h700-device device timezone battery wifi h700-wifi clock h700-clock
 
 all: $(BUILD)/rondo
 native-programs: all $(addprefix $(BUILD)/,$(addsuffix -tests,$(NATIVE_TESTS)))
@@ -45,6 +45,8 @@ $(BUILD)/$(1): $(addprefix $(BUILD)/obj/,$(2:.cpp=.o)) $(BUILD)/.link-config Mak
 OBJECTS += $(addprefix $(BUILD)/obj/,$(2:.cpp=.o))
 endef
 $(eval $(call program,battery-log-tests,tests/battery_log_tests.cpp $(BASE) src/battery_log.cpp,$$(LDLIBS)))
+$(eval $(call program,system-info-tests,tests/system_info_tests.cpp $(APP),$$(LDLIBS)))
+$(eval $(call program,md-tests,tests/md_tests.cpp $(APP),$$(LDLIBS)))
 $(eval $(call program,snes-tests,tests/snes_tests.cpp $(APP),$$(LDLIBS)))
 $(eval $(call program,gba-tests,tests/gba_tests.cpp $(APP),$$(LDLIBS)))
 $(eval $(call program,gb-tests,tests/gb_tests.cpp $(APP),$$(LDLIBS)))

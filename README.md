@@ -24,7 +24,7 @@ The package baseline is BaseOS 1.3.0. The owner also accepted Rondo on BaseOS 1.
 - English and Russian localization, with English as the fallback.
 - Shared SDL drawing components, typography, icons and keyboard/controller hints.
 - Compact volume feedback with confirmed, muted, pending and error states.
-- NES (FCEUmm), Game Boy / Game Boy Color (Gambatte), Game Boy Advance (gpSP) and experimental Super Nintendo (Supafaust) execution in a separate process, using pinned cores.
+- NES (FCEUmm), Game Boy / Game Boy Color (Gambatte), Game Boy Advance (gpSP), experimental Super Nintendo (Supafaust) and Mega Drive / Genesis (PicoDrive) execution in a separate process, using pinned cores.
 - Cartridge SRAM and GB/GBC RTC persistence, manual save slots with game previews and resume from a saved state.
 - A library, favorites, settings and game menu.
 - Model tests, UI rendering checks and headless launch/save/resume scenarios.
@@ -47,6 +47,12 @@ The owner accepted GBA play, saves, continuation and sleep on RG34XXSP with cand
 
 The owner accepted SNES play and the gameplay-button/volume stutter fixes on RG34XXSP, including hold-to-repeat volume in candidate 31da354d2018. Sustained performance and full-game compatibility remain unmeasured. See [SNES support](docs/super-nintendo.md).
 
+Mega Drive controls: Y/B/A → Sega A/B/C, L1/X/R1 → X/Y/Z, Select → Mode. Keyboard and scope: [Mega Drive](docs/mega-drive.md). The library is sorted by title across platforms; Recent keeps launch order.
+
+Read-only **Settings → System information** groups device, installed software, memory cards and power; full values and sources are available with X. See [system information](docs/system-information.md).
+
+The owner accepted Mega Drive play, saves, continuation, sleep and System information on RG34XXSP / BaseOS 1.5.2 with candidate 27c4f81aaeac. Full-game compatibility and independent battery sensor accuracy remain unverified.
+
 ## Development
 
 Requires a C++17 compiler, make, pkg-config, SDL2, SDL2_ttf and Python 3.11+.
@@ -58,7 +64,7 @@ python3 -m venv .venv
 .venv/bin/python tools/check.py --work build/native-check
 ```
 
-The default build produces build/rondo. All four cores are built separately from source, with verified SHA-256 downloads and pinned revisions in docs/dependencies/core-source.json, gb-core-source.json, gba-core-source.json and snes-core-source.json. The check command builds the application and runs source, model, UI rendering, NES/GB/GBC/GBA/SNES save/resume and device-policy tests with dummy video/audio drivers and an original test cartridge. The build/native-check directory must be new; omit --work to create a temporary directory automatically. Logs, renders and summary.json are saved there. Tests do not access an SD card or validate physical controls, brightness or suspend.
+The default build produces build/rondo. All five cores are built separately from source, with verified SHA-256 downloads and pinned revisions in docs/dependencies/core-source.json, gb-core-source.json, gba-core-source.json, snes-core-source.json and md-core-source.json. The check command builds the application and runs source, model, UI rendering, NES/GB/GBC/GBA/SNES/MD save/resume and device-policy tests with dummy video/audio drivers and an original test cartridge. The build/native-check directory must be new; omit --work to create a temporary directory automatically. Logs, renders and summary.json are saved there. Tests do not access an SD card or validate physical controls, brightness or suspend.
 
 GitHub Actions runs these checks on Ubuntu and macOS for pushes to dev/main and pull requests. Workflow permissions are read-only; external actions are pinned to full commit hashes.
 
@@ -85,7 +91,7 @@ python3 tools/build_h700_runtime.py --work build/h700-second
 
 The package targets RG34XXSP with BaseOS 1.3.0. It includes the frontend, pinned runtime, original test cartridge, corresponding source and distribution notices. It is a frontend ZIP for an existing BaseOS installation, not a bootable SD image. The builder never accesses a card. The [macOS installer](docs/installation.md) backs up the original boot image and applies Rondo branding before the first frontend boot, unless disabled in existing preferences.
 
-See the [runtime guide](runtime/README.md) for package audit and optional isolated BaseOS verification, [compatibility](docs/compatibility.md) for verification limits and [manual installation](docs/installation.md) for backup and rollback. The combined NES/GB/GBC/GBA/SNES distribution follows GPLv2; Rondo code and original artwork remain MIT. See the [configured shipping audit](docs/shipping-audit.md).
+See the [runtime guide](runtime/README.md) for package audit and optional isolated BaseOS verification, [compatibility](docs/compatibility.md) for verification limits and [manual installation](docs/installation.md) for backup and rollback. GPL cores retain GPLv2 source obligations; PicoDrive retains noncommercial terms. Rondo code and original artwork remain MIT. See the [configured shipping audit](docs/shipping-audit.md).
 
 ## Documentation
 
@@ -105,6 +111,6 @@ Created and maintained by [Pavel Tkachev (@phoenixweiss)](https://github.com/pho
 
 ## License
 
-Rondo code and original artwork are MIT-licensed. Fonts, icons, runtime libraries and emulators retain [their own terms](THIRD_PARTY_NOTICES.md); the complete NES/GB/GBC/GBA/SNES package follows GPLv2 distribution requirements.
+Rondo code and original artwork are MIT-licensed. Fonts, icons, runtime libraries and emulators retain [their own terms](THIRD_PARTY_NOTICES.md); GPL cores retain their source obligations and PicoDrive retains noncommercial terms. The complete package is not MIT-only or GPL-only.
 
 [MIT](LICENSE) © 2026 PAVEL TKACHEV

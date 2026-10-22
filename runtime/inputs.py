@@ -3,6 +3,7 @@ from pathlib import Path, PurePosixPath
 import hashlib
 import json
 import tarfile
+import shutil
 
 
 def sha(path):
@@ -25,7 +26,8 @@ def records(root):
     gb = json.loads((dependencies / "gb-core-source.json").read_text())
     gba = json.loads((dependencies / "gba-core-source.json").read_text())
     snes = json.loads((dependencies / "snes-core-source.json").read_text())
-    return {
+    md = json.loads((dependencies / "md-core-source.json").read_text())
+    result = {
         "sdl": {**data["sdl"], "directory": "SDL-malifbdev-rot-" +
                 data["sdl"]["url"].rsplit("/", 1)[1]},
         "ttf": {**data["ttf"], "directory": "SDL2_ttf-2.20.2"},
@@ -40,6 +42,17 @@ def records(root):
                       "sha256":snes["archive_sha256"],"directory":"supafaust-"+snes["revision"]},
         "linux": data["linux"], "bc": data["bc"]
     }
+    for name, item in [("picodrive", md)] + [(d["name"], d) for d in md["dependencies"]]:
+        result[name] = {"url": item["repository"].replace("github.com/", "codeload.github.com/") + "/tar.gz/" + item["revision"],
+                        "sha256": item["archive_sha256"], "directory": item.get("directory", "picodrive-" + item["revision"])}
+    return result
+
+
+def assemble_md(root, sources):
+    md = json.loads((Path(root) / "docs/dependencies/md-core-source.json").read_text())
+    tree = Path(sources) / ("picodrive-" + md["revision"])
+    for item in md["dependencies"]:
+        shutil.copytree(Path(sources) / item["directory"], tree / item["path"], dirs_exist_ok=True)
 
 
 def extract(archive, destination, expected_hash, prefix):
@@ -70,4 +83,5 @@ if __name__ == "__main__":
             retained = sources / item["directory"]
             retained.mkdir()
             (retained / "COPYING").write_bytes((destination / item["directory"] / "COPYING").read_bytes())
+    assemble_md(root, sources)
     print("Pinned source archives verified and extracted", flush=True)
