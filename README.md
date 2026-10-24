@@ -14,7 +14,7 @@ A personal frontend project for the Anbernic RG34XXSP. I enjoy using this handhe
 
 **Early development.** Interfaces and settings formats may change.
 
-The package baseline is BaseOS 1.3.0. The owner also accepted Rondo on BaseOS 1.5.2 (upstream prerelease) on RG34XXSP. Time controls detect platform/service dependencies rather than an exact OS version; see [compatibility](docs/compatibility.md).
+The package baseline is BaseOS 1.3.0. Rondo has also been tested on RG34XXSP with BaseOS 1.5.2 (upstream prerelease). Time controls detect platform/service dependencies rather than an exact OS version; see [compatibility](docs/compatibility.md).
 
 **Experimental Bluetooth:** pairing and connection controls are available, but controller input is not working on the tested 8BitDo Micro (D mode). Bluetooth audio and PIN confirmation are not supported. See [Bluetooth limitations](docs/bluetooth.md).
 

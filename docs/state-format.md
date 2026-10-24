@@ -7,7 +7,7 @@ build; they remain untouched. Persistent SRAM/RTC and PSX card data are unchange
 The format has an 84-byte header: eight magic/version bytes `RONDOST` + byte 2,
 three little-endian uint32 lengths (metadata, preview, core payload), then the
 64 ASCII hex characters of the metadata SHA-256. The following sections are
-bounded UTF-8 JSON metadata (at most 16 KiB), little-endian RGBA uint32 pixels
+bounded UTF-8 JSON metadata (at most 16 KiB), little-endian 0xAARRGGBB uint32 pixels
 (at most 192×144), and raw libretro serialization bytes (at most 32 MiB).
 There is no compression or third-party codec dependency.
 

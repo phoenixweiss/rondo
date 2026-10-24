@@ -2,7 +2,7 @@
 
 Reviewed 2026-10-16 against Rondo 0.0.1 (f19701f) and the primary sources below. This is a capability backlog, not a claim that these features are implemented or that another frontend's behavior is supported on RG34XXSP. No competing firmware was installed for this review.
 
-Rondo status comes from src/app.cpp, src/core.cpp, src/main.cpp, src/model.cpp, src/platform.cpp, src/ui.cpp and the current compatibility/device-sleep documentation. A menu label, libretro header or model test alone does not prove an end-to-end feature. Priorities and acceptance criteria are our proposed product decisions, inferred from the comparison and owner requests.
+Rondo status comes from src/app.cpp, src/core.cpp, src/main.cpp, src/model.cpp, src/platform.cpp, src/ui.cpp and the current compatibility/device-sleep documentation. A menu label, libretro header or model test alone does not prove an end-to-end feature. Priorities and acceptance criteria are our proposed product decisions, inferred from the comparison and project requirements.
 
 ## Sources and scope
 
@@ -25,23 +25,23 @@ This review transfers requirements, not source code. Any later reuse of code/ass
 
 ## P0: everyday device behavior and data safety
 
-These extend the already agreed first product stage. The table rows remain open; F24 below passed owner device acceptance; F02 has partial hardware acceptance. Partial means a working piece exists, not that the whole capability is accepted.
+These extend the already agreed first product stage. The table rows remain open; F24 below passed device verification; F02 has partial hardware acceptance. Partial means a working piece exists, not that the whole capability is accepted.
 
 | ID | Capability / reference | Rondo baseline | Work and acceptance |
 |---|---|---|---|
-| F01 | Radio settings (N1, N2) | Owner-accepted connection/reboot/sleep and UI: H700 Wi-Fi controls, network discovery, masked entry, reconnect/forget and conditional telemetry; no Bluetooth management | Keep broader Wi-Fi error/authentication regression; Bluetooth pairing/profiles remain planned. Actual radio state controls visibility; test sleep/reboot and failures. |
+| F01 | Radio settings (N1, N2) | Device-tested connection/reboot/sleep and UI: H700 Wi-Fi controls, network discovery, masked entry, reconnect/forget and conditional telemetry; no Bluetooth management | Keep broader Wi-Fi error/authentication regression; Bluetooth pairing/profiles remain planned. Actual radio state controls visibility; test sleep/reboot and failures. |
 | F02 | Battery status and alerts (N4, U1) | Implemented: measured fill, charging/unknown states, low-level highlight and percentage toggle; native tests passed; device testing confirmed percentage and hiding | Verify charging/low/unknown states on RG34XXSP, then consider low-charge notifications separately. Do not invent remaining runtime. |
-| F03 | Lid wake and vibration (N1, U5 for feedback; lid wake is an owner requirement) | Partial: device testing confirmed restored lid sleep and Power wake; failed wake-on-open experiment is disabled; no rumble adapter | Research exact BaseOS wake source/motor; separate persistent options, safe motor stop and device tests. No unsupported toggle. |
+| F03 | Lid wake and vibration (N1, U5 for feedback; lid wake is a requested feature) | Partial: device testing confirmed restored lid sleep and Power wake; failed wake-on-open experiment is disabled; no rumble adapter | Research exact BaseOS wake source/motor; separate persistent options, safe motor stop and device tests. No unsupported toggle. |
 | F04 | Idle dim/display-off/sleep timers (N4, U1, M1) | Manual Power/lid suspend; no configurable idle policy | Separate timers/off options; distinguish menu, paused game and active play; do not sleep solely because a cutscene has no button input. Test restore and charging policy. |
 | F05 | Safe shutdown and automatic continuation (M1, N3) | SRAM flush, manual states/resume and RAM suspend; no durable automatic snapshot/shutdown-resume policy | Separate autosave from manual slots, failure handling and explicit startup policy. Test real power-off/boot, incompatible states and failed writes. Never imply RAM survives shutdown. |
-| F06 | Clock setting and NTP/RTC (N4) | Timezone selection is verified on the device; device testing confirmed the network-time candidate; owner also accepted offline manual setting, short power-off retention and return to automatic sync; new save sequences protect backward clock corrections | Retain RTC durability/error regression and prevent clock corrections from confusing save ordering or playtime. |
+| F06 | Clock setting and NTP/RTC (N4) | Timezone selection is verified on the device; device testing confirmed the network-time candidate; device testing also confirmed offline manual setting, short power-off retention and return to automatic sync; new save sequences protect backward clock corrections | Retain RTC durability/error regression and prevent clock corrections from confusing save ordering or playtime. |
 | F07 | User backup/restore and save migration (U3, N3) | Installer backup/rollback and config fallback exist; no user-facing state export/import | Export settings, SRAM and states with version/core identity; validate before restore. Test failure/no-space recovery; distinguish portable SRAM from core-specific states. |
 
-### F24: time-zone picker repair (owner device acceptance passed)
+### F24: time-zone picker repair (device verification passed)
 
 The country/city picker now has offline CLDR English/Russian labels, localized ordering, saved-selection focus/marks and letter/page navigation. IANA configuration IDs, UTC timestamps and rollback on failed writes are preserved. See [time-zone selection](timezones.md).
 
-Native macOS checks and actual SDL renders passed. Two independent H700 builds matched; ARM64 BaseOS timezone checks passed. The exact package was installed on the dedicated test card, and the owner confirmed the country/city picker and persistence after restart. Versioned delivery is tracked in the changelog. The former five-city translation and continent/technical-label navigation are replaced; normal publication checks remain separate.
+Native macOS checks and actual SDL renders passed. Two independent H700 builds matched; ARM64 BaseOS timezone checks passed. The exact package was installed on the dedicated test card, and device checks confirmed the country/city picker and persistence after restart. Versioned delivery is tracked in the changelog. The former five-city translation and continent/technical-label navigation are replaced; normal publication checks remain separate.
 
 ## P1: finding games and playing comfortably
 

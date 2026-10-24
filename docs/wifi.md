@@ -51,7 +51,7 @@ Runtime sockets and PID data live in a private temporary directory. The code
 requests restrictive permissions; FAT cannot protect credentials from someone
 who can physically read the card. No encryption-at-rest claim is made.
 Saved enabled state and profiles are restored on startup. A late BaseOS radio
-initialization is reconciled with a saved Off preference. The owner confirmed connection and recovery after reboot and
+initialization is reconciled with a saved Off preference. Device checks confirmed connection and recovery after reboot and
 physical sleep for candidate 77896ca7242c. The subsequent menu/header refinements
 require separate device acceptance; the lid-wake experiment stays
 disabled.

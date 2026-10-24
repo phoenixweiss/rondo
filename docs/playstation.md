@@ -38,14 +38,14 @@ The original MIT fixture generator builds a small MIPS PS-X executable, ISO9660 
 
 ## BIOS files
 
-The User BIOS loader accepts structurally valid 512 KiB retail images named `scph*.bin` and `psxonpsp660.bin`. Use lowercase names for predictable lookup on case-sensitive filesystems. [Libretro BIOS documentation](https://docs.libretro.com/library/pcsx_rearmed/#bios) lists common names and known identities. The table below also records the owner-supplied European image verified locally:
+The User BIOS loader accepts structurally valid 512 KiB retail images named `scph*.bin` and `psxonpsp660.bin`. Use lowercase names for predictable lookup on case-sensitive filesystems. [Libretro BIOS documentation](https://docs.libretro.com/library/pcsx_rearmed/#bios) lists common names and known identities. The table below also records the European image verified locally:
 
 | Filename | MD5 | Status in local development checks |
 | --- | --- | --- |
-| `psxonpsp660.bin` | `c53ca5908936d412331790f4426c6c33` | Owner supplied; Crash Bandicoot game boot checked natively |
-| `scph101.bin` | `6e3735ff4c7dc899ee98981385f6f3d0` | Owner supplied; Crash Bandicoot game boot checked natively |
-| `scph7001.bin` | `1e68c231d0896b7eadcad1d7d8e76129` | Owner supplied; Crash Bandicoot game boot checked natively |
-| `scph7502.bin` | `b9d9a0286c33dc6b7237bb13cd46fdee` | Owner supplied; Crash Bandicoot game boot checked natively |
+| `psxonpsp660.bin` | `c53ca5908936d412331790f4426c6c33` | Crash Bandicoot boot checked natively |
+| `scph101.bin` | `6e3735ff4c7dc899ee98981385f6f3d0` | Crash Bandicoot boot checked natively |
+| `scph7001.bin` | `1e68c231d0896b7eadcad1d7d8e76129` | Crash Bandicoot boot checked natively |
+| `scph7502.bin` | `b9d9a0286c33dc6b7237bb13cd46fdee` | Crash Bandicoot boot checked natively |
 | `scph1001.bin` | `924e392ed05558ffdb115408c263dccf` | Supported, not tested in this development pass |
 | `scph5500.bin`, `scph5501.bin`, `scph5502.bin` | Depends on the exact image | Supported, not tested in this development pass |
 

@@ -49,7 +49,7 @@ sleep/reconnect cycles still need testing on RG34XXSP.
 Protocol reference: [BlueZ bluetoothctl documentation](https://github.com/bluez/bluez/blob/master/doc/bluetoothctl.rst).
 
 With Diagnostics enabled, operation type, elapsed time, state and bounded error
-codes are journaled without device names or addresses. The initial owner trial
+codes are journaled without device names or addresses. The initial device test
 failed to pair an 8BitDo Micro in D mode and showed severe shell slowdown. The
 cold-start retest paired/connected, but controller input failed as described above.
 D is the Android gamepad mode in the [official Micro manual](https://download.8bitdo.com/Manual/Controller/Micro/Micro-Bluetooth-gamepad-8.pdf).

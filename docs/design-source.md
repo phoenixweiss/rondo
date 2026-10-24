@@ -1,6 +1,6 @@
 # Design provenance
 
-Rondo was designed independently for a720x480 handheld interface. The selected identity, Ubuntu typography, cream/coral palette and shared SDL components are retained here. The current prototype incorporates later owner-approved inline controls, timestamp/preview save slots, reversible early boot branding and compact volume feedback. No external design checkout is required to build it.
+Rondo was designed independently for a720x480 handheld interface. The selected identity, Ubuntu typography, cream/coral palette and shared SDL components are retained here. The current prototype incorporates later inline controls, timestamp/preview save slots, reversible early boot branding and compact volume feedback. No external design checkout is required to build it.
 
 Lucide SVG originals, ISC/MIT notices and raster derivatives are in assets. Ubuntu files retain the Ubuntu Font Licence. Original Rondo artwork is MIT under assets/LICENSE.md; third-party grants remain separate. See THIRD_PARTY_NOTICES.md for component ownership.
 

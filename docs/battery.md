@@ -6,7 +6,7 @@ The icon uses measured capacity from the RG34XXSP battery sysfs adapter. Fill re
 
 The setting is shared with the runner through the existing settings authority and affects header bars in the library, settings and game menus. Fullscreen gameplay has no new permanent HUD. On macOS the device adapter has no handheld battery reading, so the honest result is the unknown icon, with a dash only when the numeric display is enabled.
 
-Native tests cover level/charging/unknown images, hiding only the percentage, old configurations, invalid setting types, persistence, rejected writes and independence from brightness. The owner confirmed percentage display and hiding on RG34XXSP on 2026-10-16. Charging, low and unknown states still need separate physical acceptance.
+Native tests cover level/charging/unknown images, hiding only the percentage, old configurations, invalid setting types, persistence, rejected writes and independence from brightness. Device checks confirmed percentage display and hiding on RG34XXSP on 2026-10-16. Charging, low and unknown states still need separate physical acceptance.
 
 The header status group is aligned to the right with consistent gaps. Disabled Wi-Fi and hidden percentages leave no reserved space; the remaining indicators close the gap while the clock stays at the right edge. The order is Wi-Fi, battery (with optional charging mark and percentage), then clock. The charging mark uses the same light foreground as the clock with a dark outline separating it from the battery fill and border.
 
@@ -78,7 +78,7 @@ and positive time-to-full. Its [battery monitor](https://github.com/pvaibhav/Nex
 retains percentage/charge sessions. Rondo's journal is independently implemented
 and additionally retains raw electrical observations where the driver exposes them.
 BaseOS retains the vendor kernel; the upstream 4.9.170 sources included for the
-inactive research module are not the exact vendor battery driver. The owner's 2026-10-18 readback captured raw capacity jumping from 87 to 100
+inactive research module are not the exact vendor battery driver. A device readback on 2026-10-18 captured raw capacity jumping from 87 to 100
 within five seconds at unchanged 4.069 V when status became Full; a second
 97-to-100 correction was captured later. This disproves a permanent 85% cap,
 but does not establish the exact vendor gauge policy or a calibration procedure.

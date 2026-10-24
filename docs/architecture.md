@@ -29,4 +29,4 @@ Volume feedback holds the last acknowledged level while a change is pending. Mis
 
 Desktop execution does not perform a handheld boot or expose real brightness/suspend capabilities. The supported BaseOS adapter verifies its environment and checks device operation results. Brightness uses the observed vendor remapping workaround at raw254 for100%, with5% steps and strict readback. Early boot branding preserves the original image and does not add a second application splash.
 
-See compatibility.md for the distinction between native checks, isolated BaseOS userspace and owner-reported device tests. See THIRD_PARTY_NOTICES.md for the licensing boundary; support for additional emulators requires independent build, licensing and device work.
+See compatibility.md for the distinction between native checks, isolated BaseOS userspace and physical device tests. See THIRD_PARTY_NOTICES.md for the licensing boundary; support for additional emulators requires independent build, licensing and device work.
