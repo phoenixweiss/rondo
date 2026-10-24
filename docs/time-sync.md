@@ -62,10 +62,10 @@ service and never change macOS clocks or contact time servers. BaseOS checks
 use its real service scripts in a read-only chroot, private RAM-backed data/run,
 a fake ntpd, a substituted RTC command and a wrapped modes=0 kernel query.
 They cannot establish real NTP reachability, clock adjustment or RTC retention.
-Owner testing on RG34XXSP accepted network time and candidate 1c1ac5e705d3 for offline manual setting, short full-power-off retention and return to automatic synchronization. This bounded acceptance does not establish long-term RTC durability or all server/network failure cases.
+Device testing on RG34XXSP accepted network time and candidate 1c1ac5e705d3 for offline manual setting, short full-power-off retention and return to automatic synchronization. This bounded acceptance does not establish long-term RTC durability or all server/network failure cases.
 
 The callback event contract was checked against [BusyBox 1.36.1 ntpd](https://raw.githubusercontent.com/mirror/busybox/1_36_1/networking/ntpd.c).
 Kernel state is read with [adjtimex modes=0](https://man7.org/linux/man-pages/man2/adjtimex.2.html).
 No BusyBox or BaseOS implementation is copied into Rondo's MIT code.
 
-The time adapter requires BaseOS/H700/RG34XXSP identity, an available callback and executable timedatectl, baseos-ntp and ntpd. It does not gate on the BaseOS version. Command results, bounded deadlines and state readback still govern each operation. Isolated checks cover BaseOS 1.3.0 and 1.5.2; the owner accepted the 1.5.2 update with candidate 847da83a5e4b. Future service interfaces require their own verification.
+The time adapter requires BaseOS/H700/RG34XXSP identity, an available callback and executable timedatectl, baseos-ntp and ntpd. It does not gate on the BaseOS version. Command results, bounded deadlines and state readback still govern each operation. Isolated checks cover BaseOS 1.3.0 and 1.5.2; the device testing confirmed the 1.5.2 update with candidate 847da83a5e4b. Future service interfaces require their own verification.

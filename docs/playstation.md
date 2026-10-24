@@ -71,6 +71,6 @@ In **Core settings → Sony PlayStation**, User BIOS mode exposes **BIOS file**.
 
 Automatic preserves the existing core lookup. A specific file is validated and staged in a private, content-addressed `RondoState/BIOSSelection` directory containing only that image, with a lowercase filename. The core cannot silently choose a higher-priority file from the user's BIOS directory. Missing or invalid selections stop launch and link back to settings; no automatic substitution occurs. State identity includes the chosen firmware; adding unrelated BIOS files does not invalidate an explicit selection's identity.
 
-## Owner acceptance
+## Device verification
 
-The owner accepted development candidate e97d365cf852 on RG34XXSP / BaseOS 1.5.2 on 2026-10-25, following the display/stick/BIOS and shared save-state improvements. Native and isolated BaseOS 1.3/1.5.2 checks cover core/runner/state/disc behavior. This does not certify every game, BIOS mode, controller or full-speed emulation. Rumble remains planned. States use the shared [binary format](state-format.md); previous JSON states are not loaded, while the in-game card format stays unchanged.
+Verified on RG34XXSP with BaseOS 1.5.2: PSX startup, save/load, continuation, sleep and volume controls. Native and isolated BaseOS 1.3/1.5.2 tests cover core, runner, state and disc behavior. States use the shared [binary format](state-format.md); previous JSON states are not loaded, while the in-game card format stays unchanged.

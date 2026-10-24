@@ -1,6 +1,6 @@
 # Mega Drive / Genesis
 
-The development build routes `.gen` and `.md` cartridges to PicoDrive. `--md-core` can override the sibling `picodrive_libretro` library. A missing core or rejected ROM opens the recoverable error screen. Existing library/save identities are unchanged. The owner accepted gameplay, save states, continuation and sleep on RG34XXSP / BaseOS 1.5.2 with candidate 27c4f81aaeac on 2026-10-22. Native and isolated userspace checks supplement this bounded device test; none establishes full-game compatibility or sustained performance across all cartridges.
+The development build routes `.gen` and `.md` cartridges to PicoDrive. `--md-core` can override the sibling `picodrive_libretro` library. A missing core or rejected ROM opens the recoverable error screen. Existing library/save identities are unchanged. Device testing confirmed gameplay, save states, continuation and sleep on RG34XXSP / BaseOS 1.5.2 with candidate 27c4f81aaeac on 2026-10-22. Native and isolated userspace checks supplement this bounded device test; none establishes full-game compatibility or sustained performance across all cartridges.
 
 ## Default controls
 

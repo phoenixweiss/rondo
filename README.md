@@ -24,7 +24,7 @@ The package baseline is BaseOS 1.3.0. The owner also accepted Rondo on BaseOS 1.
 - English and Russian localization, with English as the fallback.
 - Shared SDL drawing components, typography, icons and keyboard/controller hints.
 - Compact volume feedback with confirmed, muted, pending and error states.
-- NES (FCEUmm), Game Boy / Game Boy Color (Gambatte), Game Boy Advance (gpSP), experimental Super Nintendo (Supafaust) Mega Drive / Genesis (PicoDrive) and experimental PlayStation (PCSX ReARMed, CHD only) execution in a separate process, using pinned cores.
+- NES (FCEUmm), Game Boy / Game Boy Color (Gambatte), Game Boy Advance (gpSP), experimental Super Nintendo (Supafaust), Mega Drive / Genesis (PicoDrive) and experimental PlayStation (PCSX ReARMed, CHD only) execution in a separate process, using pinned cores.
 - Cartridge SRAM and GB/GBC RTC persistence, manual save slots with game previews and resume from a saved state.
 - A library, favorites, settings and game menu.
 - Model tests, UI rendering checks and headless launch/save/resume scenarios.
@@ -41,19 +41,19 @@ sample. Menu screen timeout and quiet in-game battery warnings are configurable.
 See [automatic saves](docs/autosave.md), [display settings](docs/display.md) and
 [power behavior](docs/power.md).
 
-The owner tested GB/GBC play, saves, continuation and sleep on RG34XXSP. Slight interface/game stutter remains under investigation; performance and compatibility are not established for every game. See [Game Boy support](docs/game-boy.md).
+Device testing covered GB/GBC play, saves, continuation and sleep on RG34XXSP. Slight interface/game stutter remains under investigation; performance and compatibility are not established for every game. See [Game Boy support](docs/game-boy.md).
 
-The owner accepted GBA play, saves, continuation and sleep on RG34XXSP with candidate 4ce045a0d3fe. See [GBA support](docs/game-boy-advance.md).
+Device testing confirmed GBA play, saves, continuation and sleep on RG34XXSP with candidate 4ce045a0d3fe. See [GBA support](docs/game-boy-advance.md).
 
-The owner accepted SNES play and the gameplay-button/volume stutter fixes on RG34XXSP, including hold-to-repeat volume in candidate 31da354d2018. Sustained performance and full-game compatibility remain unmeasured. See [SNES support](docs/super-nintendo.md).
+Device testing confirmed SNES play and the gameplay-button/volume stutter fixes on RG34XXSP, including hold-to-repeat volume in candidate 31da354d2018. Sustained performance and full-game compatibility remain unmeasured. See [SNES support](docs/super-nintendo.md).
 
 Mega Drive controls: Y/B/A → Sega A/B/C, L1/X/R1 → X/Y/Z, Select → Mode. Keyboard and scope: [Mega Drive](docs/mega-drive.md). The library is sorted by title across platforms; Recent keeps launch order.
 
 Read-only **Settings → System information** groups device, installed software, memory cards and power; full values and sources are available with X. See [system information](docs/system-information.md).
 
-The owner accepted Mega Drive play, saves, continuation, sleep and System information on RG34XXSP / BaseOS 1.5.2 with candidate 27c4f81aaeac. Full-game compatibility and independent battery sensor accuracy remain unverified.
+Device testing confirmed Mega Drive play, saves, continuation, sleep and System information on RG34XXSP / BaseOS 1.5.2 with candidate 27c4f81aaeac. Full-game compatibility and independent battery sensor accuracy remain unverified.
 
-Experimental CHD-only PlayStation with PCSX ReARMed, bundled OpenBIOS, selectable user BIOS/HLE in Core settings, and multidisc playlists is available for development testing. See [PlayStation](docs/playstation.md). The owner accepted the development candidate on RG34XXSP / BaseOS 1.5.2; this is bounded testing, not a full game/BIOS compatibility claim.
+Experimental CHD-only PlayStation with PCSX ReARMed, bundled OpenBIOS, selectable user BIOS/HLE in Core settings, and multidisc playlists is available for development testing. See [PlayStation](docs/playstation.md). Tested on RG34XXSP with BaseOS 1.5.2.
 
 **State format:** version 0.9.0 uses compact binary states for all cores. Previous JSON states are not loaded or deleted; in-game SRAM/RTC and PSX memory cards keep their formats. See [automatic saves](docs/autosave.md).
 

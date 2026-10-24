@@ -10,4 +10,4 @@ Collection runs in a separate process only on entry or explicit refresh. The UI 
 
 Voltage and temperature follow the inspected vendor power_supply driver scales (µV and tenths of °C). Temperature can be a fixed fallback when the physical sensor is disabled. Unknown readings are not zero. The inspected vendor charge_full returns configured nominal mAh directly (not standard µAh); it is displayed accordingly and is not a measured full capacity. Other optional readings retain their source and do not imply independently measured battery capacity.
 
-The owner accepted the screen on RG34XXSP / BaseOS 1.5.2 with candidate 27c4f81aaeac on 2026-10-22. This confirms the tested interface, not independent sensor accuracy, battery calibration or every missing/error state. Native/headless and isolated BaseOS checks cover additional synthetic cases.
+Device testing confirmed the screen on RG34XXSP / BaseOS 1.5.2 with candidate 27c4f81aaeac on 2026-10-22. This confirms the tested interface, not independent sensor accuracy, battery calibration or every missing/error state. Native/headless and isolated BaseOS checks cover additional synthetic cases.

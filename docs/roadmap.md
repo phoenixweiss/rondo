@@ -4,7 +4,7 @@ Rondo is early-stage, maintainer-led software. These are priorities, not deliver
 
 ## Current baseline
 
-The first preview, [0.0.1](https://github.com/phoenixweiss/rondo/releases/tag/v0.0.1), is published. Its package, installation and basic NES workflow have been checked, including owner testing on RG34XXSP. This does not establish support for every hardware scenario.
+The first preview, [0.0.1](https://github.com/phoenixweiss/rondo/releases/tag/v0.0.1), is published. Its package, installation and basic NES workflow have been checked, including device testing on RG34XXSP. This does not establish support for every hardware scenario.
 
 The [core feature review](feature-review.md) compares NextUI, MinUI and muOS with the current source, records partial support and gives stable capability IDs F01–F24. The review distinguishes open work, local implementations and released features.
 
@@ -17,18 +17,18 @@ The [core feature review](feature-review.md) compares NextUI, MinUI and muOS wit
 
 ## First: core functionality and everyday use
 
-- Time-zone picker repair (F24) passed native and ARM64 checks and owner testing on RG34XXSP, including persistence after restart. Its delivery is recorded in the changelog.
+- Time-zone picker repair (F24) passed native and ARM64 checks and device testing on RG34XXSP, including persistence after restart. Its delivery is recorded in the changelog.
 - Collect reproducible device issues, unexpected behavior and missing features. Keep observed defects separate from feature ideas and track the checks still needed.
-- Wi-Fi controls, network discovery, masked password entry, known-network reconnect/forget and connection errors are implemented for H700 with native tests. Owner testing accepted connection, reboot/sleep recovery and the revised menu/status display; exhaustive failures and signal calibration remain separate checks. See [Wi-Fi settings](wifi.md). Keep credentials out of diagnostics.
+- Wi-Fi controls, network discovery, masked password entry, known-network reconnect/forget and connection errors are implemented for H700 with native tests. Device testing accepted connection, reboot/sleep recovery and the revised menu/status display; exhaustive failures and signal calibration remain separate checks. See [Wi-Fi settings](wifi.md). Keep credentials out of diagnostics.
 - Add Bluetooth controls, discovery, pairing, connection management and device removal; verify supported profiles and devices individually.
 - Show Wi-Fi and Bluetooth status icons only while the corresponding radio is actually enabled. Distinguish enabled without a connection, connecting and connected states; verify updates after sleep and restart.
-- Battery percentage and its visibility toggle (F02) passed owner testing on RG34XXSP. Verify charging/unknown states and low-level highlight separately; native checks passed.
-- Wake-on-open remains in the backlog after an unsuccessful exact-kernel helper experiment. The helper is not loaded and the option is unavailable on H700. Owner testing accepted restored sleep-on-close and Power wake; establish the actual hall wake contract and power use before another experiment.
+- Battery percentage and its visibility toggle (F02) passed device testing on RG34XXSP. Verify charging/unknown states and low-level highlight separately; native checks passed.
+- Wake-on-open remains in the backlog after an unsuccessful exact-kernel helper experiment. The helper is not loaded and the option is unavailable on H700. Device testing accepted restored sleep-on-close and Power wake; establish the actual hall wake contract and power use before another experiment.
 - Investigate vibration support on RG34XXSP, distinguish system feedback from core rumble, and add supported behavior with persistent controls and an off option. Check motor shutdown during sleep, exit and errors.
 - Refine library headings, feedback, information screens and settings while preserving the accepted save-slot dates and previews.
 - Verify library and gameplay behavior across Power/lid sleep, repeated wake cycles, sound, brightness, input, SRAM, save slots and resume. Add diagnostics and regression coverage as each feature changes.
 - Keep installation, rollback, configuration and compatibility documentation aligned with tested behavior. A successful build is separate from physical device acceptance.
-- Add F04–F05/F07: configurable idle timers, safe shutdown/autosave and continuation, and verified user backup/restore and migration. F06 network/manual clock controls passed bounded owner acceptance; retain broader RTC and error regression work.
+- Add F04–F05/F07: configurable idle timers, safe shutdown/autosave and continuation, and verified user backup/restore and migration. F06 network/manual clock controls passed bounded device verification; retain broader RTC and error regression work.
 
 This list grows with device testing and user feedback; it is not a complete inventory of planned functionality.
 
@@ -44,7 +44,7 @@ This list grows with device testing and user feedback; it is not a complete inve
 
 ## Next: game systems and library support
 
-- GB/GBC play, saves, continuation and sleep passed bounded owner testing on RG34XXSP. GBA play, saves, continuation and sleep were also accepted with candidate 4ce045a0d3fe. SNES play and input/volume stutter fixes were accepted with the 0.7 series. Mega Drive gameplay, saves, continuation and sleep passed bounded owner acceptance with candidate 27c4f81aaeac; System information was accepted in the same test. Investigate PSX (CHD only) individually, covering licensing, builds, controls, performance, SRAM, save states, resume and sleep on the console. Retain NES regression checks.
+- GB/GBC play, saves, continuation and sleep passed bounded device testing on RG34XXSP. GBA play, saves, continuation and sleep were also accepted with candidate 4ce045a0d3fe. SNES play and input/volume stutter fixes were accepted with the 0.7 series. Mega Drive gameplay, saves, continuation and sleep passed bounded device verification with candidate 27c4f81aaeac; System information was accepted in the same test. Investigate PSX (CHD only) individually, covering licensing, builds, controls, performance, SRAM, save states, resume and sleep on the console. Retain NES regression checks.
 - Investigate two-card library behavior, duplicate handling, missing cards and state-storage placement.
 - Investigate wider H700 hardware support separately before promising compatibility. PSP is outside the project scope.
 

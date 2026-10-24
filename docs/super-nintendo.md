@@ -1,6 +1,6 @@
 # Super Nintendo / Super Famicom
 
-The owner accepted SNES play on RG34XXSP and subsequently confirmed the gameplay-button and volume stutter fixes with candidate 228786831d10. Sustained performance and full-game compatibility remain unmeasured. `.sfc` and `.smc` files route to pinned Supafaust, independently of FCEUmm, Gambatte and gpSP. `--snes-core` overrides the sibling `mednafen_supafaust_libretro` library. Missing cores and rejected games return to the recoverable error screen. Existing game/save identities are unchanged.
+Device testing confirmed SNES play on RG34XXSP and subsequently confirmed the gameplay-button and volume stutter fixes with candidate 228786831d10. Sustained performance and full-game compatibility remain unmeasured. `.sfc` and `.smc` files route to pinned Supafaust, independently of FCEUmm, Gambatte and gpSP. `--snes-core` overrides the sibling `mednafen_supafaust_libretro` library. Missing cores and rejected games return to the recoverable error screen. Existing game/save identities are unchanged.
 
 Supafaust is an experimental Mednafen SNES module for multicore systems, including Cortex-A53. It is not Snes9x. Its GPLv2 source and all per-file notices are included in the source-complete package, preserving Rondo's MIT grant. No proprietary SNES firmware is downloaded or bundled. Special-chip compatibility is limited to the selected core and requires individual checks; integration does not establish support for every cartridge or every stage of a game.
 

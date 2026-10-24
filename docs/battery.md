@@ -159,7 +159,7 @@ Battery diagnostics read only the H700 PMIC supplies `axp2202-battery` and
 including `type` and `capacity`. An unknown supply is outside this collector's
 scope. The ordinary header already reads the internal battery directly.
 
-Owner testing of candidate b839fc8e9154 exposed a blocking diagnostic path:
+Device testing of candidate b839fc8e9154 exposed a blocking diagnostic path:
 after Micro connected, its HID battery capacity returned read errors while UI
 work stalled for seconds. Linux HID capacity requests can wait for a remote
 report. Earlier native tests did not cover that case. The regression fixture now
