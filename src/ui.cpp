@@ -230,8 +230,15 @@ const Json &UI::controllerDiagnostics() {
   for(const auto &entry:unmappedControllers)append(entry.first,entry.second,false,nullptr);
   return inputDiagnostic;
 }
-uint16_t UI::controllerButtons() const {
+uint16_t UI::controllerButtons(bool leftToDpad) const {
   uint16_t mask=0;
+  if(leftToDpad) {
+    auto axes=handheldKeys->axes();
+    if(axes[0]<-12000)mask|=1<<RETRO_DEVICE_ID_JOYPAD_LEFT;
+    if(axes[0]>12000)mask|=1<<RETRO_DEVICE_ID_JOYPAD_RIGHT;
+    if(axes[1]<-12000)mask|=1<<RETRO_DEVICE_ID_JOYPAD_UP;
+    if(axes[1]>12000)mask|=1<<RETRO_DEVICE_ID_JOYPAD_DOWN;
+  }
   for(const auto &entry:controllers) {
     auto *controller=entry.second;
     if(!SDL_GameControllerGetAttached(controller))continue;
@@ -245,15 +252,42 @@ uint16_t UI::controllerButtons() const {
     put(RETRO_DEVICE_ID_JOYPAD_START,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_START));
     put(RETRO_DEVICE_ID_JOYPAD_SELECT,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_BACK));
     for(int d=0;d<4;++d)put(RETRO_DEVICE_ID_JOYPAD_UP+d,SDL_GameControllerGetButton(controller,SDL_GameControllerButton(SDL_CONTROLLER_BUTTON_DPAD_UP+d)));
-    const int x=SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_LEFTX);
-    const int y=SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_LEFTY);
+    put(RETRO_DEVICE_ID_JOYPAD_L2,SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_TRIGGERLEFT)>12000);
+    put(RETRO_DEVICE_ID_JOYPAD_R2,SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_TRIGGERRIGHT)>12000);
+    put(RETRO_DEVICE_ID_JOYPAD_L3,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_LEFTSTICK));
+    put(RETRO_DEVICE_ID_JOYPAD_R3,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_RIGHTSTICK));
+    const int x=leftToDpad?SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_LEFTX):0;
+    const int y=leftToDpad?SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_LEFTY):0;
     put(RETRO_DEVICE_ID_JOYPAD_LEFT,x < -12000);put(RETRO_DEVICE_ID_JOYPAD_RIGHT,x > 12000);
     put(RETRO_DEVICE_ID_JOYPAD_UP,y < -12000);put(RETRO_DEVICE_ID_JOYPAD_DOWN,y > 12000);
   }
   return mask;
 }
+std::array<int16_t,4> UI::controllerAxes() const {
+  auto result=handheldKeys->axes();
+  int strongest=0;for(auto value:result)strongest+=std::abs(int(value));
+  // One physical pad owns both sticks in this single-player frontend. Choosing
+  // the strongest pad avoids mixing axes from two controllers or idle drift.
+  for(const auto &entry:controllers) {
+    if(!SDL_GameControllerGetAttached(entry.second))continue;
+    std::array<int16_t,4> axes{};int strength=0;
+    for(int i=0;i<4;++i) {
+      int raw=SDL_GameControllerGetAxis(entry.second,SDL_GameControllerAxis(i));
+      axes[i]=stickAxis(raw);strength+=std::abs(int(axes[i]));
+    }
+    if(strength>strongest){strongest=strength;result=axes;}
+  }
+  return result;
+}
 std::vector<std::string> UI::controllerNavigation() {
   std::vector<std::string> result;
+  // The built-in sticks share navigation with mapped SDL pads.
+  auto builtin=handheldKeys->axes();
+  auto &held=axisRepeats[-1];auto now=monotonicMs();
+  std::string direction=builtin[1]<-12000?"UP":builtin[1]>12000?"DOWN":builtin[0]<-12000?"LEFT":builtin[0]>12000?"RIGHT":"";
+  if(direction.empty())axisRepeats.erase(-1);
+  else if(held.first!=direction){held={direction,now+350};result.push_back(direction);}
+  else if(now>=held.second){held.second=now+110;result.push_back(direction);}
   for(const auto &entry:controllers) {
     auto *controller=entry.second;
     const int x=SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_LEFTX);
@@ -691,21 +725,25 @@ bool UI::image(const fs::path &p, int x, int y, int w, int h, bool smooth) {
     t = it->second;
   int iw, ih;
   SDL_QueryTexture(t, nullptr, nullptr, &iw, &ih);
-  double scale = std::min(double(w) / iw, double(h) / ih);
-  SDL_Rect r{x + (w - int(iw * scale)) / 2, y + (h - int(ih * scale)) / 2, int(iw * scale),
-             int(ih * scale)};
+  double scale=std::min(double(w)/iw,double(h)/ih);
+  SDL_Rect r{x+(w-int(iw*scale))/2,y+(h-int(ih*scale))/2,int(iw*scale),int(ih*scale)};
   SDL_RenderCopy(renderer, t, nullptr, &r);
   return true;
 }
-void UI::pixels(const std::vector<uint32_t> &p, int iw, int ih, int x, int y, int w, int h) {
+void UI::pixels(const std::vector<uint32_t> &p, int iw, int ih, int x, int y, int w, int h, bool fitRawAspect) {
   if (p.empty())
     return;
   auto *t = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STATIC, iw, ih);
   SDL_UpdateTexture(t, nullptr, p.data(), iw * 4);
   SDL_SetTextureScaleMode(t, SDL_ScaleModeNearest);
-  double scale = std::min(double(w) / iw, double(h) / ih);
-  SDL_Rect r{x + (w - int(iw * scale)) / 2, y + (h - int(ih * scale)) / 2, int(iw * scale),
-             int(ih * scale)};
+  SDL_Rect r{x,y,w,h};
+  if(fitRawAspect) {
+    double scale=std::min(double(w)/iw,double(h)/ih);
+    r={x+(w-int(iw*scale))/2,y+(h-int(ih*scale))/2,int(iw*scale),int(ih*scale)};
+  }
+  // Gameplay may supply a display-aspect-corrected rectangle. Fitting the raw
+  // 512x240 PSX pixels again would incorrectly turn that 4:3 view into 32:15.
+
   SDL_RenderCopy(renderer, t, nullptr, &r);
   SDL_DestroyTexture(t);
 }

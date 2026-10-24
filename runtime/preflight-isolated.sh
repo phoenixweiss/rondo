@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 cp -R /package/System/Rondo /baseos/tmp/app
-cp /programs/system-info-tests /programs/md-tests /programs/snes-tests /programs/gba-tests /programs/gb-tests /programs/bluetooth-tests /programs/battery-log-tests /programs/clock-tests /programs/h700-clock-tests /programs/battery-tests /programs/timezone-tests /programs/device-tests /programs/h700-device-tests /programs/wifi-tests /programs/h700-wifi-tests /baseos/tmp/
+cp /programs/state-tests /programs/psx-tests /programs/system-info-tests /programs/md-tests /programs/snes-tests /programs/gba-tests /programs/gb-tests /programs/bluetooth-tests /programs/battery-log-tests /programs/clock-tests /programs/h700-clock-tests /programs/battery-tests /programs/timezone-tests /programs/device-tests /programs/h700-device-tests /programs/wifi-tests /programs/h700-wifi-tests /baseos/tmp/
 mkdir -p /baseos/sys/power /baseos/sys/class/graphics/fb0 /baseos/sys/class/power_supply/axp2202-battery
 printf mem > /baseos/sys/power/state
 printf 0 > /baseos/sys/class/graphics/fb0/blank
@@ -47,6 +47,7 @@ unset BASEOS_BUSYBOX BASEOS_POWEROFF_MARKER
 chroot /baseos /bin/sh /tmp/app/tools/preflight.sh
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/device-tests /tmp/app/assets /tmp/device-state \
  /tmp/app/cores/fceumm_libretro.so '/tmp/app/Demo/card-a/NES/Rondo Test Cartridge/test.nes'
+chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/state-tests /tmp/state-container
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/battery-log-tests /tmp/battery-log-state
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/battery-tests /tmp/app/assets /tmp/battery-state
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/timezone-tests /tmp/app/assets /tmp/timezone-state
@@ -62,7 +63,9 @@ chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/gba-tests /tmp/app/assets /tmp/gb
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/snes-tests /tmp/app/assets /tmp/snes-state /tmp/app/cores/fceumm_libretro.so /tmp/app/cores/mednafen_supafaust_libretro.so /tmp/test-fixtures/snes
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/md-tests /tmp/app/assets /tmp/md-state /tmp/app/cores/fceumm_libretro.so /tmp/app/cores/picodrive_libretro.so /tmp/test-fixtures/md
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/system-info-tests /tmp/app/assets /tmp/system-info-state /tmp/app/bin/rondo
+export RONDO_RUNTIME_LOADER=/lib/ld-linux-aarch64.so.1
+chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/psx-tests /tmp/app/assets /tmp/psx-state /tmp/app/cores/fceumm_libretro.so /tmp/app/cores/pcsx_rearmed_libretro.so /tmp/test-fixtures/psx
 mkdir /results/captures
 cp /baseos/tmp/rondo-power-calls /results/captures/
-cp -R /baseos/tmp/rondo-preflight.* /baseos/tmp/device-state /baseos/tmp/timezone-state /baseos/tmp/battery-state /baseos/tmp/battery-log-state /baseos/tmp/wifi-state /baseos/tmp/clock-state /baseos/tmp/bluetooth-state /baseos/tmp/gb-state /baseos/tmp/gba-state /baseos/tmp/snes-state /baseos/tmp/md-state /baseos/tmp/system-info-state /results/captures/
+cp -R /baseos/tmp/rondo-preflight.* /baseos/tmp/device-state /baseos/tmp/timezone-state /baseos/tmp/battery-state /baseos/tmp/battery-log-state /baseos/tmp/wifi-state /baseos/tmp/clock-state /baseos/tmp/bluetooth-state /baseos/tmp/gb-state /baseos/tmp/gba-state /baseos/tmp/snes-state /baseos/tmp/md-state /baseos/tmp/system-info-state /baseos/tmp/psx-state /results/captures/
 printf 'PASS: packaged BaseOS userspace and synthetic hardware tests. No physical hardware accessed.\n'

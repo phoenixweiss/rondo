@@ -18,8 +18,6 @@ class BatteryLog {
   std::string role;
   uint64_t pollAt = 0, writtenAt = 0;
   Json lastKey, passport;
-  bool passportWritten = false;
-  uint64_t passportAt = 0;
   size_t limit;
 public:
   Json lastError = Json::object();

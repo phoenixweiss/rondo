@@ -44,6 +44,7 @@ def audit(path):
             expected.add('System/Rondo/cores/mednafen_supafaust_libretro.so')
         if 'System/Rondo/cores/picodrive_libretro.so' in names:
             expected.add('System/Rondo/cores/picodrive_libretro.so')
+        if 'System/Rondo/cores/pcsx_rearmed_libretro.so' in names: expected.add('System/Rondo/cores/pcsx_rearmed_libretro.so')
         if 'System/Rondo/modules/rondo_lid_wake.ko' in names:
             expected.add('System/Rondo/modules/rondo_lid_wake.ko')
         require(set(binaries) == expected, 'Unexpected installed ELF set')
@@ -116,6 +117,23 @@ def audit(path):
                         require(archive.extractfile('picodrive-'+md['revision']+'/COPYING').read() == package.read('Licenses/PicoDrive-Noncommercial.txt'), 'PicoDrive license mismatch')
             for notice in ['FAME-License.html', 'libpicofe-README.txt', 'emu2413-MIT.txt', 'dr_libs-License.txt']:
                 require('Licenses/'+notice in names, 'Missing MD dependency notice: '+notice)
+        psx = json.loads(source['docs/dependencies/psx-core-source.json']) if 'docs/dependencies/psx-core-source.json' in source else None
+        if psx:
+            require('System/Rondo/cores/pcsx_rearmed_libretro.so' in names,'Missing PSX core')
+            data=package.read('Sources/pcsx_rearmed.tar.gz');require(digest(data)==psx['archive_sha256'],'PSX source hash mismatch')
+            with tarfile.open(fileobj=io.BytesIO(data)) as archive:
+                psx_prefix='pcsx_rearmed-'+psx['revision']+'/'
+                for src,dest in [('COPYING','PCSX-ReARMed-GPLv2.txt'),('deps/libchdr/LICENSE.txt','libchdr-BSD.txt'),('deps/libchdr/deps/lzma-26.02/LICENSE','LZMA-Public-Domain.txt')]:
+                    require(archive.extractfile(psx_prefix+src).read()==package.read('Licenses/'+dest),'PSX license mismatch: '+dest)
+            require(not any('/BIOS/' in n or n.lower().endswith('scph5501.bin') for n in names),'Proprietary BIOS in public package')
+            ob=json.loads(source['docs/dependencies/openbios-source.json'])
+            firmware='System/Rondo/assets/Firmware/OpenBIOS/scphOpenBIOS.bin'
+            require(not any(n.lower().endswith('.bin') and n!=firmware for n in names),'Unexpected firmware binary in package')
+            require(digest(package.read(firmware))==ob['output_sha256'],'OpenBIOS binary hash mismatch')
+            obdata=package.read('Sources/openbios.tar.gz');require(digest(obdata)==ob['archive_sha256'],'OpenBIOS source hash mismatch')
+            with tarfile.open(fileobj=io.BytesIO(obdata)) as obarchive:
+                for src,dest in [('LICENSE','OpenBIOS-MIT.txt'),('openbios/charset/README.md','OpenBIOS-Font-Notices.md')]:
+                    require(obarchive.extractfile('nugget-'+ob['revision']+'/'+src).read()==package.read('Licenses/'+dest),'OpenBIOS notice mismatch')
         upstream = {}
         for name, checksum in [('sdl', runtime['sdl']['sha256']), ('ttf', runtime['ttf']['sha256']),
                                ('fceumm', core['archive_sha256'])]:
@@ -125,6 +143,9 @@ def audit(path):
         if gb: upstream['gambatte']=gb['archive_sha256']
         if gba: upstream['gpsp']=gba['archive_sha256']
         if snes: upstream['supafaust']=snes['archive_sha256']
+        if psx:
+            upstream['pcsx_rearmed']=psx['archive_sha256']
+            upstream['openbios']=ob['archive_sha256']
         if md:
             for name, record in [('picodrive', md)] + [(d['name'], d) for d in md['dependencies']]: upstream[name]=record['archive_sha256']
         with tarfile.open(fileobj=io.BytesIO(package.read('Sources/ttf.tar.gz'))) as archive:

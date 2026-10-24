@@ -24,7 +24,7 @@ The package baseline is BaseOS 1.3.0. The owner also accepted Rondo on BaseOS 1.
 - English and Russian localization, with English as the fallback.
 - Shared SDL drawing components, typography, icons and keyboard/controller hints.
 - Compact volume feedback with confirmed, muted, pending and error states.
-- NES (FCEUmm), Game Boy / Game Boy Color (Gambatte), Game Boy Advance (gpSP), experimental Super Nintendo (Supafaust) and Mega Drive / Genesis (PicoDrive) execution in a separate process, using pinned cores.
+- NES (FCEUmm), Game Boy / Game Boy Color (Gambatte), Game Boy Advance (gpSP), experimental Super Nintendo (Supafaust) Mega Drive / Genesis (PicoDrive) and experimental PlayStation (PCSX ReARMed, CHD only) execution in a separate process, using pinned cores.
 - Cartridge SRAM and GB/GBC RTC persistence, manual save slots with game previews and resume from a saved state.
 - A library, favorites, settings and game menu.
 - Model tests, UI rendering checks and headless launch/save/resume scenarios.
@@ -52,6 +52,22 @@ Mega Drive controls: Y/B/A → Sega A/B/C, L1/X/R1 → X/Y/Z, Select → Mode. K
 Read-only **Settings → System information** groups device, installed software, memory cards and power; full values and sources are available with X. See [system information](docs/system-information.md).
 
 The owner accepted Mega Drive play, saves, continuation, sleep and System information on RG34XXSP / BaseOS 1.5.2 with candidate 27c4f81aaeac. Full-game compatibility and independent battery sensor accuracy remain unverified.
+
+Experimental CHD-only PlayStation with PCSX ReARMed, bundled OpenBIOS, selectable user BIOS/HLE in Core settings, and multidisc playlists is available for development testing. See [PlayStation](docs/playstation.md). The owner accepted the development candidate on RG34XXSP / BaseOS 1.5.2; this is bounded testing, not a full game/BIOS compatibility claim.
+
+**State format:** version 0.9.0 uses compact binary states for all cores. Previous JSON states are not loaded or deleted; in-game SRAM/RTC and PSX memory cards keep their formats. See [automatic saves](docs/autosave.md).
+
+For **User BIOS**, put your own 512 KiB files in `RondoState/BIOS/PSX`, using the names below. Sony firmware is never included in Rondo packages.
+
+| Filename | BIOS | Verification |
+| --- | --- | --- |
+| `psxonpsp660.bin` | PS1 firmware extracted from PSP 6.60 | Owner-supplied file; known MD5, native game boot checked |
+| `scph101.bin` | PSone, North America | Owner-supplied file; known MD5, native game boot checked |
+| `scph7001.bin` | PlayStation, North America | Owner-supplied file; known MD5, native game boot checked |
+| `scph7502.bin` | PlayStation, Europe | Owner-supplied file; native game boot checked |
+| `scph1001.bin`, `scph5500.bin`, `scph5501.bin`, `scph5502.bin` | Other retail PlayStation BIOS versions | Supported names; not exercised in these tests |
+
+Use lowercase filenames on the card. Select **BIOS file → Automatic** to let the core choose, or select a specific detected file to use only that image; changing the mode in **Core settings → Sony PlayStation** takes effect at the next game launch. OpenBIOS remains bundled and selected by default. [BIOS identities and selection](docs/playstation.md#bios-files).
 
 ## Development
 

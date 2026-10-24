@@ -92,7 +92,7 @@ std::vector<App::SystemInfoRow> App::systemInfoRows() const {
 }
 void App::systemInfoRefresh() {
  if(systemInfoJob.busy())return;
- Json cores=Json::array();for(auto item:{std::tuple<const char *,const char *,const char *>{"NES","FCEUmm","fceumm"},{"GB","Gambatte","gambatte"},{"GBA","gpSP","gpsp"},{"SNES","Supafaust","supafaust"},{"MD","PicoDrive","picodrive"}}) {
+ Json cores=Json::array();for(auto item:{std::tuple<const char *,const char *,const char *>{"NES","FCEUmm","fceumm"},{"GB","Gambatte","gambatte"},{"GBA","gpSP","gpsp"},{"SNES","Supafaust","supafaust"},{"MD","PicoDrive","picodrive"},{"PSX","PCSX ReARMed","pcsx_rearmed"}}) {
   auto path=options.coreFor(std::get<0>(item));if(!path.empty())cores.push_back({{"path",path.string()},{"name",std::get<1>(item)},{"input",std::get<2>(item)}});
  }
  std::vector<std::string> command{options.executable.string(),"--system-info-probe",Json({{"app",options.assets.parent_path().string()},{"cores",cores}}).dump()};

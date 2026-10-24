@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 PAVEL TKACHEV
 #include "core.hpp"
+#include "psx.hpp"
+#include "state.hpp"
 #include <limits>
+#include <algorithm>
+#include <cstdarg>
+#include <cstdio>
 #include "platform.hpp"
 #include <cmath>
 #include <cstring>
@@ -14,18 +19,12 @@ template <class T> T Core::sym(const char *name) {
     throw std::runtime_error(std::string("Missing core ABI: ") + name);
   return reinterpret_cast<T>(p);
 }
-static Json envelope(const fs::path &p) {
-  auto j = readJson(p);
-  auto payload = j.at("payload").get<std::vector<uint8_t>>();
-  if (j.at("sha256") != hashBytes(payload))
-    throw std::runtime_error("State checksum mismatch");
-  return j;
-}
-Core::Core(const fs::path &path, const Game &game, const fs::path &saves, bool silent)
-    : saveRoot(saves), systemRoot(saves / "bios") {
+Core::Core(const fs::path &path, const Game &game, const fs::path &saves, bool silent, const fs::path &bios, bool allowTestHle)
+    : saveRoot(saves), systemRoot(bios.empty()?saves/"bios":bios) {
   identity = hashFile(path);
-  rom = readBytes(game.path);
-  romHash = hashBytes(rom);
+  psx=game.system=="PSX";testHle=psx&&allowTestHle;
+  if(psx)romHash=psxContentHash(game.path,systemRoot,testHle);
+  else {rom = readBytes(game.path);romHash = hashBytes(rom);}
   fs::create_directories(saveRoot);
   fs::create_directories(systemRoot);
   handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
@@ -55,7 +54,13 @@ Core::Core(const fs::path &path, const Game &game, const fs::path &saves, bool s
     initialized = true;
     retro_system_info info{};
     sym<void (*)(retro_system_info *)>("retro_get_system_info")(&info);
+    if(psx&&!info.need_fullpath)throw std::runtime_error("PSX core must use full-path disc loading");
+    if(psx){auto controller=sym<void (*)(unsigned,unsigned)>("retro_set_controller_port_device");controller(0,RETRO_DEVICE_JOYPAD);controller(1,RETRO_DEVICE_NONE);}
     auto launch = game.path.string();
+    if(psx&&searchFold(game.path.extension().string())==".m3u") {
+      std::string playlist;for(const auto &disc:psxDiscs(game.path))playlist+=disc.string()+"\n";
+      auto normalized=saveRoot/"rondo-discs.m3u";atomicWrite(normalized,{playlist.begin(),playlist.end()});launch=normalized.string();
+    }
     retro_game_info content{launch.c_str(), info.need_fullpath ? nullptr : rom.data(),
                             info.need_fullpath ? 0 : rom.size(), nullptr};
     if (!load(&content))
@@ -63,6 +68,7 @@ Core::Core(const fs::path &path, const Game &game, const fs::path &saves, bool s
     loaded = true;
     retro_system_av_info av{};
     sym<void (*)(retro_system_av_info *)>("retro_get_system_av_info")(&av);
+    geometryWidth=av.geometry.base_width;geometryHeight=av.geometry.base_height;
     if(std::isfinite(av.geometry.aspect_ratio) && av.geometry.aspect_ratio>0 && av.geometry.aspect_ratio<=8)aspectRatio=av.geometry.aspect_ratio;
     fps = av.timing.fps;
     sampleRate = av.timing.sample_rate;
@@ -72,7 +78,7 @@ Core::Core(const fs::path &path, const Game &game, const fs::path &saves, bool s
                      {RETRO_MEMORY_RTC,"rtc.bin"}}) {
       if(!fs::exists(saveRoot/memory.second))continue;
       auto bytes=readBytes(saveRoot/memory.second);auto size=memorySize(memory.first);
-      if(size && bytes.size()==size && memoryData(memory.first))memcpy(memoryData(memory.first),bytes.data(),size);
+      if(size && bytes.size()==size && memoryData(memory.first)) {memcpy(memoryData(memory.first),bytes.data(),size);persistedMemory[memory.first]=std::move(bytes);}
       else if(size)throw std::runtime_error("Incompatible persistent memory size");
     }
     audioEnabled = !silent;
@@ -101,9 +107,27 @@ Core::~Core() {
     dlclose(handle);
   active = nullptr;
 }
+static void coreLog(enum retro_log_level level,const char *format,...) {
+ if(level<RETRO_LOG_WARN&&!getenv("RONDO_CORE_TRACE"))return;va_list args;va_start(args,format);vfprintf(stderr,format,args);va_end(args);
+}
 bool Core::environment(unsigned cmd, void *data) {
   auto &c = *active;
   switch (cmd) {
+  case RETRO_ENVIRONMENT_GET_LOG_INTERFACE:
+    static_cast<retro_log_callback *>(data)->log=coreLog;return true;
+  case RETRO_ENVIRONMENT_GET_DISK_CONTROL_INTERFACE_VERSION:
+    *static_cast<unsigned *>(data)=1;return true;
+  case RETRO_ENVIRONMENT_SET_DISK_CONTROL_INTERFACE:
+    c.disks=*static_cast<retro_disk_control_callback *>(data);return true;
+  case RETRO_ENVIRONMENT_SET_DISK_CONTROL_EXT_INTERFACE: {
+    auto &d=*static_cast<retro_disk_control_ext_callback *>(data);
+    c.disks={d.set_eject_state,d.get_eject_state,d.get_image_index,d.set_image_index,d.get_num_images,d.replace_image_index,d.add_image_index};return true;
+  }
+  case RETRO_ENVIRONMENT_SET_GEOMETRY: {
+    auto &g=*static_cast<retro_game_geometry *>(data);
+    c.geometryWidth=g.base_width;c.geometryHeight=g.base_height;++c.geometryChanges;
+    if(std::isfinite(g.aspect_ratio)&&g.aspect_ratio>0&&g.aspect_ratio<=8)c.aspectRatio=g.aspect_ratio;return true;
+  }
   case RETRO_ENVIRONMENT_SET_PIXEL_FORMAT:
     c.format = *static_cast<retro_pixel_format *>(data);
     return c.format == RETRO_PIXEL_FORMAT_XRGB8888 || c.format == RETRO_PIXEL_FORMAT_RGB565 ||
@@ -139,6 +163,10 @@ bool Core::environment(unsigned cmd, void *data) {
         if(std::string(v->key)=="gpsp_rtc_time_source")c.variables[v->key]="system";
         if(std::string(v->key)=="gpsp_sound_rate")c.variables[v->key]="32768";
         if(std::string(v->key)=="gpsp_serial")c.variables[v->key]="disabled";
+        if(c.psx&&std::string(v->key)=="pcsx_rearmed_memcard2")c.variables[v->key]="none";
+        if(c.psx&&std::string(v->key)=="pcsx_rearmed_memcard1")c.variables[v->key]="libretro";
+        if(c.psx&&std::string(v->key)=="pcsx_rearmed_bios")c.variables[v->key]=c.testHle?"HLE":"auto";
+        if(c.psx&&std::string(v->key)=="pcsx_rearmed_frameskip_type")c.variables[v->key]="disabled";
         if(std::string(v->key)=="picodrive_input1")c.variables[v->key]="6 button pad";
         // Leave thread placement to the OS on desktop, constrained test containers
         // and H700; do not inherit the core's fixed CPU 0/1 affinity defaults.
@@ -167,8 +195,9 @@ void Core::video(const void *data, unsigned w, unsigned h, size_t pitch) {
   auto &c = *active;
   if (!data)
     return;
-  if (w > 2048 || h > 2048)
+  if (!w || !h || w > 2048 || h > 2048 || pitch < w*(c.format==RETRO_PIXEL_FORMAT_XRGB8888?4u:2u))
     throw std::runtime_error("Oversized core frame");
+  c.videoPitch=pitch;
   c.width = w;
   c.height = h;
   c.frame.resize(w * h);
@@ -197,6 +226,20 @@ void Core::video(const void *data, unsigned w, unsigned h, size_t pitch) {
       c.frame[y * w + x] = pixel;
     }
 }
+Json Core::videoGeometry() const {
+  Json result={{"width",width},{"height",height},{"pitch_bytes",videoPitch},
+    {"aspect_ratio",aspectRatio},{"base_width",geometryWidth},{"base_height",geometryHeight},
+    {"geometry_changes",geometryChanges},{"fps",fps}};
+  // Diagnostics only, sampled at the journal cadence, never the input hot path.
+  // This is an observation of exact black pixels, not an automatic crop policy.
+  if(frame.size()==size_t(width)*height) {
+    int left=width,top=height,right=-1,bottom=-1;
+    for(int y=0;y<height;++y)for(int x=0;x<width;++x)
+      if(frame[y*width+x]&0x00ffffffu){left=std::min(left,x);right=std::max(right,x);top=std::min(top,y);bottom=std::max(bottom,y);}
+    result["nonblack_bounds"]=right<0?Json(nullptr):Json{{"x",left},{"y",top},{"width",right-left+1},{"height",bottom-top+1}};
+  }
+  return result;
+}
 size_t Core::audioBatch(const int16_t *data, size_t n) {
   auto &c = *active;
   c.audioFrames += n;
@@ -212,8 +255,19 @@ void Core::audioSample(int16_t l, int16_t r) {
   audioBatch(pair, 1);
 }
 void Core::inputPoll() {}
-int16_t Core::inputState(unsigned port, unsigned device, unsigned, unsigned id) {
-  return port == 0 && device == RETRO_DEVICE_JOYPAD && id < 16 ? ((active->buttons >> id) & 1) : 0;
+int16_t Core::inputState(unsigned port, unsigned device, unsigned index, unsigned id) {
+  if(port!=0)return 0;
+  device &= RETRO_DEVICE_MASK;
+  if(device==RETRO_DEVICE_JOYPAD && index==0 && id<16)return (active->buttons>>id)&1;
+  if(device==RETRO_DEVICE_ANALOG && index<2 && id<2)return active->axes[index*2+id];
+  return 0;
+}
+void Core::psxController(bool dualshock) {
+  if(!psx)return;
+  // PCSX ReARMed advertises DualShock as ANALOG subclass 1, not plain ANALOG.
+  sym<void (*)(unsigned,unsigned)>("retro_set_controller_port_device")(
+      0,dualshock?RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_ANALOG,1):RETRO_DEVICE_JOYPAD);
+  buttons=0;axes={};
 }
 void Core::tick() {
   if (!paused) {
@@ -242,11 +296,11 @@ void Core::silence() {
 bool Core::canSave() const { return serializeSize && serializeSize() > 0; }
 void Core::save(int slot) {
   if(slot<0 || slot>2)throw std::runtime_error("Invalid manual slot");
-  saveTo(saveRoot/("slot-"+std::to_string(slot)+".json"),true);
+  saveTo(saveRoot/stateName(slot),true);
 }
 void Core::saveAutomatic() {
   flushSram();
-  saveTo(saveRoot/"autosave.json",false);
+  saveTo(saveRoot/stateName(3),false);
 }
 void Core::saveTo(const fs::path &p, bool flush) {
   auto n = serializeSize();
@@ -256,42 +310,45 @@ void Core::saveTo(const fs::path &p, bool flush) {
   if (!serialize(b.data(), b.size()))
     throw std::runtime_error("Serialization failed");
   long long sequence=0;
-  for(int i=0;i<3;++i)try {sequence=std::max(sequence,saveSequence(readJson(saveRoot/("slot-"+std::to_string(i)+".json"))));}catch(...){}
-  for(const auto *name:{"autosave.json","autosave.json.previous"})
-    try {sequence=std::max(sequence,saveSequence(readJson(saveRoot/name)));}catch(...){}
+  for(int slot=0;slot<4;++slot)for(const auto &suffix:{"", ".previous"})try {
+    sequence=std::max(sequence,saveSequence(readState(saveRoot/(stateName(slot)+suffix),StateRead::Metadata).meta));
+  }catch(...){}
   if(sequence>=std::numeric_limits<long long>::max()-1)throw std::runtime_error("Save sequence exhausted");
-  Json j = {{"save_sequence",sequence+1},{"schema", 1},  {"core", identity},       {"rom", romHash},
-            {"payload", b}, {"sha256", hashBytes(b)}, {"utc", time(nullptr)}};
-  if (width>0 && height>0 && frame.size()==size_t(width)*height) {
-    auto bytes=reinterpret_cast<const uint8_t *>(frame.data());
-    j["preview"]={{"width",width},{"height",height},{"pixels",frame},
-                  {"sha256",hashBytes({bytes,bytes+frame.size()*sizeof(uint32_t)})}};
+  StateFile state;state.payload=std::move(b);
+  state.meta={{"save_sequence",sequence+1},{"core",identity},{"rom",romHash},{"utc",time(nullptr)},
+              {"preview_width",0},{"preview_height",0}};
+  if(psx)state.meta["disc"]=discIndex();
+  if(width>0&&height>0&&frame.size()==size_t(width)*height) {
+    double scale=std::min({1.0,192.0/width,144.0/height});
+    int w=psx?192:std::max(1,int(width*scale)),h=psx?144:std::max(1,int(height*scale));
+    state.meta["preview_width"]=w;state.meta["preview_height"]=h;state.pixels.resize(size_t(w)*h);
+    for(int y=0;y<h;++y)for(int x=0;x<w;++x)state.pixels[y*w+x]=frame[(size_t(y)*height/h)*width+size_t(x)*width/w];
   }
-  if (fs::exists(p) && (p.filename()!="autosave.json" || compatibleFile(p)))
-    atomicWrite(p.string() + ".previous", readBytes(p));
-  auto s = j.dump();
-  atomicWrite(p, {s.begin(), s.end()});
-  auto actual = envelope(p);
-  if (actual["sha256"] != j["sha256"] || actual["save_sequence"] != j["save_sequence"])
-    throw std::runtime_error("Save readback mismatch");
-  if (j.contains("preview") && actual.at("preview")!=j.at("preview"))
-    throw std::runtime_error("Save preview readback mismatch");
+  if(fs::exists(p)) {
+    bool valid=false;try {readState(p);valid=true;}catch(...){}
+    // Never swallow a backup write failure or replace a valid backup with corruption.
+    if(valid)atomicWrite(p.string()+".previous",readBytes(p));
+  }
+  writeState(p,state);
   if(flush)flushSram();
 }
 void Core::deleteSlot(int slot) {
   if (slot < 0 || slot > 2) throw std::runtime_error("Invalid save slot");
-  const auto path = saveRoot / ("slot-" + std::to_string(slot) + ".json");
+  const auto path = saveRoot / stateName(slot);
   // Remove the overwrite backup first; a failure keeps the active slot intact.
   fs::remove(path.string() + ".previous");
   fs::remove(path);
   if (fs::exists(path)) throw std::runtime_error("Save deletion readback mismatch");
 }
 void Core::loadState(int slot) {
-  loadFrom(saveRoot/("slot-"+std::to_string(slot)+".json"));
+  loadFrom(saveRoot/stateName(slot));
 }
-void Core::loadAutomatic() { loadFrom(automaticPath()); }
+void Core::loadAutomatic() {
+  for(const auto *name:{"autosave.state","autosave.state.previous"})try {loadFrom(saveRoot/name);return;}catch(...){}
+  throw std::runtime_error("Automatic state unavailable");
+}
 fs::path Core::automaticPath() const {
-  for(const auto *name:{"autosave.json","autosave.json.previous"})
+  for(const auto *name:{"autosave.state","autosave.state.previous"})
     if(compatibleFile(saveRoot/name))return saveRoot/name;
   throw std::runtime_error("Automatic state unavailable");
 }
@@ -299,20 +356,22 @@ bool Core::compatibleAutomatic() const {
   try {automaticPath();return true;}catch(...){return false;}
 }
 void Core::loadFrom(const fs::path &path) {
-  auto j = envelope(path);
+  auto state = readState(path);
+  const auto &j=state.meta;
   if (j.at("core") != identity || j.at("rom") != romHash)
     throw std::runtime_error("State belongs to another ROM or core");
-  auto b = j.at("payload").get<std::vector<uint8_t>>();
+  const auto &b=state.payload;
+  if(psx&&j.contains("disc")&&j["disc"].get<unsigned>()!=discIndex())changeDisc(j["disc"].get<unsigned>());
   if (!unserialize(b.data(), b.size()))
     throw std::runtime_error("Core rejected state");
   silence();
 }
 bool Core::compatible(int slot) const {
-  return compatibleFile(saveRoot/("slot-"+std::to_string(slot)+".json"));
+  return compatibleFile(saveRoot/stateName(slot));
 }
 bool Core::compatibleFile(const fs::path &path) const {
   try {
-    auto j = envelope(path);
+    auto j = readState(path,StateRead::Metadata).meta;
     return j.at("core") == identity && j.at("rom") == romHash;
   } catch (...) {
     return false;
@@ -325,7 +384,10 @@ void Core::flushSram() {
     if(!n)continue;
     auto *p=static_cast<uint8_t *>(memoryData(memory.first));
     if(!p)throw std::runtime_error("Persistent core memory inaccessible");
-    atomicWrite(saveRoot/memory.second,{p,p+n});
+    auto path=saveRoot/memory.second;
+    auto &previous=persistedMemory[memory.first];std::error_code error;
+    if(previous.size()==n&&std::equal(previous.begin(),previous.end(),p)&&fs::is_regular_file(path,error)&&fs::file_size(path,error)==n&&!error)continue;
+    std::vector<uint8_t> bytes(p,p+n);atomicWrite(path,bytes);previous=std::move(bytes);
   }
 }
 std::string Core::stateHash() {
@@ -333,5 +395,14 @@ std::string Core::stateHash() {
   if (!serialize(b.data(), b.size()))
     throw std::runtime_error("Serialization failed");
   return hashBytes(b);
+}
+unsigned Core::discCount() const {return psx&&disks.get_num_images?disks.get_num_images():0;}
+unsigned Core::discIndex() const {return psx&&disks.get_image_index?disks.get_image_index():0;}
+void Core::changeDisc(unsigned index) {
+  if(index>=discCount()||!disks.set_eject_state||!disks.set_image_index)throw std::runtime_error("Disc unavailable");
+  const auto old=discIndex();
+  if(!disks.set_eject_state(true))throw std::runtime_error("Disc tray did not open");
+  if(!disks.set_image_index(index)||!disks.set_eject_state(false)) {disks.set_image_index(old);disks.set_eject_state(false);throw std::runtime_error("Disc change failed");}
+  buttons=0;silence();
 }
 } // namespace rondo

@@ -1,0 +1,17 @@
+{
+  "repository": "https://github.com/pcsx-redux/nugget",
+  "revision": "d1aeff9d378a8c94e14f23f0a00c2f4db0eb6652",
+  "archive_sha256": "86c63935ce3849a6a49b09e8c07c5cf4ea1e1f857c475f0b2c2849002382a913",
+  "license": "MIT",
+  "font_license": "Public domain, original credits retained in FONT-NOTICES.md",
+  "output": "scphOpenBIOS.bin",
+  "output_sha256": "9259343c279a9b51a215704a1776b6d97ea84ebf0da2690ccc0eb47bdd59fd68",
+  "build_args": [
+    "PREFIX=mipsel-linux-gnu",
+    "FORMAT=elf32-tradlittlemips",
+    "OPENBIOS_SHELL=shell",
+    "BOOT_MODE=fast"
+  ],
+  "compiler": "GCC 12.2.0 / GNU binutils 2.42, Ubuntu ARM64 packages pinned in runtime/openbios-toolchain.json",
+  "reproducibility": "Pinned SDK image, SOURCE_DATE_EPOCH, file-prefix-map and no linker build ID"
+}

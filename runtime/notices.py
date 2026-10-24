@@ -12,7 +12,7 @@ def bundle(root, sources, licenses):
     # This preserves per-file attribution in MIT/libretro-common and SDL helpers.
     sections = []
     for name, tree in sorted(sources.items()):
-        if name not in {"sdl", "ttf", "fceumm", "gambatte", "gpsp", "supafaust", "picodrive", "picofe", "emu2413", "dr_libs"}:
+        if name not in {"sdl", "ttf", "fceumm", "gambatte", "gpsp", "supafaust", "picodrive", "picofe", "emu2413", "dr_libs", "pcsx_rearmed", "openbios"}:
             continue  # Kernel/BC retain complete source archives and COPYING files.
         blocks = {}
         for path in sorted(tree.rglob("*")):

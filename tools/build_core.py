@@ -45,3 +45,13 @@ subprocess.run(['make','-f','Makefile.libretro','-j4',
                 'use_libchdr=0','use_sh2drc=0','use_svpdrc=0','GIT_REVISION=','PLATFORM_TREMOR=1'],cwd=source,check=True)
 filename='picodrive_libretro.'+('dylib' if platform.system()=='Darwin' else 'so')
 shutil.copy2(source/filename,directory/filename);print(directory/filename)
+
+# PSX: deterministic interpreter on desktop tests; H700 uses its ARM64 dynarec.
+item=records(ROOT)['pcsx_rearmed'];archive=directory/'pcsx_rearmed.tar.gz'
+if not archive.exists():
+    with urllib.request.urlopen(item['url'],timeout=60) as response:archive.write_bytes(response.read())
+if not (directory/item['directory']).exists():extract(archive,directory,item['sha256'],item['directory'])
+elif hashlib.sha256(archive.read_bytes()).hexdigest()!=item['sha256']:raise RuntimeError('PSX source checksum mismatch')
+subprocess.run(['make','-f','Makefile.libretro','-j4','platform=osx' if platform.system()=='Darwin' else 'platform=unix','DYNAREC=0','HAVE_CHD=1','HAVE_PHYSICAL_CDROM=0','USE_ASYNC_CDROM=0','NDRC_THREAD=0','GIT_VERSION='],cwd=directory/item['directory'],check=True)
+filename='pcsx_rearmed_libretro.'+('dylib' if platform.system()=='Darwin' else 'so')
+shutil.copy2(directory/item['directory']/filename,directory/filename);print(directory/filename)

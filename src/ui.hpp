@@ -6,6 +6,7 @@
 #include <SDL.h>
 #include <SDL_ttf.h>
 #include <memory>
+#include <array>
 namespace rondo {
 class UI {
   SDL_Window *window = nullptr;
@@ -43,7 +44,8 @@ public:
   const Json &controllerDiagnostics();
   std::map<SDL_JoystickID,std::pair<std::string,uint64_t>> axisRepeats;
   void refreshControllers();
-  uint16_t controllerButtons() const;
+  uint16_t controllerButtons(bool leftToDpad = true) const;
+  std::array<int16_t,4> controllerAxes() const;
   std::vector<std::string> controllerNavigation();
   // Values submitted to the renderer, not a claim about physical panel pixels.
   Json batteryDisplay = Json::object();
@@ -75,7 +77,7 @@ public:
   int info(const std::string &, const std::string &, int scroll, const Json &sections = Json());
   void binaryRow(const std::string &, int, bool, std::optional<bool>, const Locale &, bool supported = true);
   bool image(const fs::path &, int, int, int, int, bool smooth);
-  void pixels(const std::vector<uint32_t> &, int, int, int, int, int, int);
+  void pixels(const std::vector<uint32_t> &, int, int, int, int, int, int, bool fitRawAspect = true);
   void scrollbar(double, double, double, bool library, int top = -1, int bottom = -1);
   void volumeOverlay(VolumeFeedback &, const Locale &, bool systemNotice = false);
   void present();

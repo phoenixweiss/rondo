@@ -272,14 +272,14 @@ static void failed(const char *operation, const fs::path &path, int code) {
   throw fs::filesystem_error(operation, path, std::error_code(code, std::generic_category()));
 }
 static void appendJournal(const fs::path &directory, const std::string &role,
-                          const std::string &line, size_t limit) {
+                          const std::string &line, size_t limit, const std::string &extension=".jsonl") {
   if (line.size() > limit) failed("record_size", directory, EFBIG);
   fs::create_directories(directory);
   auto lockPath = directory / (role + ".lock");
   Descriptor lock{open(lockPath.c_str(), O_CREAT | O_RDWR | O_CLOEXEC, 0600)};
   if (lock.fd < 0) failed("lock_open", lockPath, errno);
   if (flock(lock.fd, LOCK_EX | LOCK_NB)) failed("lock", lockPath, errno);
-  auto path = directory / (role + ".jsonl"), previous = directory / (role + ".previous.jsonl");
+  auto path = directory / (role + extension), previous = directory / (role + ".previous" + extension);
   std::error_code error;
   auto size = fs::file_size(path, error);
   if (error && error != std::errc::no_such_file_or_directory) throw fs::filesystem_error("size", path, error);
@@ -306,7 +306,7 @@ static void appendJournal(const fs::path &directory, const std::string &role,
   }
 }
 static constexpr size_t ramLimit = 256 * 1024;
-static void recoverJournal(const fs::path &directory, const fs::path &fallback, const std::string &role) {
+static void recoverJournal(const fs::path &directory, const fs::path &fallback, const std::string &role, const std::string &extension=".jsonl") {
   if (fallback.empty()) return;
   auto lockPath = fallback / (role + ".lock");
   if (!fs::exists(lockPath)) return;
@@ -314,7 +314,7 @@ static void recoverJournal(const fs::path &directory, const fs::path &fallback, 
   if (lock.fd < 0) failed("recovery_lock", lockPath, errno);
   if (flock(lock.fd, LOCK_EX | LOCK_NB)) failed("recovery_lock", lockPath, errno);
   std::vector<uint8_t> bytes;
-  for (const auto &name : {role + ".previous.jsonl", role + ".jsonl"}) {
+  for (const auto &name : {role + ".previous"+extension, role+extension}) {
     auto path = fallback / name;
     if (!fs::exists(path)) continue;
     if (fs::file_size(path) > ramLimit + 1) failed("recovery_size", path, EFBIG);
@@ -322,15 +322,15 @@ static void recoverJournal(const fs::path &directory, const fs::path &fallback, 
     if (!bytes.empty() && bytes.back() != '\n') bytes.push_back('\n');
   }
   if (bytes.empty()) return;
-  atomicWrite(directory / (role + ".recovered.jsonl"), bytes);
-  fs::remove(fallback / (role + ".previous.jsonl"));
-  fs::remove(fallback / (role + ".jsonl"));
+  atomicWrite(directory / (role + ".recovered"+extension), bytes);
+  fs::remove(fallback / (role + ".previous"+extension));
+  fs::remove(fallback / (role + extension));
 }
 void clearDiagnosticLogs(const fs::path &directory, const fs::path &fallback) {
   for (const auto &root : {directory, fallback}) {
     if (root.empty()) continue;
     for (const auto *role : {"shell", "runner"})
-      for (const auto *suffix : {".jsonl", ".previous.jsonl", ".recovered.jsonl"})
+      for (const auto *suffix : {".jsonl", ".previous.jsonl", ".recovered.jsonl", ".log", ".previous.log", ".recovered.log"})
         fs::remove(root / (std::string(role) + suffix));
   }
 }
@@ -415,6 +415,20 @@ static Json displayComparison(const Json &snapshot, const Json &context, uint64_
   return {{"system_percent", percent}, {"display", display}, {"display_age_ms", age}};
 }
 bool BatteryLog::sampleSync(uint64_t now, const Json &context, const std::string &event) {
+  if(!event.empty() && event!="battery_passport") {
+    // Ordinary events do no sysfs, DT, mount or kernel-log I/O. Context is
+    // assembled only after the producer's level filter, on a bounded queue.
+    Json row={{"schema",2},{"utc",static_cast<long long>(time(nullptr))},
+      {"monotonic_ms",now},{"role",role},{"event",event},{"context",context}};
+    auto line=std::to_string(row["utc"].get<long long>())+" "+std::to_string(now)+" "+role+" "+
+      Json(event).dump()+"\t"+row.dump(-1,' ',false,Json::error_handler_t::replace)+"\n";
+    try {
+      appendJournal(directory,role,line,limit,".log");recoverJournal(directory,fallback,role,".log");
+      lastError=Json::object();return true;
+    }catch(const std::exception &e){lastError={{"message",e.what()}};}
+    if(!fallback.empty())try {appendJournal(fallback,role,line,ramLimit,".log");}catch(...){}
+    return false;
+  }
   if (event.empty() && now < pollAt) return lastError.empty();
   pollAt = now + 5000;
   Json snapshot;
@@ -431,7 +445,7 @@ bool BatteryLog::sampleSync(uint64_t now, const Json &context, const std::string
       for (const char *field : {"screen", "header_visible", "percentage_visible", "source_percent", "displayed_percent", "label"})
         key["battery_display"][field] = display.value(field, Json(nullptr));
     if (event.empty() && key == lastKey && now - writtenAt < 60000 && lastError.empty()) return true;
-    bool includePassport = !passportWritten || now - passportAt >= 30 * 60 * 1000;
+    bool includePassport = event == "battery_passport";
     if (includePassport) {
       if (passport.is_null()) {
         passport = batteryPassport(sys, proc);
@@ -449,10 +463,9 @@ bool BatteryLog::sampleSync(uint64_t now, const Json &context, const std::string
     snapshot["event"] = event.empty() ? "sample" : event;
     snapshot["context"] = context;
     snapshot["battery_comparison"] = std::move(comparison);
-    if (!event.empty()) snapshot["storage"] = storageSnapshot(directory, proc);
+    if (includePassport) snapshot["storage"] = storageSnapshot(directory, proc);
     auto line = snapshot.dump(-1, ' ', false, Json::error_handler_t::replace) + "\n";
     appendJournal(directory, role, line, limit);
-    if (includePassport) { passportWritten = true; passportAt = now; }
     recoverJournal(directory, fallback, role);
     lastKey = std::move(key); writtenAt = now; lastError = Json::object();
     return true;
@@ -461,7 +474,6 @@ bool BatteryLog::sampleSync(uint64_t now, const Json &context, const std::string
                  {"errno", e.code().value()}, {"message", e.code().message()}};
   } catch (const std::exception &e) { lastError = {{"message", e.what()}}; }
   snapshot["journal_error"] = lastError;
-  snapshot["storage"] = storageSnapshot(directory, proc);
   if (!fallback.empty()) {
     try {
       appendJournal(fallback, role, snapshot.dump(-1, ' ', false, Json::error_handler_t::replace) + "\n", ramLimit);

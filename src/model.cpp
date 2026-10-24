@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 PAVEL TKACHEV
 #include "model.hpp"
+#include "psx.hpp"
 #include <limits>
 #include <algorithm>
 #include <cerrno>
@@ -25,7 +26,12 @@ std::vector<uint8_t> readBytes(const fs::path &p) {
   return {std::istreambuf_iterator<char>(f), {}};
 }
 std::string hashBytes(const std::vector<uint8_t> &b) { return picosha2::hash256_hex_string(b); }
-std::string hashFile(const fs::path &p) { return hashBytes(readBytes(p)); }
+std::string hashFile(const fs::path &p) {
+  std::ifstream f(p,std::ios::binary);if(!f)throw std::runtime_error("Cannot read "+p.string());
+  picosha2::hash256_one_by_one hasher;char block[65536];
+  while(f){f.read(block,sizeof(block));hasher.process(block,block+f.gcount());}
+  if(f.bad())throw std::runtime_error("Read failed: "+p.string());hasher.finish();return picosha2::get_hash_hex_string(hasher);
+}
 Json readJson(const fs::path &p) {
   auto b = readBytes(p);
   return Json::parse(b);
@@ -123,7 +129,7 @@ std::vector<Game> scan(const std::vector<Volume> &volumes) {
       {"Sega - Mega Drive - Genesis (MD)", "MD"},
       {"Sony - PlayStation (PS)", "PSX"}};
   const std::set<std::string> extensions = {".nes", ".gb",  ".gbc", ".gba", ".sfc", ".smc",
-                                            ".md",  ".gen", ".cue", ".m3u", ".chd"};
+                                            ".md",  ".gen", ".m3u", ".chd"};
   for (auto v : volumes) {
     if (v.id.empty() || !volumeIds.insert(v.id).second)
       throw std::runtime_error("Volume IDs must be unique and nonempty");
@@ -157,16 +163,8 @@ std::vector<Game> scan(const std::vector<Volume> &volumes) {
       if (ext != ".m3u") {
         bool listed = false;
         for (const auto &sibling : fs::directory_iterator(path.parent_path()))
-          if (sibling.path().filename().string().front() != '.' && sibling.path().extension() == ".m3u") {
-            std::ifstream f(sibling.path());
-            std::string line;
-            while (std::getline(f, line)) {
-              if (!line.empty() && line.back() == '\r')
-                line.pop_back();
-              if (!line.empty() && line[0] != '#' &&
-                  (path.parent_path() / line).lexically_normal() == path.lexically_normal())
-                listed = true;
-            }
+          if (sibling.path().filename().string().front() != '.' && searchFold(sibling.path().extension().string()) == ".m3u") {
+            try {for(const auto &disc:psxDiscs(sibling.path()))if(disc==fs::canonical(path))listed=true;}catch(...){}
           }
         if (listed)
           continue;
@@ -180,6 +178,7 @@ std::vector<Game> scan(const std::vector<Volume> &volumes) {
       else if(ext==".gba")system="GBA";
       else if(ext==".sfc" || ext==".smc")system="SNES";
       else if(ext==".md" || ext==".gen")system="MD";
+      else if(ext==".chd" || ext==".m3u")system="PSX";
       auto identity = v.id + "\n" + rel.generic_string();
       std::vector<uint8_t> bytes(identity.begin(), identity.end());
       std::string title = path.stem().string();
@@ -249,10 +248,14 @@ static void validateConfig(const Json &candidate, const Json &defaults) {
   if (!candidate.is_object() || candidate.value("schema", 0) != 1)
     throw std::runtime_error("Unsupported configuration");
   for (const auto &key : {"revision", "locale", "artwork", "section", "focus", "timezone", "volume",
-                          "favorites", "game_options", "replace_boot_logo", "brightness", "lid_sleep", "wake_on_lid_open", "show_battery_percent", "wifi_enabled", "bluetooth_enabled", "bluetooth_device", "ntp_auto", "debug_enabled", "debug_level", "integer_scaling", "game_background", "autosave_enabled", "startup_resume", "resume_game", "idle_screen_minutes", "battery_warning"})
+                          "favorites", "game_options", "psx_hle_warning_acknowledged", "psx_firmware", "psx_bios_file", "psx_controller", "left_stick_dpad", "replace_boot_logo", "brightness", "lid_sleep", "wake_on_lid_open", "show_battery_percent", "wifi_enabled", "bluetooth_enabled", "bluetooth_device", "ntp_auto", "debug_enabled", "debug_level", "integer_scaling", "game_background", "autosave_enabled", "startup_resume", "resume_game", "idle_screen_minutes", "battery_warning"})
     if (candidate.contains(key) && candidate[key].type() != defaults[key].type() &&
         !(candidate[key].is_number() && defaults[key].is_number()))
       throw std::runtime_error("Invalid configuration field");
+  if(candidate.contains("psx_bios_file")&&!psxBiosFilename(candidate.at("psx_bios_file").get<std::string>()))
+    throw std::runtime_error("Invalid PSX BIOS filename");
+  if(candidate.contains("psx_controller")&&candidate["psx_controller"]!="digital"&&candidate["psx_controller"]!="dualshock")throw std::runtime_error("Invalid PSX controller");
+  if(candidate.contains("psx_firmware")&&candidate["psx_firmware"]!="openbios"&&candidate["psx_firmware"]!="bios"&&candidate["psx_firmware"]!="hle")throw std::runtime_error("Invalid PSX firmware mode");
   if (candidate.contains("debug_level") && candidate["debug_level"] != "errors" &&
       candidate["debug_level"] != "events" && candidate["debug_level"] != "detailed")
     throw std::runtime_error("Invalid diagnostic level");
@@ -272,6 +275,8 @@ static void validateConfig(const Json &candidate, const Json &defaults) {
       if (!entry.value().is_object() || (entry.value().contains("integer_scaling") &&
           !entry.value().at("integer_scaling").is_boolean()))
         throw std::runtime_error("Invalid game display option");
+      if(entry.value().contains("psx_controller") && entry.value()["psx_controller"]!="digital" && entry.value()["psx_controller"]!="dualshock")
+        throw std::runtime_error("Invalid game PSX controller");
     }
 }
 Store::Store(fs::path p) : root(std::move(p)) {
@@ -295,6 +300,11 @@ Store::Store(fs::path p) : root(std::move(p)) {
           {"wifi_enabled", false},
           {"ntp_auto", true},
           {"replace_boot_logo", true},
+          {"psx_hle_warning_acknowledged", false},
+          {"psx_firmware", "openbios"},
+          {"psx_controller", "digital"},
+          {"psx_bios_file", "auto"},
+          {"left_stick_dpad", true},
           {"artwork", "cover"},
           {"section", "All"},
           {"focus", ""},
@@ -330,6 +340,8 @@ Store::Store(fs::path p) : root(std::move(p)) {
     data["artwork"] = "cover";
 }
 void Store::commit(Json next) {
+  if(next.contains("psx_bios_file")&&(!next.at("psx_bios_file").is_string()||!psxBiosFilename(next.at("psx_bios_file").get<std::string>())))
+    throw std::runtime_error("Invalid PSX BIOS filename");
   if (readOnly)
     throw std::runtime_error("Configuration schema requires a newer Rondo");
   // Preserve unknown keys; one authority writes the versioned document.

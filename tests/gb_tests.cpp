@@ -16,10 +16,10 @@ int main(int argc,char **argv) {
   auto dir=o.state/"games"/game.id;fs::create_directories(dir);
   std::vector<uint8_t> seed(32768,0);seed[0]=0x5a;atomicWrite(dir/"sram.bin",seed);
   { App a(o,true,game);a.ticks(60);assert(a.core->width==160 && a.core->height==144 && a.core->audioFrames>0);
-    a.core->save(0);auto manual=readBytes(a.store.gameDir(game)/"slot-0.json");
+    a.core->save(0);auto manual=readBytes(a.store.gameDir(game)/"slot-0.state");
     a.core->saveAutomatic();assert(a.core->compatibleAutomatic());
     a.core->flushSram();assert(readBytes(dir/"sram.bin")==seed);
-    assert(readBytes(a.store.gameDir(game)/"slot-0.json")==manual);
+    assert(readBytes(a.store.gameDir(game)/"slot-0.state")==manual);
     auto device=std::make_unique<GbDevice>();auto *d=device.get();a.device=std::move(device);
     auto frames=a.core->frames;a.sleep();assert(d->sleeps==1 && !a.core->paused);a.ticks(2);assert(a.core->frames==frames+2);
     a.store.data["integer_scaling"]=true;a.capture(game.system+"-integer");

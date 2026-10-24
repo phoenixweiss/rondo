@@ -46,10 +46,16 @@ enum class Screen {
   Overwrite,
   LoadConfirm,
   ExitConfirm,
+  CoreSettings,
+  PsxCoreSettings,
+  PsxBiosFiles,
+  PsxFirmwareError,
+  PsxWarning,
   Recovery
 };
 struct Options {
-  fs::path assets, state, core, gbCore, gbaCore, snesCore, mdCore, executable, script, output;
+  fs::path assets, state, core, gbCore, gbaCore, snesCore, mdCore, psxCore, psxBios, executable, script, output;
+  bool psxTestHle=false;
   fs::path coreFor(const std::string &system) const {
     if(system=="NES")return core;
     if(system=="GB" || system=="GBC") {
@@ -68,6 +74,7 @@ struct Options {
       if(!mdCore.empty())return mdCore;
       if(!core.empty())return core.parent_path()/("picodrive_libretro"+core.extension().string());
     }
+    if(system=="PSX") {if(!psxCore.empty())return psxCore;if(!core.empty())return core.parent_path()/("pcsx_rearmed_libretro"+core.extension().string());}
     return {};
   }
   std::vector<Volume> volumes;
@@ -92,6 +99,8 @@ public:
   bool sleeping = false;
   bool gameInputBlocked=true;
   uint16_t gameButtons(uint16_t);
+  void gameInput(uint16_t, const std::array<int16_t,4> &);
+  bool psxDualshock() const;
   bool screenBlank=false, batteryWarningsLoaded=false;
   uint64_t wakeConsumeUntil=0, lastActivity=0, powerSampleAt=0, batteryChargeAt=0;
   uint64_t batteryNoticeUntil=0;
@@ -132,6 +141,8 @@ public:
   Screen deleteOrigin = Screen::LoadSlots;
   int selected = 0, row = 0, slot = 0, category = 0, regionFocus = 0;
   double scroll = 0, regionScroll = 0;
+  std::vector<std::string> psxBiosChoices;
+  double psxBiosScroll=0;
   int settingsFocus = 0;
   double settingsScroll = 0;
   void returnToSettings();
@@ -252,6 +263,7 @@ public:
   std::vector<Zone> locations() const;
   void action(const std::string &);
   void draw();
+  SDL_Rect gameViewport() const;
   void ticks(unsigned);
   void capture(const std::string &);
   void persist(Json);

@@ -147,6 +147,19 @@ std::optional<bool> readBootLogo() {
   } catch (...) {}
   return std::nullopt;
 }
+int16_t stickAxis(int value,int minimum,int maximum) {
+  if(minimum>=maximum)return 0;
+  const int64_t center=(int64_t(minimum)+maximum+1)/2;
+  int64_t delta=int64_t(value)-center;
+  int64_t range=delta<0?center-minimum:maximum-center;
+  if(range<=0)return 0;
+  int limit=delta<0?32768:32767;
+  int magnitude=int(std::min<int64_t>(range,std::abs(delta))*limit/range);
+  const int deadzone=4096;
+  if(magnitude<=deadzone)return 0;
+  int normalized=(magnitude-deadzone)*limit/(limit-deadzone);
+  return int16_t(delta<0?-normalized:normalized);
+}
 std::vector<std::string> H700InputState::event(unsigned type, unsigned code, int value, uint64_t now) {
   std::vector<std::string> actions;
   auto set = [&](const std::string &action, bool held) {
@@ -159,17 +172,22 @@ std::vector<std::string> H700InputState::event(unsigned type, unsigned code, int
       repeats.erase(action);
     }
   };
-  if (type == 0 && code == 3) { // SYN_DROPPED: never leave a game button stuck.
-    down.clear();
-    repeats.clear();
-  } else if (type == 1 && (value == 0 || value == 1)) {
+  if (type == 0 && code == 3) { // SYN_DROPPED: discard through SYN_REPORT.
+    down.clear();repeats.clear();axes={};dropped=true;return {};
+  }
+  if(dropped){if(type==0&&code==0)dropped=false;return {};}
+  if (type == 1 && (value == 0 || value == 1)) {
     static const std::map<unsigned, std::string> codes = {
       {103,"UP"},{108,"DOWN"},{105,"LEFT"},{106,"RIGHT"},
       {304,"A"},{305,"B"},{307,"X"},{306,"Y"},
-      {310,"SELECT"},{311,"START"},{308,"L1"},{309,"R1"},{312,"MENU"}};
+      {310,"SELECT"},{311,"START"},{308,"L1"},{309,"R1"},{312,"MENU"},
+      {314,"L2"},{315,"R2"},{313,"L3"},{316,"R3"}};
     auto it = codes.find(code);
     if (it != codes.end()) set(it->second, value == 1);
     // Ignore synthetic KEY_GOTO (354), POWER, lid and duplicate kernel repeats.
+  } else if(type==3 && code>=2 && code<=5) {
+    // ANBERNIC-keys H700 native axes: Z/RX/RY/RZ, not SDL axis indices.
+    auto range=ranges[code-2];axes[code-2]=stickAxis(value,range.first,range.second);
   } else if (type == 3 && (code == 16 || code == 17)) {
     set(code == 16 ? "LEFT" : "UP", value < 0);
     set(code == 16 ? "RIGHT" : "DOWN", value > 0);
@@ -199,6 +217,14 @@ H700Keys::H700Keys() {
     ioctl(fd, EVIOCGNAME(sizeof(name)), name);
     if (std::string(name) != "ANBERNIC-keys") { close(fd); continue; }
     devices.push_back({fd, {}});
+    auto &state=devices.back().state;
+    for(unsigned code=2;code<=5;++code) {
+      input_absinfo info{};
+      if(ioctl(fd,EVIOCGABS(code),&info)==0 && info.minimum<info.maximum) {
+        state.ranges[code-2]={info.minimum,info.maximum};
+        state.event(3,code,info.value,0);
+      }
+    }
     std::cerr << "H700 input: " << entry.path() << " " << name << " (raw evdev, no grab)\n";
   }
   if (devices.empty()) std::cerr << "H700 input: ANBERNIC-keys not found or unreadable\n";
@@ -213,6 +239,14 @@ bool H700Keys::pressed(const std::string &action) const {
   for (auto &device : devices) if (device.state.down.count(action)) return true;
   return false;
 }
+std::array<int16_t,4> H700Keys::axes() const {
+  std::array<int16_t,4> result{};int strongest=0;
+  for(const auto &device:devices) {
+    int strength=0;for(auto value:device.state.axes)strength+=std::abs(int(value));
+    if(strength>strongest){strongest=strength;result=device.state.axes;}
+  }
+  return result;
+}
 std::vector<std::string> H700Keys::poll() {
   std::vector<std::string> actions;
 #ifdef __linux__
@@ -221,12 +255,23 @@ std::vector<std::string> H700Keys::poll() {
     input_event e;
     ssize_t count;
     while ((count = read(device.fd, &e, sizeof(e))) == sizeof(e)) {
+      bool resync=device.state.dropped && e.type==0 && e.code==0;
       auto next = device.state.event(e.type, e.code, e.value, now);
+      if(resync) {
+        // Re-read the current state once after an evdev overrun, never per frame.
+        for(unsigned code=2;code<=5;++code) {
+          input_absinfo info{};
+          if(ioctl(device.fd,EVIOCGABS(code),&info)==0)device.state.event(3,code,info.value,now);
+        }
+        unsigned long keys[(KEY_MAX+8*sizeof(unsigned long))/(8*sizeof(unsigned long))]{};
+        if(ioctl(device.fd,EVIOCGKEY(sizeof(keys)),keys)==0)
+          for(unsigned code=0;code<=KEY_MAX;++code)
+            if(keys[code/(8*sizeof(unsigned long))]&(1UL<<(code%(8*sizeof(unsigned long)))))device.state.event(1,code,1,now);
+      }
       actions.insert(actions.end(), next.begin(), next.end());
     }
     if (count == 0 || (count < 0 && errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)) {
-      device.state.down.clear();
-      device.state.repeats.clear();
+      device.state.down.clear();device.state.repeats.clear();device.state.axes={};
     }
     auto next = device.state.repeat(now);
     actions.insert(actions.end(), next.begin(), next.end());

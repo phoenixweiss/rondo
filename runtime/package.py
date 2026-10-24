@@ -84,7 +84,7 @@ def main():
     app = payload / "System/Rondo"
     for directory in ["bin", "cores", "lib", "tools", "modules"]:
         (app / directory).mkdir(parents=True, exist_ok=True)
-    for name in ["rondo", "fceumm_libretro.so", "gambatte_libretro.so", "gpsp_libretro.so", "mednafen_supafaust_libretro.so", "picodrive_libretro.so"]:
+    for name in ["rondo", "fceumm_libretro.so", "gambatte_libretro.so", "gpsp_libretro.so", "mednafen_supafaust_libretro.so", "picodrive_libretro.so", "pcsx_rearmed_libretro.so"]:
         shutil.copyfile(work / "programs" / name, app / ("bin" if name == "rondo" else "cores") / name)
     for name in ["libSDL2-2.0.so.0", "libSDL2_ttf-2.0.so.0"]:
         shutil.copyfile(work / "sdk/lib" / name, app / "lib" / name)
@@ -111,6 +111,7 @@ def main():
                             "gpsp": ["platform=arm64", "HAVE_DYNAREC=1", "GIT_VERSION="],
                             "supafaust": ["platform=unix", "-mcpu=cortex-a53", "-mtune=cortex-a53", "GIT_VERSION="],
                             "picodrive": ["platform=aarch64", "use_libchdr=0", "use_sh2drc=0", "use_svpdrc=0", "GIT_REVISION=", "PLATFORM_TREMOR=1"],
+                            "pcsx_rearmed": ["platform=unix", "ARCH=aarch64", "DYNAREC=ari64", "HAVE_CHD=1", "HAVE_PHYSICAL_CDROM=0", "GIT_VERSION="],
                             "ttf": ["embedded FreeType", "--disable-harfbuzz"]}}
     if (root / "VERSION").is_file():
         version = (root / "VERSION").read_text().strip()
@@ -122,6 +123,8 @@ def main():
     licenses.mkdir()
     for src, name in [
         (root / "LICENSE", "Rondo-MIT.txt"),
+        (work / "sources" / sources["openbios"]["directory"] / "LICENSE", "OpenBIOS-MIT.txt"),
+        (work / "sources" / sources["openbios"]["directory"] / "openbios/charset/README.md", "OpenBIOS-Font-Notices.md"),
         (work / "sources" / sources["sdl"]["directory"] / "LICENSE.txt", "SDL-LICENSE.txt"),
         (work / "sources" / sources["ttf"]["directory"] / "LICENSE.txt", "SDL_ttf-LICENSE.txt"),
         (work / "sources" / sources["ttf"]["directory"] / "external/freetype/docs/FTL.TXT", "FreeType-FTL.txt"),
@@ -130,6 +133,9 @@ def main():
         (work / "sources" / sources["gpsp"]["directory"] / "COPYING", "gpSP-GPLv2.txt"),
         (work / "sources" / sources["gpsp"]["directory"] / "bios/README.md", "gpSP-Open-BIOS.txt"),
         (work / "sources" / sources["supafaust"]["directory"] / "COPYING", "Supafaust-GPLv2.txt"),
+        (work / "sources" / sources["pcsx_rearmed"]["directory"] / "COPYING", "PCSX-ReARMed-GPLv2.txt"),
+        (work / "sources" / sources["pcsx_rearmed"]["directory"] / "deps/libchdr/LICENSE.txt", "libchdr-BSD.txt"),
+        (work / "sources" / sources["pcsx_rearmed"]["directory"] / "deps/libchdr/deps/lzma-26.02/LICENSE", "LZMA-Public-Domain.txt"),
         (work / "sources" / sources["picodrive"]["directory"] / "COPYING", "PicoDrive-Noncommercial.txt"),
         (work / "sources" / sources["picodrive"]["directory"] / "cpu/fame/fame.html", "FAME-License.html"),
         (work / "sources" / sources["picofe"]["directory"] / "README", "libpicofe-README.txt"),
@@ -184,7 +190,7 @@ def main():
     verify_zip(package)
     result = {"package": package.name, "sha256": sha(package), "source_id": source_id,
               "payload_files": len(files(payload)), "embedded_freetype": version,
-              "binaries": {n: sha(app / n) for n in ["bin/rondo", "cores/fceumm_libretro.so", "cores/gambatte_libretro.so", "cores/gpsp_libretro.so", "cores/mednafen_supafaust_libretro.so", "cores/picodrive_libretro.so",
+              "binaries": {n: sha(app / n) for n in ["bin/rondo", "cores/fceumm_libretro.so", "cores/gambatte_libretro.so", "cores/gpsp_libretro.so", "cores/mednafen_supafaust_libretro.so", "cores/picodrive_libretro.so", "cores/pcsx_rearmed_libretro.so",
                            "lib/libSDL2-2.0.so.0", "lib/libSDL2_ttf-2.0.so.0"]}}
     (output / (package.name + ".sha256")).write_text(result["sha256"] + "  " + package.name + "\n")
     (output / "build-result.json").write_text(json.dumps(result, sort_keys=True, indent=2) + "\n")

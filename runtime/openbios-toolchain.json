@@ -1,0 +1,80 @@
+{
+  "description": "Build-only MIPS cross compiler packages; never installed on the handheld or redistributed in the frontend ZIP",
+  "packages": [
+    {
+      "file": "binutils-mipsel-linux-gnu_2.42-2ubuntu1cross5_arm64.deb",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/b/binutils-mipsen/binutils-mipsel-linux-gnu_2.42-2ubuntu1cross5_arm64.deb",
+      "sha256": "b324db31fbf354c5e9a6f85f2257396d2cfc3688924bb9560a68464f2e3a0153"
+    },
+    {
+      "file": "cpp-mipsel-linux-gnu_4%3a12.2.0-4_arm64.deb",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/g/gcc-defaults-mipsen/cpp-mipsel-linux-gnu_12.2.0-4_arm64.deb",
+      "sha256": "6dec0f087e18bcd9fb6948cd6f6af5005c656e19dd1eac270d2842b6d4b6f6e6"
+    },
+    {
+      "file": "gcc-mipsel-linux-gnu_4%3a12.2.0-4_arm64.deb",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/g/gcc-defaults-mipsen/gcc-mipsel-linux-gnu_12.2.0-4_arm64.deb",
+      "sha256": "7442b120c2ccfa9e446a84fb3fbc9551cb6d3058e158037a4b2fee949a9321a0"
+    },
+    {
+      "file": "libc6-dev-mipsel-cross_2.39-0ubuntu8cross2_all.deb",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/c/cross-toolchain-base-mipsen/libc6-dev-mipsel-cross_2.39-0ubuntu8cross2_all.deb",
+      "sha256": "8ecc06ee54a05945b990107ae9f319aaed6495c00397de4394a27f997f770ec1"
+    },
+    {
+      "file": "libc6-mipsel-cross_2.39-0ubuntu8cross2_all.deb",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/c/cross-toolchain-base-mipsen/libc6-mipsel-cross_2.39-0ubuntu8cross2_all.deb",
+      "sha256": "2dd58a305c355f00fe9c09482c4b922b2e00af3b83464f9336fade7c3e07751d"
+    },
+    {
+      "file": "linux-libc-dev-mipsel-cross_6.8.0-25.25cross2_all.deb",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/c/cross-toolchain-base-mipsen/linux-libc-dev-mipsel-cross_6.8.0-25.25cross2_all.deb",
+      "sha256": "6e49d1374c63e8b917fea98d2688226b4b4ebcf55e36588b9d8cec918044d6f2"
+    },
+    {
+      "file": "cpp-12-mipsel-linux-gnu_12.4.0-2ubuntu1~24.04cross8_arm64.deb",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/g/gcc-12-cross-mipsen/cpp-12-mipsel-linux-gnu_12.4.0-2ubuntu1%7e24.04cross8_arm64.deb",
+      "sha256": "25742bc9ba28843f751ad067db2e4738ac3dc8235b29af89920a54773683545e"
+    },
+    {
+      "file": "gcc-12-cross-base-mipsen_12.4.0-2ubuntu1~24.04cross8_all.deb",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/g/gcc-12-cross-mipsen/gcc-12-cross-base-mipsen_12.4.0-2ubuntu1%7e24.04cross8_all.deb",
+      "sha256": "0d5caadc3622bb123782796e85520811e64885700f63ec9af256c849dcf81f9d"
+    },
+    {
+      "file": "gcc-12-mipsel-linux-gnu_12.4.0-2ubuntu1~24.04cross8_arm64.deb",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/g/gcc-12-cross-mipsen/gcc-12-mipsel-linux-gnu_12.4.0-2ubuntu1%7e24.04cross8_arm64.deb",
+      "sha256": "d7644ed7630bdde4c1be0bc236378e8aba64a4846d609ec612eceab94d23766d"
+    },
+    {
+      "file": "gcc-12-mipsel-linux-gnu-base_12.4.0-2ubuntu1~24.04cross8_arm64.deb",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/g/gcc-12-cross-mipsen/gcc-12-mipsel-linux-gnu-base_12.4.0-2ubuntu1%7e24.04cross8_arm64.deb",
+      "sha256": "385755c34552d0cd13deffe9f30f45136bec405185b4173701a20a8f0fc60824"
+    },
+    {
+      "file": "gcc-14-cross-base-mipsen_14.2.0-4ubuntu2~24.04cross1_all.deb",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/g/gcc-14-cross-mipsen/gcc-14-cross-base-mipsen_14.2.0-4ubuntu2%7e24.04cross1_all.deb",
+      "sha256": "1c0bda495642a32509abe92aea09f7a338034a54b41c8cffa1c187e15e97d3d6"
+    },
+    {
+      "file": "libatomic1-mipsel-cross_14.2.0-4ubuntu2~24.04cross1_all.deb",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/g/gcc-14-cross-mipsen/libatomic1-mipsel-cross_14.2.0-4ubuntu2%7e24.04cross1_all.deb",
+      "sha256": "39f5c42c4d67c2c357c5c99cb92cd49381e8537ed47c7a4d464e6528ff28f2ce"
+    },
+    {
+      "file": "libgcc-12-dev-mipsel-cross_12.4.0-2ubuntu1~24.04cross8_all.deb",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/g/gcc-12-cross-mipsen/libgcc-12-dev-mipsel-cross_12.4.0-2ubuntu1%7e24.04cross8_all.deb",
+      "sha256": "278538d67c99e549458732a9570365a3ccb2f26aa96e126078c1b18295659080"
+    },
+    {
+      "file": "libgcc-s1-mipsel-cross_14.2.0-4ubuntu2~24.04cross1_all.deb",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/g/gcc-14-cross-mipsen/libgcc-s1-mipsel-cross_14.2.0-4ubuntu2%7e24.04cross1_all.deb",
+      "sha256": "ef14ff7ba058735de979fd9c7cfe46cade3f42a5b4cb85673ff0e3f9e6b55040"
+    },
+    {
+      "file": "libgomp1-mipsel-cross_14.2.0-4ubuntu2~24.04cross1_all.deb",
+      "url": "https://ports.ubuntu.com/ubuntu-ports/pool/universe/g/gcc-14-cross-mipsen/libgomp1-mipsel-cross_14.2.0-4ubuntu2%7e24.04cross1_all.deb",
+      "sha256": "ed346c5cb2ea93b6786cc7ca7bc9127107d8ee9946c376978771b440b1a305ff"
+    }
+  ]
+}

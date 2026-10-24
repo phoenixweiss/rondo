@@ -146,8 +146,12 @@ static void held(App &a) {
   put(RETRO_DEVICE_ID_JOYPAD_Y, raw.pressed("Y"));
   put(RETRO_DEVICE_ID_JOYPAD_L, raw.pressed("L1"));
   put(RETRO_DEVICE_ID_JOYPAD_R, raw.pressed("R1"));
-  mask |= a.ui->controllerButtons();
-  a.core->buttons = a.gameButtons(mask);
+  put(RETRO_DEVICE_ID_JOYPAD_L2,raw.pressed("L2"));
+  put(RETRO_DEVICE_ID_JOYPAD_R2,raw.pressed("R2"));
+  put(RETRO_DEVICE_ID_JOYPAD_L3,raw.pressed("L3"));
+  put(RETRO_DEVICE_ID_JOYPAD_R3,raw.pressed("R3"));
+  mask |= a.ui->controllerButtons(!a.psxDualshock() && a.store.data.value("left_stick_dpad",true));
+  a.gameInput(mask,a.ui->controllerAxes());
 }
 static void events(App &a) {
   for (auto &action:a.ui->powerKeys->poll()) a.action(action);
@@ -292,6 +296,9 @@ static Json supervise(App &a, const Json &runnerScript) {
   if(!gbaCore.empty()) {args.push_back("--gba-core");args.push_back(gbaCore.string());}
   auto mdCore=a.options.coreFor("MD");
   if(!mdCore.empty()) {args.push_back("--md-core");args.push_back(mdCore.string());}
+  auto psxCore=a.options.coreFor("PSX");if(!psxCore.empty()){args.push_back("--psx-core");args.push_back(psxCore.string());}
+  if(!a.options.psxBios.empty()){args.push_back("--psx-bios");args.push_back(a.options.psxBios.string());}
+  if(a.options.psxTestHle)args.push_back("--psx-test-hle");
   auto snesCore=a.options.coreFor("SNES");
   if(!snesCore.empty()) {args.push_back("--snes-core");args.push_back(snesCore.string());}
   if (a.options.headless)
@@ -445,6 +452,9 @@ int main(int argc, char **argv) {
         opts.gbCore = fs::absolute(value());
       else if (flag == "--gba-core")
         opts.gbaCore = fs::absolute(value());
+      else if(flag=="--psx-core")opts.psxCore=fs::absolute(value());
+      else if(flag=="--psx-bios")opts.psxBios=fs::absolute(value());
+      else if(flag=="--psx-test-hle")opts.psxTestHle=true;
       else if (flag == "--md-core")
         opts.mdCore = fs::absolute(value());
       else if (flag == "--snes-core")
@@ -488,12 +498,13 @@ int main(int argc, char **argv) {
         return 0;
       } else if (flag == "--help") {
         std::cout << "rondo --volume CARD_ID=ROMS_PATH --state NEW_STATE_PATH "
-                     "--core FCEUMM_LIBRARY [--gb-core GAMBATTE_LIBRARY] [--gba-core GPSP_LIBRARY] [--snes-core SUPAFAUST_LIBRARY] [--md-core PICODRIVE_LIBRARY] [--headless --script SCRIPT.json "
+                     "--core FCEUMM_LIBRARY [--gb-core GAMBATTE_LIBRARY] [--gba-core GPSP_LIBRARY] [--snes-core SUPAFAUST_LIBRARY] [--md-core PICODRIVE_LIBRARY] [--psx-core PCSX_LIBRARY] [--psx-bios DIRECTORY] [--headless --script SCRIPT.json "
                      "--output DIR]\n";
         return 0;
       } else
         throw std::runtime_error("Unknown argument: " + flag);
     }
+    if(opts.psxTestHle&&!opts.headless)throw std::runtime_error("HLE is restricted to explicit headless technical tests");
     if (opts.state.empty())
       throw std::runtime_error("An explicit --state directory is required");
     if (!opts.script.empty() && !opts.headless)
@@ -617,8 +628,11 @@ int main(int argc, char **argv) {
     if (runner) {
       app.core->flushSram();
       report["frames"] = app.core->frames;
+      report["video"]=app.core->videoGeometry();
+      auto viewport=app.gameViewport();
+      report["viewport"]={{"x",viewport.x},{"y",viewport.y},{"width",viewport.w},{"height",viewport.h}};
       report["audio_frames"] = app.core->audioFrames;
-      report["state_hash"] = app.core->stateHash();
+      if(opts.headless)report["state_hash"] = app.core->stateHash();
       message(fd,
               {{"type", "stopped"}, {"game_closed", app.gameClosed}, {"report", report}, {"feedback", app.volumeFeedback.json()},
                {"runtime_volume", app.previewVolume},

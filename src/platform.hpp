@@ -4,6 +4,7 @@
 #include "model.hpp"
 #include <optional>
 #include <memory>
+#include <array>
 namespace rondo {
 struct Telemetry {
   std::optional<int> capacity;
@@ -22,7 +23,11 @@ void applyBootLogo(bool enabled);
 std::optional<bool> readBootLogo();
 } // namespace rondo
 namespace rondo {
+int16_t stickAxis(int value, int minimum=-32768, int maximum=32767);
 struct H700InputState {
+  std::array<int16_t,4> axes{};
+  std::array<std::pair<int,int>,4> ranges{{{-4096,4096},{-4096,4096},{-4096,4096},{-4096,4096}}};
+  bool dropped=false;
   std::set<std::string> down;
   std::map<std::string, uint64_t> repeats;
   std::vector<std::string> event(unsigned type, unsigned code, int value, uint64_t now);
@@ -36,6 +41,7 @@ public:
   ~H700Keys();
   bool available() const { return !devices.empty(); }
   bool pressed(const std::string &) const;
+  std::array<int16_t,4> axes() const;
   std::vector<std::string> poll();
 };
 struct VolumeInputState {

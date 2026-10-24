@@ -40,9 +40,12 @@ run("runtime-build-tools", [sys.executable, str(ROOT / "tests/runtime_build_test
 run("release-tools", [sys.executable, str(ROOT / "tests/release_tests.py")])
 run("system-power", [sys.executable, str(ROOT / "tests/system_power_tests.py")])
 run("installer", [sys.executable, str(ROOT / "tests/installer_tests.py")])
-run("build", ["make", "-j4", "all", "build/battery-log-tests", "build/model-tests", "build/core-tests",
-              "build/device-tests", "build/system-info-tests", "build/md-tests", "build/snes-tests", "build/gba-tests", "build/gb-tests", "build/bluetooth-tests", "build/volume-ui-tests", "build/timezone-tests", "build/battery-tests", "build/wifi-tests", "build/clock-tests"], timeout=300)
+run("build", ["make", "-j4", "all", "build/battery-log-tests", "build/model-tests", "build/core-tests", "build/state-tests",
+              "build/device-tests", "build/system-info-tests", "build/psx-tests", "build/md-tests", "build/snes-tests", "build/gba-tests", "build/gb-tests", "build/bluetooth-tests", "build/volume-ui-tests", "build/timezone-tests", "build/battery-tests", "build/wifi-tests", "build/clock-tests"], timeout=300)
 run("system-info", [str(ROOT / "build/system-info-tests"), str(ROOT / "assets"), str(work / "system-info"), str(ROOT / "build/rondo")])
+run("state", [str(ROOT / "build/state-tests"), str(work / "state-container")])
+run("psx", [str(ROOT / "build/psx-tests"), str(ROOT / "assets"), str(work / "psx"), str(core), str(core.with_name("pcsx_rearmed_libretro."+extension)), str(ROOT / "runtime/test-fixtures/psx")])
+run("psx-runner", [sys.executable, str(ROOT / "tests/psx_runner_checks.py"), str(work / "psx-runner"), str(core), str(core.with_name("pcsx_rearmed_libretro."+extension))])
 run("md", [str(ROOT / "build/md-tests"), str(ROOT / "assets"), str(work / "md"), str(core), str(core.with_name("picodrive_libretro."+extension)), str(ROOT / "runtime/test-fixtures/md")])
 run("md-runner", [sys.executable, str(ROOT / "tests/md_runner_checks.py"), str(work / "md-runner"), str(core), str(core.with_name("picodrive_libretro."+extension))])
 run("snes", [str(ROOT / "build/snes-tests"), str(ROOT / "assets"), str(work / "snes"), str(core), str(core.with_name("mednafen_supafaust_libretro."+extension)), str(ROOT / "runtime/test-fixtures/snes")])

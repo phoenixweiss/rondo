@@ -1,3 +1,4 @@
+#include "state.hpp"
 #include "core.hpp"
 #include <algorithm>
 #include <cassert>
@@ -30,21 +31,27 @@ int main(int argc, char **argv) {
     assert(c.stateHash() != hash);
     c.loadState(0);
     assert(c.stateHash() == hash);
-    auto manual=readBytes(state/"slot-0.json");
+    auto manual=readBytes(state/"slot-0.state");
     c.saveAutomatic();assert(c.compatibleAutomatic());auto automaticHash=c.stateHash();
     for(int i=0;i<12;++i)c.tick();c.loadAutomatic();assert(c.stateHash()==automaticHash);
     for(int i=0;i<12;++i)c.tick();c.saveAutomatic();
-    assert(readBytes(state/"slot-0.json")==manual && fs::exists(state/"autosave.json.previous"));
-    atomicWrite(state/"autosave.json",{'b','a','d'});assert(c.compatibleAutomatic());
+    assert(readBytes(state/"slot-0.state")==manual && fs::exists(state/"autosave.state.previous"));
+    atomicWrite(state/"autosave.state",{'b','a','d'});assert(c.compatibleAutomatic());
+    c.loadAutomatic();assert(c.stateHash()==automaticHash);
+    // Valid metadata with a damaged payload must fall back before unserialize.
+    atomicWrite(state/"autosave.state",readBytes(state/"autosave.state.previous"));
+    auto corrupt=readBytes(state/"autosave.state");corrupt.back()^=1;atomicWrite(state/"autosave.state",corrupt);
     c.loadAutomatic();assert(c.stateHash()==automaticHash);
     c.saveAutomatic();assert(c.compatibleAutomatic());
     c.flushSram();
+    auto stamp=fs::last_write_time(state/"sram.bin");c.flushSram();
+    assert(fs::last_write_time(state/"sram.bin")==stamp);
+    auto savedRam=readBytes(state/"sram.bin");fs::remove(state/"sram.bin");c.flushSram();assert(readBytes(state/"sram.bin")==savedRam);
     persisted = readBytes(state / "sram.bin")[0];
     assert(persisted != 0);
-    auto j = readJson(state / "slot-0.json");
-    j["rom"] = "other-rom";
-    auto s = j.dump();
-    atomicWrite(state / "slot-0.json", {s.begin(), s.end()});
+    auto stateFile = readState(state / "slot-0.state");
+    stateFile.meta["rom"] = "other-rom";
+    writeState(state / "slot-0.state",stateFile);
     assert(!c.compatible(0));
     bool rejected = false;
     try {

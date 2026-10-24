@@ -91,9 +91,9 @@ int main(int argc, char **argv) {
     assert(sanitized.data["locale"]==preferences["locale"]);
 
     fs::create_directories(root / "moved/PS/Disc");
-    atomicWrite(root / "moved/PS/Disc/a.cue", {});
-    atomicWrite(root / "moved/PS/Disc/b.cue", {});
-    std::string playlist = "a.cue\nb.cue\n";
+    atomicWrite(root / "moved/PS/Disc/a.chd", {});
+    atomicWrite(root / "moved/PS/Disc/b.chd", {});
+    std::string playlist = "a.chd\nb.chd\n";
     atomicWrite(root / "moved/PS/Disc/game.m3u", {playlist.begin(), playlist.end()});
     assert(scan({{"a", root / "moved"}}).size() == 2);
     // All platforms share one title order, independent of case and host locale.
@@ -273,6 +273,19 @@ int main(int argc, char **argv) {
     pad.event(1, 103, 1, 1010);
     pad.event(0, 3, 0, 1011);
     assert(pad.down.empty() && pad.repeats.empty());
+    assert(pad.event(3,2,-4096,1012).empty() && pad.axes[0]==0); // discarded until report
+    pad.event(0,0,0,1013);
+    for(unsigned axis=2;axis<=5;++axis) {
+      pad.event(3,axis,-4096,1014);assert(pad.axes[axis-2]==-32768);
+      pad.event(3,axis,4096,1015);assert(pad.axes[axis-2]==32767);
+      pad.event(3,axis,200,1016);assert(pad.axes[axis-2]==0);
+    }
+    pad.ranges[0]={0,255};pad.event(3,2,128,1017);assert(pad.axes[0]==0);
+    pad.event(3,2,0,1018);assert(pad.axes[0]==-32768);
+    pad.event(0,3,0,1019);assert((pad.axes==std::array<int16_t,4>{}));pad.event(0,0,0,1020);
+    for(auto code:{313u,314u,315u,316u}){pad.event(1,code,1,1021);}
+    assert(pad.down.count("L2")&&pad.down.count("R2")&&pad.down.count("L3")&&pad.down.count("R3"));
+
     assert(brightnessRawLevel(0)==4 && brightnessRawLevel(100)==254);
     assert(brightnessRawLevel(90)==192 && brightnessRawLevel(95)==224);
     assert(brightnessRawLevel(-100)==4 && brightnessRawLevel(1000)==254);

@@ -20,6 +20,9 @@ cp mednafen_supafaust_libretro.so /work/programs/
 cd "/work/sources/$(python3 -c 'import json; print("picodrive-"+json.load(open("/src/docs/dependencies/md-core-source.json"))["revision"])')"
 make -f Makefile.libretro -j"$jobs" platform=aarch64 CC="$CC" CXX="$CXX" use_libchdr=0 use_sh2drc=0 use_svpdrc=0 GIT_REVISION= PLATFORM_TREMOR=1 > /work/md-core-build.log 2>&1
 cp picodrive_libretro.so /work/programs/
+cd "/work/sources/$(python3 -c 'import json; print("pcsx_rearmed-"+json.load(open("/src/docs/dependencies/psx-core-source.json"))["revision"])')"
+CFLAGS='-mcpu=cortex-a53 -mtune=cortex-a53' make -f Makefile.libretro -j"$jobs" platform=unix ARCH=aarch64 DYNAREC=ari64 HAVE_CHD=1 HAVE_PHYSICAL_CDROM=0 GIT_VERSION= > /work/psx-core-build.log 2>&1
+cp pcsx_rearmed_libretro.so /work/programs/
 make -C /src -j"$jobs" h700-programs BUILD=/work/programs PKG_CONFIG=true \
  CXX="$CXX" CXXFLAGS='-std=c++17 -O2 -Wall -Wextra' \
  CPPFLAGS='-I/src/src -I/src/vendor -I/work/sdk/include/SDL2' \

@@ -1,10 +1,28 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 PAVEL TKACHEV
 #include "app.hpp"
+#include "state.hpp"
+#include "psx.hpp"
 #include <algorithm>
 #include <iostream>
 #include <sstream>
 namespace rondo {
+static fs::path biosPath(const Options &o){return o.psxBios.empty()?o.state/"BIOS/PSX":o.psxBios;}
+static std::string psxMode(const Options &o,const Json &data){return o.psxTestHle?"hle":data.value("psx_firmware","openbios");}
+static fs::path psxFirmwarePath(const Options &o,const Json &data){
+ if(psxMode(o,data)=="openbios")return o.assets/"Firmware/OpenBIOS";
+ if(psxMode(o,data)!="bios")return biosPath(o);
+ auto file=data.value("psx_bios_file","auto");
+ if(!psxBiosFilename(file))throw std::runtime_error("Invalid PSX BIOS filename");
+ return file=="auto"?biosPath(o):biosPath(o)/file;
+}
+static fs::path psxRuntimeFirmware(const Options &o,const Json &data) {
+ auto selected=psxFirmwarePath(o,data);
+ if(psxMode(o,data)=="bios" && data.value("psx_bios_file","auto")!="auto")
+  return psxPrepareBios(selected,o.state/"BIOSSelection");
+ return selected;
+}
+static std::string contentHash(const Options &o,const Json &data,const Game &g){return g.system=="PSX"?psxContentHash(g.path,psxFirmwarePath(o,data),psxMode(o,data)=="hle"):hashFile(g.path);}
 App::App(Options opts, bool runner, const Game &entry)
     : options(std::move(opts)), store(options.state), locale(options.assets) {
   locale.select(options.assets, store.data.value("locale", "en"));
@@ -30,7 +48,8 @@ App::App(Options opts, bool runner, const Game &entry)
     requestBootLogo(store.data.value("replace_boot_logo", true));
   if (runner) {
     game = entry;
-    core = std::make_unique<Core>(options.coreFor(game.system), game, store.gameDir(game), options.headless);
+    core = std::make_unique<Core>(options.coreFor(game.system), game, store.gameDir(game), options.headless, game.system=="PSX"?psxRuntimeFirmware(options,store.data):fs::path(), psxMode(options,store.data)=="hle");
+    core->psxController(psxDualshock());
     core->volume = previewVolume;
     screen = Screen::Running;
   } else {
@@ -265,6 +284,11 @@ std::string App::screenName() const {
     return "load_confirm";
   case Screen::ExitConfirm:
     return "exit_confirm";
+  case Screen::CoreSettings: return "core_settings";
+  case Screen::PsxCoreSettings: return "psx_core_settings";
+  case Screen::PsxBiosFiles: return "psx_bios_files";
+  case Screen::PsxFirmwareError: return "psx_firmware_error";
+  case Screen::PsxWarning: return "psx_hle_warning";
   case Screen::Recovery:
     return "recovery";
   }
@@ -274,6 +298,7 @@ void App::record(const std::string &event) {
   // Do not journal typed Wi-Fi characters, capture paths or user content.
   if (screen != Screen::WifiPassword && event.find("capture:") != 0)
     batterySample(event.find("failure") != std::string::npos ? "operation_failed" : "action:" + event);
+  if(trace.size()>=256)trace.erase(trace.begin());
   trace.push_back({{"event", event},
                    {"screen", screenName()},
                    {"row", row},
@@ -345,13 +370,12 @@ static bool anySlots(App &a) {
 bool App::usableSlot(int i) const {
   if(core)return i==3?core->compatibleAutomatic():core->compatible(i);
   try {
-    auto coreHash=hashFile(options.coreFor(game.system)),romHash=hashFile(game.path);
-    const std::vector<std::string> paths=i==3?std::vector<std::string>{"autosave.json","autosave.json.previous"}:
-      std::vector<std::string>{"slot-"+std::to_string(i)+".json"};
+    auto coreHash=hashFile(options.coreFor(game.system)),romHash=contentHash(options,store.data,game);
+    const std::vector<std::string> paths=i==3?std::vector<std::string>{"autosave.state","autosave.state.previous"}:
+      std::vector<std::string>{stateName(i)};
     for(const auto &name:paths)try {
-      auto meta=readJson(store.gameDir(game)/name);
-      if(meta.at("core")==coreHash && meta.at("rom")==romHash &&
-         meta.at("sha256")==hashBytes(meta.at("payload").get<std::vector<uint8_t>>()))return true;
+      auto meta=readState(store.gameDir(game)/name,StateRead::Metadata).meta;
+      if(meta.at("core")==coreHash && meta.at("rom")==romHash)return true;
     }catch(...){}
   }catch(...){}
   return false;
@@ -359,14 +383,13 @@ bool App::usableSlot(int i) const {
 int App::latestResumeSlot() const {
   int selected=-1;long long bestSequence=-1,bestUtc=0;
   try {
-    auto coreHash=core?core->identity:hashFile(options.coreFor(game.system)),romHash=core?core->romHash:hashFile(game.path);
+    auto coreHash=core?core->identity:hashFile(options.coreFor(game.system)),romHash=core?core->romHash:contentHash(options,store.data,game);
     for(int candidate=0;candidate<4;++candidate) {
-      const auto paths=candidate==3?std::vector<std::string>{"autosave.json","autosave.json.previous"}:
-        std::vector<std::string>{"slot-"+std::to_string(candidate)+".json"};
+      const auto paths=candidate==3?std::vector<std::string>{"autosave.state","autosave.state.previous"}:
+        std::vector<std::string>{stateName(candidate)};
       for(const auto &name:paths)try {
-        auto meta=readJson(store.gameDir(game)/name);
-        if(meta.at("core")!=coreHash || meta.at("rom")!=romHash ||
-           meta.at("sha256")!=hashBytes(meta.at("payload").get<std::vector<uint8_t>>()))continue;
+        auto meta=readState(store.gameDir(game)/name,StateRead::Metadata).meta;
+        if(meta.at("core")!=coreHash || meta.at("rom")!=romHash)continue;
         auto sequence=saveSequence(meta),utc=meta.value("utc",0LL);
         if(selected<0 || sequence>bestSequence || (sequence==bestSequence && utc>bestUtc)) {
           selected=candidate;bestSequence=sequence;bestUtc=utc;
@@ -403,6 +426,25 @@ uint16_t App::gameButtons(uint16_t held) {
   }
   return held;
 }
+bool App::psxDualshock() const {
+  auto mode=store.data.value("psx_controller","digital");
+  const auto &games=store.data.at("game_options");
+  if(games.contains(game.id))mode=games.at(game.id).value("psx_controller",mode);
+  return game.system=="PSX" && mode=="dualshock";
+}
+void App::gameInput(uint16_t held,const std::array<int16_t,4> &axes) {
+  if(!core)return;
+  core->buttons=0;core->axes={};
+  if(screen!=Screen::Running || core->paused)return;
+  if(gameInputBlocked) {
+    bool neutral=held==0;
+    for(auto axis:axes)neutral=neutral && axis==0;
+    if(neutral)gameInputBlocked=false;
+    return;
+  }
+  core->buttons=held;
+  if(game.system=="PSX")core->axes=axes;
+}
 void App::action(const std::string &a) {
   if (stop || screen == Screen::SystemProgress || screen==Screen::SavingAutomatic) return;
   if(activity())return;
@@ -417,6 +459,7 @@ void App::action(const std::string &a) {
   const std::string priorNotice = notice;
   const auto inputOrigin=screen;
   try {
+    if(screen==Screen::PsxWarning||screen==Screen::PsxFirmwareError) {if(a=="UP")infoScroll=std::max(0,infoScroll-1);if(a=="DOWN")++infoScroll;}
     if (a == "SLEEP") { sleep(); record(a); return; }
     if (a == "VOLUME_UP" || a == "VOLUME_DOWN") {
       volumeFeedback.begin(monotonicMs());
@@ -501,6 +544,8 @@ void App::action(const std::string &a) {
         } else if (!fs::is_regular_file(options.coreFor(game.system))) {
           screen = Screen::Recovery;
           notice = locale.tr("error.core_unavailable");
+        } else if(game.system=="PSX"&&psxMode(options,store.data)!="hle"&&!psxBiosAvailable(psxFirmwarePath(options,store.data))) {
+          screen=Screen::PsxFirmwareError;infoScroll=0;
         } else if (latestResumeSlot()>=0) {
           screen = Screen::ResumeChoice;
           row = 0;
@@ -554,16 +599,17 @@ void App::action(const std::string &a) {
       }
     } else if (screen == Screen::Settings) {
       if (a == "UP") settingsFocus = std::max(0, settingsFocus - 1);
-      if (a == "DOWN") settingsFocus = std::min(9, settingsFocus + 1);
+      if (a == "DOWN") settingsFocus = std::min(10, settingsFocus + 1);
       row = settingsFocus;
       if (a == "B") screen = Screen::Library;
-      if (a == "A" && settingsFocus >= 8) {
-        restartRequested = settingsFocus == 8;
+      if (a == "A" && settingsFocus >= 9) {
+        restartRequested = settingsFocus == 9;
         screen = Screen::SystemConfirm; row = 0;
         record("system:confirm"); return;
       }
       if (a == "A") {
-        if(settingsFocus==7) {
+        if(settingsFocus==7) {screen=Screen::CoreSettings;row=0;return;}
+        if(settingsFocus==8) {
           screen=Screen::SystemInfo;systemInfoPage="root";systemInfoRow=0;systemInfoScroll=0;systemInfoStack.clear();systemInfoSource=false;
           if(systemInfoData.empty())systemInfoRefresh();record("system_info:open");return;
         }
@@ -573,6 +619,50 @@ void App::action(const std::string &a) {
         row = 0;
         if (category == 6) clockPollAt = 0;
       }
+    } else if(screen==Screen::CoreSettings) {
+      if(a=="UP")row=std::max(0,row-1);
+      if(a=="DOWN")row=std::min(1,row+1);
+      if(row==0 && a=="A") {screen=Screen::PsxCoreSettings;row=0;}
+      else if(row==1 && (a=="LEFT"||a=="RIGHT"||a=="A")) {
+        auto next=store.data;bool value=next.value("left_stick_dpad",true);
+        next["left_stick_dpad"]=a=="LEFT"?false:a=="RIGHT"?true:!value;persist(next);
+      }
+      if(a=="B")returnToSettings();
+    } else if(screen==Screen::PsxCoreSettings) {
+      if(a=="B") {screen=Screen::CoreSettings;row=0;}
+      if(a=="UP")row=std::max(0,row-1);
+      if(a=="DOWN")row=std::min(psxMode(options,store.data)=="bios"?2:1,row+1);
+      if(row==2 && a=="A") {
+        psxBiosChoices={"auto"};
+        for(const auto &file:psxBiosFiles(biosPath(options)))psxBiosChoices.push_back(file.filename().string());
+        auto selected=store.data.value("psx_bios_file","auto");
+        if(std::find(psxBiosChoices.begin(),psxBiosChoices.end(),selected)==psxBiosChoices.end())psxBiosChoices.push_back(selected);
+        row=int(std::find(psxBiosChoices.begin(),psxBiosChoices.end(),selected)-psxBiosChoices.begin());
+        psxBiosScroll=0;screen=Screen::PsxBiosFiles;
+        return;
+      }
+      if(row==1&&(a=="LEFT"||a=="RIGHT"||a=="A")) {
+        auto next=store.data;next["psx_controller"]=next.value("psx_controller","digital")=="digital"?"dualshock":"digital";persist(next);
+      }
+      if(row==0&&(a=="LEFT"||a=="RIGHT"||a=="A")) {
+        const std::vector<std::string> modes{"openbios","bios","hle"};
+        auto next=store.data;auto it=std::find(modes.begin(),modes.end(),next.value("psx_firmware","openbios"));
+        auto index=int(it-modes.begin());next["psx_firmware"]=modes[(index+(a=="LEFT"?2:1))%3];persist(next);notice.clear();
+      }
+    } else if(screen==Screen::PsxBiosFiles) {
+      if(a=="B"){screen=Screen::PsxCoreSettings;row=2;}
+      else if(a=="UP")row=std::max(0,row-1);
+      else if(a=="DOWN")row=std::min(int(psxBiosChoices.size())-1,row+1);
+      else if(a=="L1")row=std::max(0,row-5);
+      else if(a=="R1")row=std::min(int(psxBiosChoices.size())-1,row+5);
+      else if(a=="A" && row>=0 && row<int(psxBiosChoices.size())) {
+        auto selected=psxBiosChoices[row];
+        if(selected!="auto"&&!psxBiosAvailable(biosPath(options)/selected))notice=locale.tr("psx.file_unavailable");
+        else {auto next=store.data;next["psx_bios_file"]=selected;persist(next);screen=Screen::PsxCoreSettings;row=2;notice.clear();}
+      }
+    } else if(screen==Screen::PsxFirmwareError) {
+      if(a=="B") {screen=Screen::Library;resume=false;}
+      if(a=="A") {screen=Screen::PsxCoreSettings;row=0;settingsFocus=7;}
     } else if (screen == Screen::SettingsSection) {
       int count = category==3 ? 6 : (category == 4 || category == 1) ? 3 : (category == 0 || category == 5) ? 2 : 1;
       if (a == "UP") row = std::max(0, row - 1);
@@ -778,7 +868,7 @@ void App::action(const std::string &a) {
         screen = Screen::GameMenu;
         row = 0;
         core->paused = true;
-        core->buttons = 0;
+        core->buttons = 0;core->axes={};
         core->silence();
       }
     } else if (screen == Screen::GameMenu) {
@@ -810,6 +900,22 @@ void App::action(const std::string &a) {
         row = 0;
       }
     } else if (screen == Screen::GameSettings) {
+      if(a=="UP")row=std::max(0,row-1);
+      int controllerRow=core->discCount()>1?2:1;
+      if(a=="DOWN")row=std::min(game.system=="PSX"?controllerRow:0,row+1);
+      if(game.system=="PSX" && row==controllerRow && (a=="A"||a=="LEFT"||a=="RIGHT")) {
+        auto next=store.data;auto &options=next["game_options"][game.id];
+        if(!options.is_object())options=Json::object();
+        const std::vector<std::string> modes{"default","digital","dualshock"};
+        auto current=options.value("psx_controller","default");
+        int index=int(std::find(modes.begin(),modes.end(),current)-modes.begin());
+        auto desired=modes[(index+(a=="LEFT"?2:1))%3];
+        if(desired=="default") {options.erase("psx_controller");if(options.empty())next["game_options"].erase(game.id);}
+        else options["psx_controller"]=desired;
+        persist(next);core->psxController(psxDualshock());
+        return;
+      }
+      if(core->discCount()>1 && row==1&&(a=="A"||a=="LEFT"||a=="RIGHT")) {auto count=core->discCount();core->changeDisc((core->discIndex()+(a=="LEFT"?count-1:1))%count);record("disc:changed");return;}
       if (a == "B") {
         screen = Screen::GameMenu;
         row = 3;
@@ -847,7 +953,7 @@ void App::action(const std::string &a) {
             screen = Screen::LoadConfirm;
             row = 0;
           }
-        } else if (fs::exists(store.gameDir(game) / ("slot-" + std::to_string(slot) + ".json"))) {
+        } else if (fs::exists(store.gameDir(game) / stateName(slot))) {
           screen = Screen::Overwrite;
           row = 0;
         } else {
@@ -901,9 +1007,22 @@ void App::action(const std::string &a) {
           stop = true;
         }
       }
+    } else if (screen == Screen::PsxWarning) {
+      if(a=="B") {screen=Screen::Library;resume=false;}
+      if(a=="A") {
+        auto next=store.data;next["psx_hle_warning_acknowledged"]=true;persist(next);
+        screen=Screen::Launching;launch=true;
+      }
     } else if (screen == Screen::Recovery) {
       if (a == "B")
         screen = Screen::Library;
+    }
+    if(launch&&game.system=="PSX"&&psxMode(options,store.data)!="hle"&&!psxBiosAvailable(psxFirmwarePath(options,store.data))) {
+      launch=false;screen=Screen::PsxFirmwareError;infoScroll=0;
+    }
+    if(launch&&game.system=="PSX"&&!options.psxTestHle&&psxMode(options,store.data)=="hle"&&
+       !store.data.value("psx_hle_warning_acknowledged",false)) {
+      launch=false;screen=Screen::PsxWarning;infoScroll=0;
     }
   } catch (const std::exception &e) {
     if (a == "VOLUME_UP" || a == "VOLUME_DOWN")
@@ -917,19 +1036,22 @@ void App::action(const std::string &a) {
   }
   if(inputOrigin!=Screen::Running && screen==Screen::Running) {
     gameInputBlocked=true;
-    if(core)core->buttons=0;
+    if(core){core->buttons=0;core->axes={};}
   }
   record(a);
 }
 std::string App::infoKey() const {
+  if(screen==Screen::CoreSettings && row==1)return "left_stick";
+  if(screen==Screen::PsxBiosFiles || (screen==Screen::PsxCoreSettings&&row==2))return "psx_bios_file";
+  if(screen==Screen::PsxCoreSettings)return row==0?"psx_firmware":"psx_controller";
   if(screen==Screen::Bluetooth || screen==Screen::BluetoothDevices || screen==Screen::BluetoothDevice || screen==Screen::BluetoothForget)return "bluetooth";
   if(screen==Screen::Clock || screen==Screen::ClockEdit)return "clock";
   if (screen==Screen::WifiPassword) return "";
   if (screen==Screen::Wifi || screen==Screen::WifiNetworks || screen==Screen::WifiNetwork) return "wifi";
-  if (screen == Screen::GameSettings) return "scaling";
+  if (screen == Screen::GameSettings) return row==0?"scaling":core->discCount()>1&&row==1?"disc":"psx_controller";
   if (screen == Screen::SaveSlots || screen == Screen::LoadSlots) return "slots";
   if (screen == Screen::Regions || screen == Screen::Zones) return "timezone";
-  if (screen == Screen::Settings && settingsFocus >= 8) return "system_power";
+  if (screen == Screen::Settings && settingsFocus >= 9) return "system_power";
   if (screen != Screen::SettingsSection) return "";
   if (category == 4) return "debug";
   if (category == 0) return row == 0 ? "language" : "boot";
@@ -1016,14 +1138,18 @@ void App::batterySample(const std::string &event) {
   const auto now=monotonicMs();
   if(event.empty() && now<diagnosticSampleAt)return;
   diagnosticSampleAt=now+5000;
-  bool ok = batteryLog->sample(now, {{"screen", screenName()},
-      {"brightness_percent", brightness ? Json(*brightness) : Json(nullptr)},
-      {"volume_percent", previewVolume},
-      {"stored_volume_percent", store.data.value("volume", 80)},
-      {"battery_display", ui ? ui->batteryDisplay : Json(nullptr)},
-      {"paused", core ? Json(core->paused) : Json(nullptr)},
-      {"bluetooth", btDiagnostic}, {"frames",frameDiagnostic},
-      {"controller_input",ui?ui->controllerDiagnostics():Json(nullptr)}}, event);
+  Json context={{"screen",screenName()},{"volume_percent",previewVolume},
+      {"brightness_percent",brightness?Json(*brightness):Json(nullptr)},
+      {"paused",core?Json(core->paused):Json(nullptr)}};
+  if(level=="detailed" && event.empty()) {
+    context["battery_display"]=ui?ui->batteryDisplay:Json(nullptr);
+    context["frames"]=frameDiagnostic;context["bluetooth"]=btDiagnostic;
+    context["controller_input"]=ui?ui->controllerDiagnostics():Json(nullptr);
+    context["builtin_axes"]=ui?Json(ui->handheldKeys->axes()):Json(nullptr);
+    // Geometry is constant-size metadata; never scan the framebuffer for logs.
+    if(core)context["video"]={{"width",core->width},{"height",core->height},{"fps",core->fps}};
+  }
+  bool ok=batteryLog->sample(now,context,event);
   if (!ok && !batteryLogWarning) {
     std::cerr << "Battery diagnostic journal unavailable; gameplay continues: "
               << batteryLog->lastError.dump() << "\n";
@@ -1185,7 +1311,7 @@ void App::sleep() {
   auto origin=screen; bool wasPaused=core?core->paused:true;
   try {
     while (bootPending()) { ticks(0);SDL_Delay(5); }
-    if (core) { core->paused=true;core->buttons=0;core->silence();core->flushSram();core->closeAudio(); }
+    if (core) { core->paused=true;core->buttons=0;core->axes={};core->silence();core->flushSram();core->closeAudio(); }
     volumeTick(true); // Audio/emulation are paused; finish the last requested gain.
     batterySample("sleep_before");
     record("sleep:prepared");
@@ -1206,7 +1332,7 @@ void App::sleep() {
     batterySample("sleep_failed");
     std::cerr<<"Sleep: "<<e.what()<<"\n";
     if(core) {
-      core->paused=true;core->buttons=0;
+      core->paused=true;core->buttons=0;core->axes={};
       try { core->openAudio(); } catch(const std::exception &audio) { std::cerr<<audio.what()<<"\n"; }
       if(origin==Screen::Running) { screen=Screen::GameMenu;row=0; }
     }
@@ -1215,7 +1341,7 @@ void App::sleep() {
   sleeping=false;
 }
 const App::SlotView &App::slotView(int index) {
-  auto path=store.gameDir(game)/("slot-"+std::to_string(index)+".json");
+  auto path=store.gameDir(game)/stateName(index);
   std::error_code error;auto stamp=fs::last_write_time(path,error);
   std::string key=game.id+(error?":missing":std::to_string(static_cast<long long>(stamp.time_since_epoch().count()))+":"+std::to_string(fs::file_size(path,error)));
   auto &cached=slotCache[index]; if(cached.first==key)return cached.second;
@@ -1223,15 +1349,12 @@ const App::SlotView &App::slotView(int index) {
   view.present=fs::is_regular_file(path,error);
   if (!view.present) return view;
   try {
-    auto meta=readJson(path); view.utc=meta.value("utc",0LL);
-    view.compatible=usableSlot(index);
-    if(meta.contains("preview")) {
-      auto p=meta.at("preview");int w=p.at("width"),h=p.at("height");
-      if(w>0 && h>0 && w<=1024 && h<=1024 && p.at("pixels").size()==size_t(w)*h) {
-        auto pixels=p.at("pixels").get<std::vector<uint32_t>>();auto bytes=reinterpret_cast<const uint8_t *>(pixels.data());
-        if(hashBytes({bytes,bytes+pixels.size()*sizeof(uint32_t)})==p.at("sha256")) {view.width=w;view.height=h;view.pixels=std::move(pixels);}
-      }
-    }
+    auto state=readState(path,StateRead::Preview);const auto &meta=state.meta;
+    view.utc=meta.value("utc",0LL);
+    const auto coreHash=core?core->identity:hashFile(options.coreFor(game.system));
+    const auto romHash=core?core->romHash:contentHash(options,store.data,game);
+    view.compatible=meta.at("core")==coreHash&&meta.at("rom")==romHash;
+    view.width=meta.at("preview_width");view.height=meta.at("preview_height");view.pixels=std::move(state.pixels);
   } catch (...) {}
   return view;
 }
@@ -1246,6 +1369,25 @@ void App::capture(const std::string &name) {
   draw();
   ui->save(options.output / (name + ".png"));
   record("capture:" + name);
+}
+SDL_Rect App::gameViewport() const {
+  if(!core || core->width<=0 || core->height<=0)return {0,0,720,480};
+  int w=720,h=480;
+  if(game.system=="GB" || game.system=="GBC" || game.system=="GBA") {
+    double scale=std::min(720.0/core->width,480.0/core->height);
+    w=int(core->width*scale);h=int(core->height*scale);
+  }
+  if(game.system=="SNES" || game.system=="MD" || game.system=="PSX") {
+    h=480;w=int(h*core->aspectRatio);
+    if(w>720){w=720;h=int(w/core->aspectRatio);}
+  }
+  if(store.integerScaling(game.id)) {
+    int scale=std::min(720/core->width,480/core->height);
+    // Interlaced PSX may be taller than the panel. There is no positive
+    // integer scale in this case: fit the frame instead of clipping it.
+    if(scale>0){w=core->width*scale;h=core->height*scale;}
+  }
+  return {(720-w)/2,(480-h)/2,w,h};
 }
 void App::draw() {
   ui->bluetoothEnabled=bt.enabled;
@@ -1269,21 +1411,8 @@ void App::draw() {
   auto zone = store.data.value("timezone", "Etc/UTC");
   if (screen == Screen::Running) {
     ui->rect(0, 0, 720, 480, gameBackground());
-    int w = 720, h = 480;
-    if(game.system=="GB" || game.system=="GBC" || game.system=="GBA") {
-      double scale=std::min(720.0/core->width,480.0/core->height);
-      w=int(core->width*scale);h=int(core->height*scale);
-    }
-    if(game.system=="SNES" || game.system=="MD") {
-      h=480;w=int(h*core->aspectRatio);
-      if(w>720) {w=720;h=int(w/core->aspectRatio);}
-    }
-    if (store.integerScaling(game.id)) {
-      int scale = std::max(1, std::min(720 / core->width, 480 / core->height));
-      w = core->width * scale;
-      h = core->height * scale;
-    }
-    ui->pixels(core->frame, core->width, core->height, (720 - w) / 2, (480 - h) / 2, w, h);
+    auto viewport=gameViewport();
+    ui->pixels(core->frame,core->width,core->height,viewport.x,viewport.y,viewport.w,viewport.h,game.system!="PSX");
     if (!notice.empty()) ui->notice(notice,"folder");
     if(batteryWarningPercent>=0 && monotonicMs()<batteryNoticeUntil && store.data.value("battery_warning",true)) {
       ui->rect(584,24,112,40,ui->focus,8);
@@ -1392,28 +1521,64 @@ void App::draw() {
     wifiDraw();
   } else if (screen == Screen::Settings) {
     const std::vector<std::string> labels = {"section.interface", "section.display", "section.sound",
-      "clock.title", "section.network", "section.power", "section.debug", "sysinfo.title", "power.restart", "power.shutdown"};
-    const std::vector<std::string> icons = {"panels-top-left","monitor","volume-2","clock","wifi","battery","bug","panels-top-left","rotate-cw","power"};
+      "clock.title", "section.network", "section.power", "section.debug", "section.cores", "sysinfo.title", "power.restart", "power.shutdown"};
+    const std::vector<std::string> icons = {"panels-top-left","monitor","volume-2","clock","wifi","battery","bug","grid-2x2","panels-top-left","rotate-cw","power"};
     ui->frame(tr("screen.settings"), "", zone, "settings");
-    constexpr double viewport = 324, content = 10 * 54 + 16;
-    const double top = settingsFocus * 54 + (settingsFocus >= 8 ? 16 : 0);
+    constexpr double viewport = 324, content = 11 * 54 + 16;
+    const double top = settingsFocus * 54 + (settingsFocus >= 9 ? 16 : 0);
     if (top < settingsScroll) settingsScroll = top;
     if (top + 54 > settingsScroll + viewport) settingsScroll = top + 54 - viewport;
     settingsScroll = std::clamp(settingsScroll, 0.0, content - viewport);
     SDL_Rect clip{16, 84, 672, 324};
     SDL_RenderSetClipRect(ui->renderer, &clip);
-    const int divider = 84 + 8 * 54 + 7 - int(settingsScroll);
+    const int divider = 84 + 9 * 54 + 7 - int(settingsScroll);
     ui->line(32,divider,672,divider,ui->separator);
-    for (int i = 0; i < 10; ++i) {
-      int y = 84 + i * 54 + (i >= 8 ? 16 : 0) - int(settingsScroll);
+    for (int i = 0; i < 11; ++i) {
+      int y = 84 + i * 54 + (i >= 9 ? 16 : 0) - int(settingsScroll);
       if (y + 52 > 84 && y < 408)
         ui->row(tr(labels[i]), y, i == settingsFocus, 672, "", true, 52, "chevron-right", icons[i]);
     }
     SDL_RenderSetClipRect(ui->renderer, nullptr);
     ui->scrollbar(content, viewport, settingsScroll, false, 91, 406);
     std::vector<std::pair<std::string,std::string>> hints{{"A",tr("action.open")},{"B",tr("action.back")}};
-    if(settingsFocus >= 8) hints.push_back({"X",tr("footer.info")});
+    if(settingsFocus >= 9) hints.push_back({"X",tr("footer.info")});
     ui->hints(hints);
+  } else if(screen==Screen::CoreSettings) {
+    ui->frame(tr("section.cores"),tr("screen.settings"),zone);
+    ui->row("Sony PlayStation",128,row==0,672,"",true,52,"chevron-right","grid-2x2");
+    ui->binaryRow(tr("setting.left_stick_dpad"),182,row==1,store.data.value("left_stick_dpad",true),locale);
+    if(row==0)ui->hints({{"A",tr("action.open")},{"B",tr("action.back")}});
+    else ui->hints({{"LEFT/RIGHT",tr("footer.value")},{"B",tr("action.back")},{"X",tr("footer.info")}});
+  } else if(screen==Screen::PsxCoreSettings) {
+    ui->frame("Sony PlayStation",tr("section.cores"),zone);
+    ui->row(tr("psx.firmware"),128,row==0,672,tr("psx.mode."+store.data.value("psx_firmware","openbios")));
+    ui->row(tr("psx.controller"),182,row==1,672,tr("psx.controller."+store.data.value("psx_controller","digital")));
+    if(psxMode(options,store.data)=="bios") {
+      auto selected=store.data.value("psx_bios_file","auto");
+      ui->row(tr("psx.bios_file"),236,row==2,672,selected=="auto"?tr("psx.file_auto"):selected,true,52,"chevron-right");
+    }
+    if(row==2)ui->hints({{"A",tr("action.open")},{"B",tr("action.back")},{"X",tr("footer.info")}});
+    else ui->hints({{"LEFT/RIGHT",tr("footer.value")},{"B",tr("action.back")},{"X",tr("footer.info")}});
+  } else if(screen==Screen::PsxBiosFiles) {
+    ui->frame(tr("psx.bios_file"),"Sony PlayStation",zone);
+    const double viewport=280;double target=std::max(0.0,std::min(psxBiosScroll,double(psxBiosChoices.size()*54)-viewport));
+    if(row*54<target)target=row*54;
+    if((row+1)*54>target+viewport)target=(row+1)*54-viewport;
+    psxBiosScroll=std::max(0.0,target);
+    SDL_Rect clip{0,128,720,int(viewport)};SDL_RenderSetClipRect(ui->renderer,&clip);
+    auto selected=store.data.value("psx_bios_file","auto");
+    for(size_t i=0;i<psxBiosChoices.size();++i) {
+      auto file=psxBiosChoices[i];auto label=file=="auto"?tr("psx.file_auto"):file;
+      ui->row(label,128+int(i)*54-int(psxBiosScroll),row==int(i),672,"",true,52,file==selected?"check":"");
+    }
+    SDL_RenderSetClipRect(ui->renderer,nullptr);
+    ui->scrollbar(psxBiosChoices.size()*54,viewport,psxBiosScroll,false,128,408);
+    ui->hints({{"A",tr("action.apply")},{"B",tr("action.cancel")},{"X",tr("footer.info")}});
+  } else if(screen==Screen::PsxFirmwareError) {
+    ui->frame(tr("psx.hle_title"),game.title,zone);
+    auto missing=psxMode(options,store.data)=="bios"&&store.data.value("psx_bios_file","auto")!="auto"?"psx.missing.selected":"psx.missing."+psxMode(options,store.data);
+    infoScroll=ui->info(tr("psx.unavailable"),locale.tr(missing,{{"path",psxFirmwarePath(options,store.data).string()}}),infoScroll);
+    ui->hints({{"A",tr("screen.settings")},{"B",tr("action.back")}});
   } else if (screen == Screen::SettingsSection) {
     const std::vector<std::string> labels = {"section.interface", "section.display", "section.sound",
       "section.power", "section.debug", "section.network"};
@@ -1553,7 +1718,14 @@ void App::draw() {
     bool inherited = !options.contains(game.id) || !options.at(game.id).contains("integer_scaling");
     auto effective = tr(store.integerScaling(game.id)?"value.on":"value.off");
     auto value = inherited ? locale.tr("value.global_state",{{"value",effective}}) : effective;
-    ui->row(tr("setting.integer_scaling"),128,true,672,value);
+    ui->row(tr("setting.integer_scaling"),128,row==0,672,value);
+    if(core->discCount()>1)ui->row(tr("setting.disc"),182,row==1,672,std::to_string(core->discIndex()+1)+" / "+std::to_string(core->discCount()));
+    if(game.system=="PSX") {
+      int controllerRow=core->discCount()>1?2:1;
+      bool inherited=!options.contains(game.id)||!options.at(game.id).contains("psx_controller");
+      auto mode=tr(psxDualshock()?"psx.controller.dualshock":"psx.controller.digital");
+      ui->row(tr("psx.controller"),128+controllerRow*54,row==controllerRow,672,inherited?locale.tr("value.global_state",{{"value",mode}}):mode);
+    }
     ui->hints({{"LEFT/RIGHT", tr("footer.value")}, {"B", tr("action.back")}, {"X", tr("footer.info")}});
   } else if (screen == Screen::SaveSlots || screen == Screen::LoadSlots) {
     ui->frame(tr(screen == Screen::SaveSlots ? "screen.save_slots" : "screen.load_slots"),
@@ -1606,6 +1778,10 @@ void App::draw() {
       ui->text(autosaveError.empty()?tr(store.data.value("autosave_enabled",true)?"exit.autosave":"exit.warning"):tr("autosave.failed"),32,136,22,400,ui->secondary,656);
     if(screen==Screen::ExitConfirm && !autosaveError.empty())ui->row(tr("autosave.skip"),312,row==2);
     ui->hints({{"A", tr("action.select")}, {"B", tr("action.back")}});
+  } else if(screen==Screen::PsxWarning||screen==Screen::PsxFirmwareError) {
+    ui->frame(tr("psx.hle_title"),game.title,zone);
+    infoScroll=ui->info(tr("psx.hle_heading"),locale.tr("psx.hle_warning",{{"path",biosPath(options).string()}}),infoScroll);
+    ui->hints({{"A",tr("action.resume")},{"B",tr("action.back")},{"UP/DOWN",tr("sysinfo.select")}});
   } else {
     ui->frame(tr(screen == Screen::Launching ? "progress.launch" : "screen.recovery"), game.title,
               zone);
@@ -1618,7 +1794,7 @@ void App::draw() {
     auto key = infoKey();
     auto body = key == "timezone"
         ? locale.tr("info.timezone.body", {{"pages", ui->buttonLabel("L1/R1")}})
-        : tr("info." + key + ".body");
+        : key=="psx_firmware"?locale.tr("info.psx_firmware.body",{{"path",biosPath(options).string()}}):tr("info." + key + ".body");
     if(key=="wifi" && !wifi.address.empty())body+="\nIP: "+wifi.address;
     if (key=="brightness" && !brightness) body+="\n"+tr("binary.unsupported");
     if (key=="clock") body+="\n"+tr("clock.last")+": "+(clockLastSync>0 && zones.valid(zone)?slotDate(clockLastSync):tr("clock.never"));

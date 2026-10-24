@@ -19,18 +19,21 @@ operations; Events adds controls, screen context and lifecycle/sleep markers;
 Detailed also samples raw battery/USB changes (five-second polling, otherwise
 one record per minute). No setting recalibrates or smooths the gauge.
 
-Structured logs are `RondoState/Logs/shell.jsonl` and `runner.jsonl` on the SD
-card. Each rotates to `*.previous.jsonl` before 2 MiB. Recoveries retain one
-`*.recovered.jsonl` per role, each at most 512 KiB plus separators: the total
-persistent journal budget is approximately 9 MiB. No new diagnostic SD files
-are created while debug mode is off. Existing logs remain until cleared. Raw process/ALSA output is separate, bounded
-to two RAM files under `/tmp/rondo-output`; it is not an opt-out SD journal.
+Ordinary events are short timestamped text lines in `RondoState/Logs/shell.log`
+and `runner.log`. Each includes monotonic time, role, event and a compact JSON
+context after a tab, so tools can still parse it. Events do not read sysfs, the
+device tree, mount tables or the kernel ring. Detailed mode alone adds periodic
+battery telemetry to `shell.jsonl`/`runner.jsonl` (at most once per five seconds;
+unchanged observations are suppressed for up to a minute). Debug remains off
+by default. Filtering happens before constructing controller/video context.
+Video context never scans framebuffer pixels; action traces retain at most 256
+entries even with debugging disabled.
 
-Write errors retain operation/path/errno and a storage snapshot (read-only flag,
-free bytes, FAT mount options and up to 32 filtered storage-related kernel
-messages where permitted). The kernel ring is read without clearing it. Missing
-access is recorded as an error, not a healthy device result. Snapshots accompany
-lifecycle/error events; they do not repair, remount or modify the filesystem.
+Both streams rotate independently to `*.previous.log`/`*.previous.jsonl` at
+2 MiB per active/previous file. Recovery files are separately bounded to 512 KiB
+plus separators. A process has a background writer and a bounded 64-entry queue;
+ordinary events never force per-line fsync. The Clear logs action removes both
+formats and their previous/recovered generations, including retained older logs.
 
 If SD writes fail, a bounded RAM journal under `/tmp/rondo-diagnostics/Logs`
 retains two 256 KiB generations per role. After writing recovers, the data is
@@ -117,12 +120,11 @@ changing the battery curve or assuming the kernel gauge is wrong.
 
 ## Runtime battery passport
 
-The first eligible diagnostic row in each shell/runner logging session includes
-`battery_passport`. The cached passport is repeated after 30 minutes of monotonic
-time so rotation is less likely to discard it. Its capture UTC, monotonic time
-and boot ID remain explicit when repeated. Debug mode still defaults to Off;
-Events/Detailed capture it at startup, Errors at the first eligible failure.
-There are no additional unbounded files. Clear logs also removes these records.
+A passport is collected only for the explicit `battery_passport` diagnostic
+request, and cached within that logger instance. Starting a game, menu actions,
+sleep and ordinary periodic telemetry do not trigger a device-tree/kernel scan.
+This low-level request is available to diagnostic tooling; it is not a new user
+settings row. The read-only passport collector is also covered by fixture tests.
 
 The passport records kernel release/build/taint and available driver/module
 identifiers, then discovers up to four runtime DT battery nodes matching the
@@ -135,7 +137,7 @@ packaged BaseOS DTB. Reads are bounded to 4096 bytes per binary property, 8192
 scanned tree entries and 20 recursion levels. Missing, ambiguous, oversized or
 unreadable inputs are explicit; they do not become default battery settings.
 
-The passport's `power_kernel` and lifecycle/storage snapshots retain up to 64
+The explicit passport's `power_kernel` and storage snapshot retain up to 64
 filtered AXP2202/model/gauge lines (512 bytes each) from a non-clearing read of
 the kernel ring. Permission failures and unsupported/isolated hosts are explicit.
 The scan does not collect arbitrary DT properties, serial numbers, boot arguments,

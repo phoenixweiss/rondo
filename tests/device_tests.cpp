@@ -1,3 +1,4 @@
+#include "state.hpp"
 #include "app.hpp"
 #include <cassert>
 #include <atomic>
@@ -74,7 +75,7 @@ int main(int argc,char **argv) {
   }
   {
     for(const auto *language:{"en","ru"}) {
-      for(int target:{8,9}) {
+      for(int target:{9,10}) {
         o.state=root/(std::string("system-power-")+language+std::to_string(target));App a(o);
         a.locale.select(o.assets,language);a.settingsFocus=0;a.screen=Screen::Settings;
         a.capture(std::string("settings-icons-top-")+language);
@@ -89,7 +90,7 @@ int main(int argc,char **argv) {
         a.action("A");assert(a.screen==Screen::Settings && a.row==target && !a.stop);
         a.action("A");a.action("DOWN");a.action("B");assert(!a.stop && a.row==target);
         a.action("A");a.action("DOWN");a.action("A");
-        assert(a.stop && a.systemExitCode==(target==9?64:65) && a.store.data==before);
+        assert(a.stop && a.systemExitCode==(target==10?64:65) && a.store.data==before);
         assert(a.screen==Screen::SystemProgress);
         a.capture(std::string("power-progress-")+language+std::to_string(target));
         a.action("B");a.action("A");a.action("VOLUME_UP");a.action("SLEEP");
@@ -250,9 +251,9 @@ int main(int argc,char **argv) {
       low.capacity=5;preview.batteryWarning(low,monotonicMs());preview.capture("battery-game-5");
       preview.screen=Screen::GameMenu;preview.capture("battery-menu-no-warning");
     }
-    { App a(o,true,entry);a.ticks(5);a.core->save(0);auto manual=readBytes(a.store.gameDir(entry)/"slot-0.json");
+    { App a(o,true,entry);a.ticks(5);a.core->save(0);auto manual=readBytes(a.store.gameDir(entry)/"slot-0.state");
       a.screen=Screen::ExitConfirm;a.row=1;a.action("A");assert(a.stop && a.core->compatibleAutomatic());
-      assert(readBytes(a.store.gameDir(entry)/"slot-0.json")==manual && a.latestResumeSlot()==3);
+      assert(readBytes(a.store.gameDir(entry)/"slot-0.state")==manual && a.latestResumeSlot()==3);
       a.rememberLaunch();
     }
     { App startup(o);assert(startup.screen==Screen::StartupResume && !startup.launch);
@@ -265,8 +266,8 @@ int main(int argc,char **argv) {
       failed.screen=Screen::ExitConfirm;failed.row=1;failed.action("A");assert(!failed.stop && !failed.gameClosed && !failed.autosaveError.empty());
       for(const auto *language:{"en","ru"}) {failed.locale.select(o.assets,language);failed.notice=failed.locale.tr("autosave.failed");failed.capture(std::string("autosave-error-")+language);}
       fs::remove(dir);fs::rename(dir.string()+".saved",dir);
-      auto prior=readBytes(dir/"autosave.json");failed.action("DOWN");assert(failed.row==2);failed.action("A");
-      assert(failed.stop && failed.gameClosed && readBytes(dir/"autosave.json")==prior);
+      auto prior=readBytes(dir/"autosave.state");failed.action("DOWN");assert(failed.row==2);failed.action("A");
+      assert(failed.stop && failed.gameClosed && readBytes(dir/"autosave.state")==prior);
     }
     { App closed(o);auto recent=closed.store.data["recent_games"];
       closed.rememberClosedGame();assert(closed.store.data["recent_games"]==recent);
@@ -354,32 +355,32 @@ int main(int argc,char **argv) {
     auto dir=a.store.gameDir(game);fs::rename(dir,dir.string()+".saved");std::ofstream(dir)<<"blocked";
     int count=d->sleeps;a.action("SLEEP");assert(d->sleeps==count && a.core->paused); // SRAM failure aborts sleep.
     fs::remove(dir);fs::rename(dir.string()+".saved",dir);
-    a.core->save(0);a.screen=Screen::LoadSlots;a.row=0;a.capture("slot-preview");auto meta=readJson(dir/"slot-0.json");assert(meta.contains("preview"));
-    auto &view=a.slotView(0);assert(view.compatible && view.pixels==a.core->frame && view.width==a.core->width && view.utc>0);
-    meta.erase("preview");auto text=meta.dump();atomicWrite(dir/"slot-1.json",{text.begin(),text.end()});
+    a.core->save(0);a.screen=Screen::LoadSlots;a.row=0;a.capture("slot-preview");auto state=readState(dir/"slot-0.state");assert(!state.pixels.empty());
+    auto &view=a.slotView(0);assert(view.compatible && view.width<=192 && view.height<=144 && view.utc>0);
+    state.pixels.clear();state.meta["preview_width"]=0;state.meta["preview_height"]=0;writeState(dir/"slot-1.state",state);
     auto &old=a.slotView(1);assert(old.compatible && old.pixels.empty() && old.utc==view.utc);
-    meta["core"]="wrong-core";text=meta.dump();atomicWrite(dir/"slot-2.json",{text.begin(),text.end()});assert(!a.slotView(2).compatible);a.row=1;a.capture("slot-legacy");a.row=2;a.capture("slot-incompatible");a.action("X");assert(a.infoOpen);a.capture("slots-info");
+    state.meta["core"]="wrong-core";writeState(dir/"slot-2.state",state);assert(!a.slotView(2).compatible);a.row=1;a.capture("slot-no-preview");a.row=2;a.capture("slot-incompatible");a.action("X");assert(a.infoOpen);a.capture("slots-info");
     // Updating time backwards must not make Continue choose the older slot.
-    auto legacy=readJson(dir/"slot-0.json");legacy.erase("save_sequence");legacy["utc"]=static_cast<long long>(time(nullptr))+86400;
-    auto encoded=legacy.dump();atomicWrite(dir/"slot-0.json",{encoded.begin(),encoded.end()});
-    a.core->save(1);auto recent=readJson(dir/"slot-1.json");
-    assert(recent["utc"]<legacy["utc"] && saveSequence(recent)>0 && a.latestResumeSlot()==1);
-    a.core->save(0);assert(a.latestResumeSlot()==0 && saveSequence(readJson(dir/"slot-0.json"))>saveSequence(recent));
+    auto future=readState(dir/"slot-0.state");future.meta["utc"]=static_cast<long long>(time(nullptr))+86400;
+    writeState(dir/"slot-0.state",future);
+    a.core->save(1);auto recent=readState(dir/"slot-1.state",StateRead::Metadata).meta;
+    assert(recent["utc"]<future.meta["utc"] && saveSequence(recent)>0 && a.latestResumeSlot()==1);
+    a.core->save(0);assert(a.latestResumeSlot()==0 && saveSequence(readState(dir/"slot-0.state",StateRead::Metadata).meta)>saveSequence(recent));
     // Deletion is confirmed, targets only one slot and preserves SRAM / neighbors.
     a.screen=Screen::LoadSlots;a.row=2;a.notice.clear();a.infoOpen=false;
-    auto kept0=readBytes(dir/"slot-0.json"),kept1=readBytes(dir/"slot-1.json");
-    std::ofstream(dir/"slot-2.json.previous")<<"old backup";
+    auto kept0=readBytes(dir/"slot-0.state"),kept1=readBytes(dir/"slot-1.state");
+    std::ofstream(dir/"slot-2.state.previous")<<"old backup";
     auto sramBefore=readBytes(dir/"sram.bin");
-    auto target=readBytes(dir/"slot-2.json");
+    auto target=readBytes(dir/"slot-2.state");
     a.action("Y");assert(a.screen==Screen::DeleteSlot && a.row==0);a.capture("delete-slot-confirm-en");
     a.locale.select(o.assets,"ru");a.capture("delete-slot-confirm-ru");
-    a.action("B");assert(a.screen==Screen::LoadSlots && a.row==2 && readBytes(dir/"slot-2.json")==target);
-    fs::remove(dir/"slot-2.json.previous");fs::create_directories(dir/"slot-2.json.previous");
-    std::ofstream(dir/"slot-2.json.previous/block")<<"failure fixture";
-    a.action("Y");a.action("DOWN");a.action("A");assert(a.screen==Screen::DeleteSlot && readBytes(dir/"slot-2.json")==target);
-    fs::remove_all(dir/"slot-2.json.previous");a.action("A");
-    assert(a.screen==Screen::LoadSlots && a.row==2 && !fs::exists(dir/"slot-2.json") && !a.slotView(2).present);
-    assert(readBytes(dir/"slot-0.json")==kept0 && readBytes(dir/"slot-1.json")==kept1 && readBytes(dir/"sram.bin")==sramBefore);
+    a.action("B");assert(a.screen==Screen::LoadSlots && a.row==2 && readBytes(dir/"slot-2.state")==target);
+    fs::remove(dir/"slot-2.state.previous");fs::create_directories(dir/"slot-2.state.previous");
+    std::ofstream(dir/"slot-2.state.previous/block")<<"failure fixture";
+    a.action("Y");a.action("DOWN");a.action("A");assert(a.screen==Screen::DeleteSlot && readBytes(dir/"slot-2.state")==target);
+    fs::remove_all(dir/"slot-2.state.previous");a.action("A");
+    assert(a.screen==Screen::LoadSlots && a.row==2 && !fs::exists(dir/"slot-2.state") && !a.slotView(2).present);
+    assert(readBytes(dir/"slot-0.state")==kept0 && readBytes(dir/"slot-1.state")==kept1 && readBytes(dir/"sram.bin")==sramBefore);
     a.capture("deleted-slot-ru");a.action("Y");assert(a.screen==Screen::LoadSlots);
     bool invalid=false;try{a.core->deleteSlot(-1);}catch(...){invalid=true;}assert(invalid);
     Store reload(o.state);assert(reload.data.value("lid_sleep",true));
@@ -440,11 +441,12 @@ int main(int argc,char **argv) {
   }
   {
     o.state=root/"debug-settings";App a(o);
+    for(int i=0;i<1000;++i)a.record("bounded-trace");assert(a.trace.size()==256);
     assert(!a.store.data.value("debug_enabled",true) && !a.batteryLog && !fs::exists(o.state/"Logs"));
     a.action("MENU");for(int i=0;i<6;++i)a.action("DOWN");a.action("A");assert(a.category==4);a.action("DOWN");
     a.action("RIGHT");assert(a.store.data["debug_level"]=="events" && !a.batteryLog);
     a.action("UP");a.requestSettings=[](Json){return false;};a.action("RIGHT");assert(!a.batteryLog && !a.store.data["debug_enabled"].get<bool>());
-    a.requestSettings={};a.action("RIGHT");assert(a.batteryLog);a.batteryLog->drain();assert(fs::exists(o.state/"Logs/shell.jsonl"));
+    a.requestSettings={};a.action("RIGHT");assert(a.batteryLog);a.batteryLog->drain();assert(fs::exists(o.state/"Logs/shell.log"));
     for(const auto *language:{"en","ru"}) {
       a.locale.select(o.assets,language);a.capture(std::string("debug-on-")+language);
       a.action("X");a.capture(std::string("debug-info-")+language);a.action("B");
@@ -452,7 +454,7 @@ int main(int argc,char **argv) {
     a.action("DOWN");a.action("RIGHT");assert(a.store.data["debug_level"]=="detailed");
     a.action("LEFT");a.action("LEFT");assert(a.store.data["debug_level"]=="errors");
     a.batteryLog->drain();
-    auto path=o.state/"Logs/shell.jsonl";auto size=fs::file_size(path);
+    auto path=o.state/"Logs/shell.log";auto size=fs::file_size(path);
     a.record("safe-event");a.batterySample();assert(fs::file_size(path)==size);
     a.batterySample("operation_failed");a.batteryLog->drain();assert(fs::file_size(path)>size);
     a.action("DOWN");a.action("A");assert(a.screen==Screen::LogClear);
@@ -475,11 +477,11 @@ int main(int argc,char **argv) {
       a.batterySample("start");
       auto fake=std::make_unique<FakeDevice>();auto *d=fake.get();a.device=std::move(fake);
       a.sleep();d->fail=true;a.sleep();
-      auto size=fs::file_size(log/"shell.jsonl");
-      a.ui.reset();a.batterySample();assert(fs::file_size(log/"shell.jsonl")==size);
+      auto size=fs::file_size(log/"shell.log");
+      a.ui.reset();a.batterySample();assert(fs::file_size(log/"shell.log")==size);
     }
-    std::ifstream input(log/"shell.jsonl");std::string line;std::vector<std::string> events;
-    while(std::getline(input,line)) { auto event=Json::parse(line).at("event").get<std::string>();if(event.find("action:")!=0)events.push_back(event); }
+    std::ifstream input(log/"shell.log");std::string line;std::vector<std::string> events;
+    while(std::getline(input,line)) { auto event=Json::parse(line.substr(line.find('\t')+1)).at("event").get<std::string>();if(event.find("action:")!=0)events.push_back(event); }
     assert((events==std::vector<std::string>{"start","sleep_before","sleep_after","sleep_before","sleep_failed","stop"}));
   }
   {
@@ -502,7 +504,7 @@ int main(int argc,char **argv) {
     if(std::string(SDL_GetPlatform())=="Linux") {assert(micro && std::string(micro).find("a:b1,")!=std::string::npos);}
     SDL_free(micro);
     char guid[64];SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(joystick),guid,sizeof(guid));
-    std::string mapping=std::string(guid)+",Rondo test controller,a:b0,b:b1,back:b4,start:b6,dpup:b11,dpdown:b12,dpleft:b13,dpright:b14,leftx:a0,lefty:a1,";
+    std::string mapping=std::string(guid)+",Rondo test controller,a:b0,b:b1,back:b4,start:b6,dpup:b11,dpdown:b12,dpleft:b13,dpright:b14,leftx:a0,lefty:a1,rightx:a2,righty:a3,lefttrigger:a4,righttrigger:a5,leftstick:b7,rightstick:b8,";
     assert(SDL_GameControllerAddMapping(mapping.c_str())>=0);
     SDL_PumpEvents();ui.refreshControllers();assert(ui.controllers.size()==1);
     SDL_JoystickSetVirtualButton(joystick,0,1);SDL_JoystickSetVirtualButton(joystick,4,1);SDL_GameControllerUpdate();
@@ -517,9 +519,19 @@ int main(int argc,char **argv) {
     SDL_JoystickSetVirtualAxis(joystick,1,20000);SDL_GameControllerUpdate();
     assert(ui.controllerButtons()&(1<<RETRO_DEVICE_ID_JOYPAD_DOWN));assert(ui.controllerNavigation()==std::vector<std::string>{"DOWN"});
     assert(ui.controllerNavigation().empty());
+    assert(!(ui.controllerButtons(false)&(1<<RETRO_DEVICE_ID_JOYPAD_DOWN)));
+    assert(ui.controllerAxes()[1]>12000);
+    SDL_JoystickSetVirtualAxis(joystick,0,-32768);SDL_JoystickSetVirtualAxis(joystick,2,32767);
+    SDL_JoystickSetVirtualAxis(joystick,3,-24000);SDL_JoystickSetVirtualAxis(joystick,5,32767);
+    SDL_JoystickSetVirtualButton(joystick,7,1);SDL_JoystickSetVirtualButton(joystick,8,1);SDL_GameControllerUpdate();
+    auto axes=ui.controllerAxes();assert(axes[0]==-32768&&axes[2]==32767&&axes[3]<-12000);
+    auto full=ui.controllerButtons(false);assert(full&(1<<RETRO_DEVICE_ID_JOYPAD_R2));
+    assert(full&(1<<RETRO_DEVICE_ID_JOYPAD_L3));assert(full&(1<<RETRO_DEVICE_ID_JOYPAD_R3));
+    SDL_JoystickSetVirtualAxis(joystick,0,0);SDL_JoystickSetVirtualAxis(joystick,2,0);SDL_JoystickSetVirtualAxis(joystick,3,0);
     SDL_JoystickSetVirtualAxis(joystick,1,4000);SDL_GameControllerUpdate();assert(ui.controllerNavigation().empty());
     SDL_JoystickClose(joystick);assert(SDL_JoystickDetachVirtual(index)==0);SDL_PumpEvents();ui.refreshControllers();
     assert(ui.controllers.empty() && ui.controllerButtons()==0 && ui.axisRepeats.empty() && ui.controllerActivity.empty());
+    assert((ui.controllerAxes()==std::array<int16_t,4>{}));
     // An unmapped joystick stays observable and is promoted after a mapping is
     // supplied; unplugging it releases both the handle and activity counters.
     index=SDL_JoystickAttachVirtual(SDL_JOYSTICK_TYPE_UNKNOWN,2,3,1);assert(index>=0);
@@ -537,5 +549,5 @@ int main(int argc,char **argv) {
     SDL_JoystickClose(unknown);assert(SDL_JoystickDetachVirtual(index)==0);SDL_PumpEvents();ui.refreshControllers();
     assert(ui.controllers.empty() && ui.unmappedControllers.empty() && ui.controllerActivity.empty());
   }
-  std::cout<<"PASS: scrollable settings EN/RU, root focus restoration, nested back navigation, hidden lid-wake controls, fresh Power release, independent lid defaults/four combinations/persistence/failure/unavailable fallback, lid policy, inline volume/brightness with rollback, active-process ownership, paused core continuity, suspend failure, SRAM failure abort, preview integrity and legacy states.\n";
+  std::cout<<"PASS: scrollable settings EN/RU, root focus restoration, nested back navigation, hidden lid-wake controls, fresh Power release, independent lid defaults/four combinations/persistence/failure/unavailable fallback, lid policy, inline volume/brightness with rollback, active-process ownership, paused core continuity, suspend failure, SRAM failure abort, compact preview integrity and binary states.\n";
 }

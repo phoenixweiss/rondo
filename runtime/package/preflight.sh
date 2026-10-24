@@ -16,6 +16,7 @@ sha256sum -c manifest.sha256
 "$RONDO_RUNTIME_LOADER" --list "$APP/cores/gpsp_libretro.so"
 "$RONDO_RUNTIME_LOADER" --list "$APP/cores/mednafen_supafaust_libretro.so"
 "$RONDO_RUNTIME_LOADER" --list "$APP/cores/picodrive_libretro.so"
+"$RONDO_RUNTIME_LOADER" --list "$APP/cores/pcsx_rearmed_libretro.so"
 # SDL opens these dynamically; check their ELF closure as well.
 for library in /usr/lib/libEGL.so.1 /usr/lib/libGLESv2.so.2 /usr/lib/aarch64-linux-gnu/libasound.so.2; do
  [ -f "$library" ] || { echo "Missing platform library: $library" >&2; exit 1; }

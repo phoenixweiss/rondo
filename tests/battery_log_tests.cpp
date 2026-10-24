@@ -18,7 +18,7 @@ static void put(const fs::path &path, const std::string &value) {
 static std::vector<Json> rows(const fs::path &path) {
   std::ifstream input(path); std::string line; std::vector<Json> out;
   while (std::getline(input, line)) {
-    try { out.push_back(Json::parse(line)); } catch (...) {}
+    try { auto tab=line.find('\t');out.push_back(Json::parse(tab==std::string::npos?line:line.substr(tab+1))); } catch (...) {}
   }
   return out;
 }
@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
     }
     int status=0;while(waitpid(child,&status,0)<0 && errno==EINTR){}
     assert(WIFEXITED(status) && WEXITSTATUS(status)==0);
-    assert(rows(root/"peripheral-guard/shell.jsonl").size()==1);
+    assert(rows(root/"peripheral-guard/shell.log").size()==1);
     assert(hashFile(battery/"capacity")==hashBytes({'8','5','\n'}));
   }
   {
@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
       alarm(10);
       fs::remove(battery/"capacity");assert(mkfifo((battery/"capacity").c_str(),0600)==0);
       BatteryLog journal(root/"async-stall","runner",sys,proc,2*1024*1024,{},true);
-      journal.sample(1,Json::object(),"start");
+      journal.sample(1,Json::object());
       int writer=-1;
       for(int i=0;i<1000 && writer<0;++i) {
         writer=open((battery/"capacity").c_str(),O_WRONLY|O_NONBLOCK);
@@ -82,7 +82,7 @@ int main(int argc, char **argv) {
       assert(elapsed<500); // Far below one wait per event; generous for slow CI.
       fs::remove(battery/"capacity");put(battery/"capacity","85\n");
       assert(write(writer,"85\n",3)==3);close(writer);
-      journal.drain();auto entries=rows(root/"async-stall/runner.jsonl");
+      journal.drain();auto entries=rows(root/"async-stall/runner.log");
       assert(entries.size()<=65 && entries.size()>1);
       assert(entries.back()["context"]["diagnostic_events_dropped"].get<int>()>0);
       std::cout<<"PASS: 10000 diagnostic submissions during blocked PMIC read: "<<elapsed<<" ms, bounded queue.\n"<<std::flush;
@@ -161,58 +161,46 @@ int main(int argc, char **argv) {
   assert(batterySnapshot(sys, proc)["supplies"]["axp2202-battery"]["charge_counter"] == "2805000");
   auto log = root / "logs";
   Json context = {{"screen", "library"}};
-  BatteryLog shell(log, "shell", sys, proc);
-  assert(shell.sample(100, context, "start"));
-  assert(shell.sample(5100, context));
-  assert(rows(log / "shell.jsonl").size() == 1);
-  assert(rows(log / "shell.jsonl")[0]["battery_passport"]["battery_nodes"][0]["selected_model"]["parameter"]["bytes"] == 128);
-  assert(shell.sample(60100, context));
-  assert(rows(log / "shell.jsonl").size() == 2);
-  assert(!rows(log / "shell.jsonl").back().contains("battery_passport"));
-  put(usb / "online", "0\n");
-  assert(shell.sample(65100, context));
-  assert(rows(log / "shell.jsonl").size() == 3);
-  assert(shell.sample(65101, context, "sleep_before"));
-  assert(shell.sample(65102, context, "sleep_after"));
-  auto records = rows(log / "shell.jsonl");
-  assert(records.back()["event"] == "sleep_after" && records.back()["role"] == "shell");
-  assert(records.back()["context"] == context && records.back()["schema"] == 1);
-  BatteryLog runner(log, "runner", sys, proc);
-  assert(runner.sample(66000, {{"screen", "running"}}, "start"));
-  assert(rows(log / "runner.jsonl").size() == 1);
-  // Truncated last records after abrupt power loss cannot swallow the next sample.
-  { std::ofstream out(log / "runner.jsonl", std::ios::app); out << "{broken"; }
-  assert(runner.sample(66001, context, "stop"));
-  assert(rows(log / "runner.jsonl").size() == 2);
-  assert(shell.sample(1800100, context));
-  assert(rows(log / "shell.jsonl").back().contains("battery_passport"));
-  assert(rows(log / "shell.jsonl").back()["battery_passport"]["captured_monotonic_ms"] == 100);
-  assert(rows(log / "shell.jsonl").back()["battery_passport"]["boot_id"] == "fixture-boot");
-  auto rowSize = (rows(log / "shell.jsonl").back().dump() + "\n").size();
-  BatteryLog rotated(root / "rotated", "shell", sys, proc, rowSize * 2 + 256);
-  for (int i = 0; i < 10; ++i) assert(rotated.sample(i, context, "sample"));
-  assert(fs::exists(root / "rotated/shell.previous.jsonl"));
-  assert(fs::file_size(root / "rotated/shell.jsonl") <= rowSize * 2 + 256);
-  assert(fs::file_size(root / "rotated/shell.previous.jsonl") <= rowSize * 2 + 256);
-  put(root / "blocked", "file");
-  BatteryLog blocked(root / "blocked", "shell", sys, proc);
-  assert(!blocked.sample(0, context, "start"));
-  auto blockedDir=root/"blocked-target";put(blockedDir,"file");
-  auto ram=root/"ram";
+  BatteryLog shell(log,"shell",sys,proc);
+  assert(shell.sample(100,context,"start"));
+  auto events=rows(log/"shell.log");assert(events.size()==1&&events[0]["event"]=="start");
+  assert(!fs::exists(log/"shell.jsonl"));
+  assert(shell.sample(101,context));
+  assert(rows(log/"shell.jsonl").size()==1);
+  assert(!rows(log/"shell.jsonl")[0].contains("battery_passport")&&!rows(log/"shell.jsonl")[0].contains("storage"));
+  assert(shell.sample(5101,context));assert(rows(log/"shell.jsonl").size()==1);
+  assert(shell.sample(60101,context));assert(rows(log/"shell.jsonl").size()==2);
+  assert(shell.sample(60102,context,"battery_passport"));
+  assert(rows(log/"shell.jsonl").back()["battery_passport"]["battery_nodes"][0]["selected_model"]["parameter"]["bytes"]==128);
+  // Ordinary events never touch even known PMIC paths, DT or mount tables.
+  fs::rename(battery/"capacity",battery/"saved-capacity");assert(mkfifo((battery/"capacity").c_str(),0600)==0);
+  pid_t quick=fork();assert(quick>=0);
+  if(quick==0){alarm(2);BatteryLog eventsOnly(root/"no-pmic","runner",sys,proc);
+    if(!eventsOnly.sample(1,context,"start")||!eventsOnly.sample(2,context,"action:A"))_exit(2);_exit(0);}
+  int quickStatus=0;while(waitpid(quick,&quickStatus,0)<0&&errno==EINTR){}
+  assert(WIFEXITED(quickStatus)&&WEXITSTATUS(quickStatus)==0);
+  fs::remove(battery/"capacity");fs::rename(battery/"saved-capacity",battery/"capacity");
+  BatteryLog runner(log,"runner",sys,proc);
+  assert(runner.sample(1,context,"start"));
+  {std::ofstream out(log/"runner.log",std::ios::app);out<<"broken";}
+  assert(runner.sample(2,context,"stop"));assert(rows(log/"runner.log").size()==2);
+  auto rowSize=fs::file_size(log/"shell.log");
+  BatteryLog rotated(root/"rotated","shell",sys,proc,rowSize*2+256);
+  for(int i=0;i<10;++i)assert(rotated.sample(i,context,"sample"));
+  assert(fs::exists(root/"rotated/shell.previous.log"));
+  assert(fs::file_size(root/"rotated/shell.log")<=rowSize*2+256);
+  auto blockedDir=root/"blocked-target";put(blockedDir,"file");auto ram=root/"ram";
   BatteryLog fallback(blockedDir,"runner",sys,proc,2*1024*1024,ram);
-  assert(!fallback.sample(0,context,"sleep_after"));
-  assert(fallback.lastError["errno"].is_number_integer() && !fallback.lastError["path"].get<std::string>().empty());
-  auto retained=rows(ram/"runner.jsonl");assert(retained.size()==1);
-  assert(retained[0].contains("battery_passport"));
-  assert(retained[0]["event"]=="sleep_after" && retained[0].contains("journal_error") && retained[0]["storage"]["read_only"]==false);
+  assert(!fallback.sample(0,context,"sleep_after")&&!fallback.lastError.empty());
+  auto retained=rows(ram/"runner.log");assert(retained.size()==1&&retained[0]["event"]=="sleep_after");
   fs::remove(blockedDir);fs::create_directories(blockedDir);
-  // A new process can recover the previous process's bounded RAM journal.
   BatteryLog recovered(blockedDir,"runner",sys,proc,2*1024*1024,ram);
   assert(recovered.sample(6000,context,"start"));
-  assert(rows(blockedDir/"runner.recovered.jsonl").size()==1 && !fs::exists(ram/"runner.jsonl"));
+  assert(rows(blockedDir/"runner.recovered.log").size()==1&&!fs::exists(ram/"runner.log"));
   put(blockedDir/"keep-me","unrelated");
+  put(blockedDir/"runner.jsonl","old telemetry\n");
   clearDiagnosticLogs(blockedDir,ram);
-  assert(!fs::exists(blockedDir/"runner.jsonl") && !fs::exists(blockedDir/"runner.recovered.jsonl") && fs::exists(blockedDir/"keep-me"));
+  assert(!fs::exists(blockedDir/"runner.log")&&!fs::exists(blockedDir/"runner.jsonl")&&!fs::exists(blockedDir/"runner.recovered.log")&&fs::exists(blockedDir/"keep-me"));
   // The sampled gauge must not overwrite a different value submitted to the UI.
   put(battery / "capacity", "10\n");
   Json display = {{"screen", "game_menu"}, {"header_visible", true},

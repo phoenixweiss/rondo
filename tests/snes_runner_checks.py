@@ -1,3 +1,4 @@
+from state_reader import state_metadata
 """Check real SNES shell/runner routing and continuation without an SD card."""
 from pathlib import Path
 import json,subprocess,sys,hashlib
@@ -24,6 +25,6 @@ for name,commands,extra in [
   assert report['runner_sessions'][0]['report']['audio_frames']>0
   assert report['runner_sessions'][0]['game_closed']
  if name in {'explicit-resume','startup-resume'}:assert any(e['event']=='resumed_auto' for e in report['runner_sessions'][0]['report']['trace'])
-slots=list((work/'state/games').glob('*/autosave.json'));assert len(slots)==1
-assert json.loads(slots[0].read_text())['core']==hashlib.sha256(snes_core.read_bytes()).hexdigest()
+slots=list((work/'state/games').glob('*/autosave.state'));assert len(slots)==1
+assert state_metadata(slots[0])['core']==hashlib.sha256(snes_core.read_bytes()).hexdigest()
 print('PASS: SNES separate runner, sibling/explicit core selection, library keys, audio and startup continuation.')

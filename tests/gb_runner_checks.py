@@ -1,3 +1,4 @@
+from state_reader import state_metadata
 """Exercise GB/GBC routing through the real shell and separate runner process."""
 from pathlib import Path
 import hashlib
@@ -34,10 +35,10 @@ assert len(report['runner_sessions']) == 2
 assert all(s['type'] == 'stopped' and s['report']['audio_frames'] > 0
            for s in report['runner_sessions'])
 assert {g['system'] for g in report['config']['recent_games']} == {'GB', 'GBC'}
-slots = list(state.glob('games/*/autosave.json'))
+slots = list(state.glob('games/*/autosave.state'))
 assert len(slots) == 2
 for slot in slots:
-    assert json.loads(slot.read_text())['core'] == hashlib.sha256(gb_core.read_bytes()).hexdigest()
+    assert state_metadata(slot)['core'] == hashlib.sha256(gb_core.read_bytes()).hexdigest()
 report = execute('startup-resume', [
     {'assert_screen': 'library'}, {'action': 'A'}, {'action': 'A', 'runner_script': run_game},
     {'assert_screen': 'library'}])

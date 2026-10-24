@@ -1,11 +1,11 @@
 # Automatic saves and startup continuation
 
 Settings → Power enables Automatic save and Continue on startup by default.
-An orderly exit from a supported game writes `autosave.json` in that game's existing
+An orderly exit from a supported game writes `autosave.state` in that game's existing
 save directory. It never replaces manual slots 1–3. SRAM is flushed before the
 state, which includes a preview and the current ROM/core compatibility identity.
 Rondo shows Saving… during the write. The previous valid automatic generation
-is retained as `autosave.json.previous`; invalid current data cannot replace it.
+is retained as `autosave.state.previous`; invalid current data cannot replace it.
 Atomic replacement and readback detect write failures. State and SRAM are separate
 files, not a multi-file transaction or a power-loss guarantee.
 
@@ -30,3 +30,12 @@ Forced Power holds, removal of the SD card, crashes and sudden battery loss cann
 guarantee an exit save. Always leave the game normally, then use the system
 shutdown menu and wait until the console is off before removing its card.
 Native and BaseOS checks do not replace real-console acceptance of this lifecycle.
+
+## Compact states
+
+All cores use the version 2 binary container described in [State format](state-format.md).
+Menus read bounded metadata and previews without reading or hashing the emulator
+payload. The chosen state is fully verified before restoring the core. Automatic
+loading retries the previous generation if the active payload is damaged.
+Legacy JSON states are not imported. SRAM/RTC files and PlayStation memory cards
+keep their existing paths and formats. Old state files are not deleted.

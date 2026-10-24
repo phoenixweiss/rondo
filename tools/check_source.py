@@ -60,4 +60,9 @@ assert len(mapping_rows) == 4 and all(",8BitDo Micro," in row for row in mapping
 assert sum("platform:Linux," in row for row in mapping_rows) == 2
 assert re.fullmatch(r"[0-9a-f]{40}", mapping_inputs["commit"])
 
+ob=json.loads((ROOT/'docs/dependencies/openbios-source.json').read_text())
+assert json.loads((ROOT/'assets/Firmware/OpenBIOS/sources.json').read_text())==ob
+assert hashlib.sha256((ROOT/'assets/Firmware/OpenBIOS'/ob['output']).read_bytes()).hexdigest()==ob['output_sha256']
+assert (ROOT/'assets/Firmware/OpenBIOS/LICENSE').read_text().startswith('MIT License')
+
 print(f"PASS: {len(files)} publication input files, JSON, local links, vendor hashes and locale placeholders")

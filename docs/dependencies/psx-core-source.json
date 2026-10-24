@@ -1,0 +1,14 @@
+{
+  "repository": "https://github.com/libretro/pcsx_rearmed",
+  "revision": "c8816799b50388e61cfe237fe2cdbb7d8175f20a",
+  "archive_sha256": "edeb21fdeef8815521cb9d4488d2cd35746607c968ca9b26cce4e42c09f2dc99",
+  "license": "GPL-2.0-or-later",
+  "bundled_dependencies": [
+    "libchdr (BSD-3-Clause)",
+    "miniz (MIT)",
+    "LZMA SDK (public domain)",
+    "zstd (BSD alternative)",
+    "libretro-common (per-file notices)"
+  ],
+  "scope": "CHD discs and CHD-only M3U playlists; no proprietary BIOS in the distribution"
+}

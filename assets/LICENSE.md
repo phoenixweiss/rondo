@@ -15,4 +15,6 @@ Third-party assets retain their own terms:
 
 - SDL_GameControllerDB Micro profiles: zlib-style license and original copyright retained in ControllerMappings/LICENSE. Selected rows are unmodified; the upstream commit and hashes are in ControllerMappings/sources.json. These data are not original MIT artwork.
 
+- OpenBIOS firmware: MIT, Copyright (c) 2019 PCSX-Redux authors; this is third-party software, not original Rondo artwork. The unmodified source archive, build arguments, binary hash and license are retained. See Firmware/OpenBIOS/LICENSE, FONT-NOTICES.md and sources.json for Shinonome font provenance and public-domain credits.
+
 Source hashes and provenance are recorded in docs/dependencies/asset-inputs.json and Assets/Icons/sources.json. These paths are relative to the repository and assets directories respectively.

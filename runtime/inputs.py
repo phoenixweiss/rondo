@@ -45,6 +45,10 @@ def records(root):
     for name, item in [("picodrive", md)] + [(d["name"], d) for d in md["dependencies"]]:
         result[name] = {"url": item["repository"].replace("github.com/", "codeload.github.com/") + "/tar.gz/" + item["revision"],
                         "sha256": item["archive_sha256"], "directory": item.get("directory", "picodrive-" + item["revision"])}
+    psx=json.loads((dependencies/"psx-core-source.json").read_text())
+    result["pcsx_rearmed"]={"url":psx["repository"].replace("github.com/","codeload.github.com/")+"/tar.gz/"+psx["revision"],"sha256":psx["archive_sha256"],"directory":"pcsx_rearmed-"+psx["revision"]}
+    ob=json.loads((dependencies/"openbios-source.json").read_text())
+    result["openbios"]={"url":ob["repository"].replace("github.com/","codeload.github.com/")+"/tar.gz/"+ob["revision"],"sha256":ob["archive_sha256"],"directory":"nugget-"+ob["revision"]}
     return result
 
 

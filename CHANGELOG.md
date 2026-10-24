@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+## [0.9.0] - 2026-10-25
+
+### Added
+
+- Add experimental Sony PlayStation through pinned PCSX ReARMed with H700 ARM64 dynarec: CHD discs, relative CHD-only M3U playlists, disc switching, one per-game memory card, manual/automatic states and continuation.
+- Bundle reproducibly built MIT OpenBIOS as the default. Core settings offer OpenBIOS, an owner-supplied BIOS or HLE with a one-time compatibility warning. A separate BIOS file picker supports Automatic or one detected image. Sony firmware and commercial games are excluded.
+- Add built-in RG34XXSP analog sticks and L2/R2/L3/R3, Digital/DualShock selection and a left-stick D-pad option for digital systems. Returning from menus waits for released controls.
+- Include corresponding PCSX/OpenBIOS/libchdr/codec source and component notices in the regular H700 package; original Rondo code/artwork remain MIT. The complete distribution retains its existing mixed license conditions.
+
+### Fixed
+
+- Correct PSX pixel-aspect rendering for frames such as 512×240 without changing Fighting Force's correct 4:3 output; fit oversized interlaced frames within the screen.
+
+### Performance
+
+- Use bounded binary states for every core with independent small previews and metadata-only slot scans. Stop parsing full state payloads to order slots or show previews. Keep checksums, atomic writes, fsync, readback and previous automatic generations.
+- Avoid rewriting unchanged SRAM/RTC and remove interactive shutdown serialization used only for test reports.
+- Write compact ordinary event logs without sysfs/device-tree/kernel scans. Keep detailed battery telemetry periodic, diagnostics off by default, bounded background queues, rotation and clearing; bound action history and remove framebuffer scanning from periodic diagnostics.
+
+### Compatibility and verification
+
+- **Save-state format change:** legacy JSON slots and automatic states are no longer loaded. Old files are left untouched. SRAM, RTC and PlayStation in-game memory-card files retain their existing formats and paths. This applies to all cores.
+- The owner accepted candidate e97d365cf852 on RG34XXSP / BaseOS 1.5.2 on 2026-10-25 after testing PSX startup, saves, continuation, sleep/volume and the shared state improvements. This is bounded owner acceptance, not full compatibility or full-speed certification for every game, BIOS and controller mode.
+- Native checks, isolated BaseOS 1.3/1.5.2 regression checks, state corruption/fallback tests, actual ENOSPC preservation and corresponding-source/license audits passed. A three-run Mac technical-fixture benchmark reduced median manual overwrite from 1496 to 79 ms and autosave from 1738 to 79 ms; these are host measurements, not H700/SD timings or emulator FPS.
+- Bluetooth remains experimental: Micro D pairs/connects, but working controller input is not established. Rumble, wake-on-lid-open, recurring FAT inconsistencies, battery-gauge behavior and further artwork-cache optimization remain in the backlog. Themes are planned and are not included.
+
 ## [0.8.0] - 2026-10-22
 
 - Add read-only Settings → System information in English and Russian: device profile and OS memory, installed Rondo/BaseOS/kernel/core revisions, physical cards and mounted partition space, and named handheld battery readings. X reveals full values and sources; Y refreshes through a single bounded helper process without hardware reads on the UI thread. Unknown, absent and failed readings remain explicit.

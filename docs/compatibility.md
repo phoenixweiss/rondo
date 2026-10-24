@@ -17,7 +17,7 @@ Rondo is in early development. The initial handheld target is Anbernic RG34XXSP,
 | Compact volume | Latest prototype appearance approved by owner; native state/collision checks | Physical legibility on other screens remains unverified |
 | Bluetooth (experimental) | Micro D paired/connected on RG34XXSP; the previous multi-second HID-battery stalls were absent in a cold-start test | Buttons do not work; SDL reports no external device. Audio/PIN are not implemented; no working wireless controller claim |
 | Shutdown / restart menu | Native confirmation, teardown and mocked launcher/sync tests pass | Physical H700 shutdown/reboot and FAT durability still need acceptance |
-| Other emulators | Planned PSX (CHD only) | Not integrated, benchmarked or cleared for distribution by this source candidate |
+| PlayStation / PCSX ReARMed | Owner accepted candidate e97d365cf852 on RG34XXSP / BaseOS 1.5.2 on 2026-10-25; native and isolated BaseOS 1.3/1.5.2 checks pass | CHD-only integration; bounded game/BIOS/control testing, not universal compatibility or sustained full-speed certification |
 | Two-card integration | Model identity tests | Live TF1/TF2 mounting/integration not established |
 
 Saves and preferences are treated conservatively, but a successful atomic write test is not proof of durability under every power-loss or FAT failure. Back up important state before testing development builds.
@@ -55,3 +55,7 @@ Mega Drive / Genesis is an experimental PicoDrive integration in the development
 ## Mega Drive and System information acceptance (2026-10-22)
 
 The owner accepted candidate **27c4f81aaeac** on RG34XXSP / BaseOS 1.5.2: Mega Drive gameplay, saves, continuation, sleep and System information. This is bounded device acceptance. All 264 private MD ROMs also passed short automated native state/restart probes; it is not evidence of full-game compatibility. The combined candidate passed native and isolated BaseOS 1.3.0/1.5.2 checks. See [Mega Drive](mega-drive.md) and [System information](system-information.md). Battery sensor accuracy, Bluetooth controller input and sustained performance remain separate limits.
+
+## Shared state format in 0.9.0
+
+Every core uses the [version 2 binary container](state-format.md). Legacy JSON states are not loaded or deleted. SRAM/RTC and PSX memory-card files keep their paths and formats. Host performance measurements and owner acceptance are separate; neither establishes power-loss/FAT durability.
