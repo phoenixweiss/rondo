@@ -68,4 +68,4 @@ The callback event contract was checked against [BusyBox 1.36.1 ntpd](https://ra
 Kernel state is read with [adjtimex modes=0](https://man7.org/linux/man-pages/man2/adjtimex.2.html).
 No BusyBox or BaseOS implementation is copied into Rondo's MIT code.
 
-The time adapter requires BaseOS/H700/RG34XXSP identity, an available callback and executable timedatectl, baseos-ntp and ntpd. It does not gate on the BaseOS version. Command results, bounded deadlines and state readback still govern each operation. Isolated checks cover BaseOS 1.3.0 and 1.5.2; the device testing confirmed the 1.5.2 update with candidate 847da83a5e4b. Future service interfaces require their own verification.
+The time adapter requires BaseOS/H700/RG34XXSP identity, an available callback and executable timedatectl, baseos-ntp and ntpd. It does not gate on the BaseOS version. Command results, bounded deadlines and state readback still govern each operation. Isolated checks cover BaseOS 1.3.0 and 1.5.2; device testing confirmed the 1.5.2 update with candidate 847da83a5e4b. Future service interfaces require their own verification.

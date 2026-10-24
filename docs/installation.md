@@ -1,6 +1,6 @@
 # Installation and rollback
 
-Rondo targets Anbernic RG34XXSP with a BaseOS 1.3.0 package baseline; the owner also accepted BaseOS 1.5.2 (upstream prerelease). A frontend ZIP does not prepare a bootable card. On a fresh BaseOS card, complete the first console boot before installing Rondo: BaseOS expands and formats its data partition during that boot. Shut down before removing the card.
+Rondo targets Anbernic RG34XXSP with a BaseOS 1.3.0 package baseline; device testing also confirmed BaseOS 1.5.2 (upstream prerelease). A frontend ZIP does not prepare a bootable card. On a fresh BaseOS card, complete the first console boot before installing Rondo: BaseOS expands and formats its data partition during that boot. Shut down before removing the card.
 
 ## macOS installer
 

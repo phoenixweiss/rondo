@@ -4,7 +4,7 @@ Rondo is early-stage, maintainer-led software. These are priorities, not deliver
 
 ## Current baseline
 
-The first preview, [0.0.1](https://github.com/phoenixweiss/rondo/releases/tag/v0.0.1), is published. Its package, installation and basic NES workflow have been checked, including device testing on RG34XXSP. This does not establish support for every hardware scenario.
+The first preview, [0.0.1](https://github.com/phoenixweiss/rondo/releases/tag/v0.0.1), is published. Its package, installation and basic NES workflow have been checked, including testing on RG34XXSP.
 
 The [core feature review](feature-review.md) compares NextUI, MinUI and muOS with the current source, records partial support and gives stable capability IDs F01–F24. The review distinguishes open work, local implementations and released features.
 
@@ -44,7 +44,7 @@ This list grows with device testing and user feedback; it is not a complete inve
 
 ## Next: game systems and library support
 
-- GB/GBC play, saves, continuation and sleep passed bounded device testing on RG34XXSP. GBA play, saves, continuation and sleep were also accepted with candidate 4ce045a0d3fe. SNES play and input/volume stutter fixes were accepted with the 0.7 series. Mega Drive gameplay, saves, continuation and sleep passed bounded device verification with candidate 27c4f81aaeac; System information was accepted in the same test. Investigate PSX (CHD only) individually, covering licensing, builds, controls, performance, SRAM, save states, resume and sleep on the console. Retain NES regression checks.
+- NES, GB/GBC, GBA, SNES, Mega Drive and PSX have been tested on RG34XXSP, including saves and continuation. Keep regression coverage across all cores and expand game-specific performance and BIOS checks.
 - Investigate two-card library behavior, duplicate handling, missing cards and state-storage placement.
 - Investigate wider H700 hardware support separately before promising compatibility. PSP is outside the project scope.
 

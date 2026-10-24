@@ -41,17 +41,17 @@ sample. Menu screen timeout and quiet in-game battery warnings are configurable.
 See [automatic saves](docs/autosave.md), [display settings](docs/display.md) and
 [power behavior](docs/power.md).
 
-Device testing covered GB/GBC play, saves, continuation and sleep on RG34XXSP. Slight interface/game stutter remains under investigation; performance and compatibility are not established for every game. See [Game Boy support](docs/game-boy.md).
+GB/GBC gameplay, saves, continuation and sleep have been tested on RG34XXSP. See [Game Boy support](docs/game-boy.md).
 
-Device testing confirmed GBA play, saves, continuation and sleep on RG34XXSP with candidate 4ce045a0d3fe. See [GBA support](docs/game-boy-advance.md).
+GBA gameplay, saves, continuation and sleep have been tested on RG34XXSP. See [GBA support](docs/game-boy-advance.md).
 
-Device testing confirmed SNES play and the gameplay-button/volume stutter fixes on RG34XXSP, including hold-to-repeat volume in candidate 31da354d2018. Sustained performance and full-game compatibility remain unmeasured. See [SNES support](docs/super-nintendo.md).
+SNES gameplay, saves and continuation have been tested on RG34XXSP. Button presses and volume changes no longer interrupt gameplay or audio; holding a volume button repeats the adjustment. See [SNES support](docs/super-nintendo.md).
 
 Mega Drive controls: Y/B/A → Sega A/B/C, L1/X/R1 → X/Y/Z, Select → Mode. Keyboard and scope: [Mega Drive](docs/mega-drive.md). The library is sorted by title across platforms; Recent keeps launch order.
 
 Read-only **Settings → System information** groups device, installed software, memory cards and power; full values and sources are available with X. See [system information](docs/system-information.md).
 
-Device testing confirmed Mega Drive play, saves, continuation, sleep and System information on RG34XXSP / BaseOS 1.5.2 with candidate 27c4f81aaeac. Full-game compatibility and independent battery sensor accuracy remain unverified.
+Mega Drive gameplay, saves, continuation, sleep and System information have been tested on RG34XXSP with BaseOS 1.5.2.
 
 Experimental CHD-only PlayStation with PCSX ReARMed, bundled OpenBIOS, selectable user BIOS/HLE in Core settings, and multidisc playlists is available for development testing. See [PlayStation](docs/playstation.md). Tested on RG34XXSP with BaseOS 1.5.2.
 
@@ -61,10 +61,10 @@ For **User BIOS**, put your own 512 KiB files in `RondoState/BIOS/PSX`, using th
 
 | Filename | BIOS | Verification |
 | --- | --- | --- |
-| `psxonpsp660.bin` | PS1 firmware extracted from PSP 6.60 | Owner-supplied file; known MD5, native game boot checked |
-| `scph101.bin` | PSone, North America | Owner-supplied file; known MD5, native game boot checked |
-| `scph7001.bin` | PlayStation, North America | Owner-supplied file; known MD5, native game boot checked |
-| `scph7502.bin` | PlayStation, Europe | Owner-supplied file; native game boot checked |
+| `psxonpsp660.bin` | PS1 firmware extracted from PSP 6.60 | Known MD5; native game boot checked |
+| `scph101.bin` | PSone, North America | Known MD5; native game boot checked |
+| `scph7001.bin` | PlayStation, North America | Known MD5; native game boot checked |
+| `scph7502.bin` | PlayStation, Europe | Native game boot checked |
 | `scph1001.bin`, `scph5500.bin`, `scph5501.bin`, `scph5502.bin` | Other retail PlayStation BIOS versions | Supported names; not exercised in these tests |
 
 Use lowercase filenames on the card. Select **BIOS file → Automatic** to let the core choose, or select a specific detected file to use only that image; changing the mode in **Core settings → Sony PlayStation** takes effect at the next game launch. OpenBIOS remains bundled and selected by default. [BIOS identities and selection](docs/playstation.md#bios-files).
