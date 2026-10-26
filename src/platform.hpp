@@ -58,6 +58,7 @@ public:
   VolumeKeys();
   ~VolumeKeys();
   bool available() const { return !devices.empty(); }
+  bool pressed(bool up) const;
   std::vector<std::string> poll();
 };
 std::string volumeKeyAction(unsigned type, unsigned code, int value);
@@ -89,6 +90,7 @@ class PowerKeys {
 public:
   PowerKeys();
   ~PowerKeys();
+  bool pressed() const;
   std::vector<std::string> poll();
 };
 class DeviceControl {

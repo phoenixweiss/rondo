@@ -7,6 +7,9 @@
 #include <iostream>
 #include <sstream>
 namespace rondo {
+void App::configureArtwork() {
+  if(ui&&!core)ui->artworkCache=std::make_unique<ArtworkCache>(options.state/"Cache/Artwork");
+}
 static fs::path biosPath(const Options &o){return o.psxBios.empty()?o.state/"BIOS/PSX":o.psxBios;}
 static std::string psxMode(const Options &o,const Json &data){return o.psxTestHle?"hle":data.value("psx_firmware","openbios");}
 static fs::path psxFirmwarePath(const Options &o,const Json &data){
@@ -34,6 +37,7 @@ App::App(Options opts, bool runner, const Game &entry)
   previewVolume = store.data.value("volume", 80);
   ui = std::make_unique<UI>(options.assets, options.headless);
   device = deviceControl(!options.headless);
+  motor=h700Rumble(!options.headless);
   brightness = device->brightness();
   if (brightness) {
     bool stored=false;
@@ -50,10 +54,13 @@ App::App(Options opts, bool runner, const Game &entry)
     game = entry;
     core = std::make_unique<Core>(options.coreFor(game.system), game, store.gameDir(game), options.headless, game.system=="PSX"?psxRuntimeFirmware(options,store.data):fs::path(), psxMode(options,store.data)=="hle");
     core->psxController(psxDualshock());
+    core->rumble=motor;
+    core->rumbleEnabled=store.data.value("rumble_enabled",true);
     core->volume = previewVolume;
     screen = Screen::Running;
   } else {
     games = scan(options.volumes);
+    store.migrateLegacyTf1(games,options.volumes);
     sections = {"All", "Favorites", "Recent"};
     for (auto &g : games)
       if (std::find(sections.begin(), sections.end(), g.system) == sections.end())
@@ -88,6 +95,7 @@ App::App(Options opts, bool runner, const Game &entry)
     clockRun("startup",[device,wanted]{return wanted?device->restart():device->enable(false);});
   }
   diagnosticRunner = runner;
+  configureArtwork();
   configureDiagnostics();
   record("ready");
 }
@@ -286,6 +294,7 @@ std::string App::screenName() const {
     return "exit_confirm";
   case Screen::CoreSettings: return "core_settings";
   case Screen::PsxCoreSettings: return "psx_core_settings";
+  case Screen::InputTest:return "input_test";
   case Screen::PsxBiosFiles: return "psx_bios_files";
   case Screen::PsxFirmwareError: return "psx_firmware_error";
   case Screen::PsxWarning: return "psx_hle_warning";
@@ -448,6 +457,7 @@ void App::gameInput(uint16_t held,const std::array<int16_t,4> &axes) {
 void App::action(const std::string &a) {
   if (stop || screen == Screen::SystemProgress || screen==Screen::SavingAutomatic) return;
   if(activity())return;
+  if(screen==Screen::InputTest)return; // Sample all held controls without menu/volume/power side effects.
   // Gameplay buttons are sampled as a held bitmask, not shell actions. In
   // particular, do not run diagnostic snapshots/journaling for every press.
   if(screen==Screen::Running && a!="MENU" && a!="SLEEP" &&
@@ -621,11 +631,20 @@ void App::action(const std::string &a) {
       }
     } else if(screen==Screen::CoreSettings) {
       if(a=="UP")row=std::max(0,row-1);
-      if(a=="DOWN")row=std::min(1,row+1);
+      if(a=="DOWN")row=std::min(3,row+1);
       if(row==0 && a=="A") {screen=Screen::PsxCoreSettings;row=0;}
       else if(row==1 && (a=="LEFT"||a=="RIGHT"||a=="A")) {
         auto next=store.data;bool value=next.value("left_stick_dpad",true);
         next["left_stick_dpad"]=a=="LEFT"?false:a=="RIGHT"?true:!value;persist(next);
+      }
+      else if(row==2 && (a=="LEFT"||a=="RIGHT"||a=="A")) {
+        auto next=store.data;bool value=next.value("rumble_enabled",true);
+        next["rumble_enabled"]=a=="LEFT"?false:a=="RIGHT"?true:!value;
+        persist(next);
+        if(!store.data.value("rumble_enabled",true)&&motor)motor->stop();
+      }
+      else if(row==3 && a=="A") {
+        openInputTest(true);
       }
       if(a=="B")returnToSettings();
     } else if(screen==Screen::PsxCoreSettings) {
@@ -664,12 +683,13 @@ void App::action(const std::string &a) {
       if(a=="B") {screen=Screen::Library;resume=false;}
       if(a=="A") {screen=Screen::PsxCoreSettings;row=0;settingsFocus=7;}
     } else if (screen == Screen::SettingsSection) {
-      int count = category==3 ? 6 : (category == 4 || category == 1) ? 3 : (category == 0 || category == 5) ? 2 : 1;
+      int count = category==3 ? 6 : category==4 ? 4 : category==1 ? 3 : (category == 0 || category == 5) ? 2 : 1;
       if (a == "UP") row = std::max(0, row - 1);
       if (a == "DOWN") row = std::min(count - 1, row + 1);
       if (a == "B") { returnToSettings(); return; }
       if (category == 4 && (a == "A" || a == "LEFT" || a == "RIGHT")) {
-        if (row == 2) { if (a == "A") screen = Screen::LogClear; }
+        if(row==3){if(a=="A")openInputTest(false);return;}
+        else if (row == 2) { if (a == "A") screen = Screen::LogClear; }
         else if (row == 0 || store.data.value("debug_enabled", false)) {
           auto next = store.data;
           if (row == 0) next["debug_enabled"] = a == "A" ? !next.value("debug_enabled", false) : a == "RIGHT";
@@ -901,7 +921,7 @@ void App::action(const std::string &a) {
       }
     } else if (screen == Screen::GameSettings) {
       if(a=="UP")row=std::max(0,row-1);
-      int controllerRow=core->discCount()>1?2:1;
+      int controllerRow=core->discCount()>1?1:0;
       if(a=="DOWN")row=std::min(game.system=="PSX"?controllerRow:0,row+1);
       if(game.system=="PSX" && row==controllerRow && (a=="A"||a=="LEFT"||a=="RIGHT")) {
         auto next=store.data;auto &options=next["game_options"][game.id];
@@ -915,12 +935,12 @@ void App::action(const std::string &a) {
         persist(next);core->psxController(psxDualshock());
         return;
       }
-      if(core->discCount()>1 && row==1&&(a=="A"||a=="LEFT"||a=="RIGHT")) {auto count=core->discCount();core->changeDisc((core->discIndex()+(a=="LEFT"?count-1:1))%count);record("disc:changed");return;}
+      if(core->discCount()>1 && row==0&&(a=="A"||a=="LEFT"||a=="RIGHT")) {auto count=core->discCount();core->changeDisc((core->discIndex()+(a=="LEFT"?count-1:1))%count);record("disc:changed");return;}
       if (a == "B") {
         screen = Screen::GameMenu;
         row = 3;
       }
-      if (a == "A" || a == "LEFT" || a == "RIGHT") {
+      if (game.system!="PSX" && (a == "A" || a == "LEFT" || a == "RIGHT")) {
         scalingLastError.clear();
         auto next = store.data;
         auto &options = next["game_options"];
@@ -1041,6 +1061,8 @@ void App::action(const std::string &a) {
   record(a);
 }
 std::string App::infoKey() const {
+  if((screen==Screen::CoreSettings&&row==3)||(screen==Screen::SettingsSection&&category==4&&row==3))return "input_test";
+  if(screen==Screen::CoreSettings && row==2)return "rumble";
   if(screen==Screen::CoreSettings && row==1)return "left_stick";
   if(screen==Screen::PsxBiosFiles || (screen==Screen::PsxCoreSettings&&row==2))return "psx_bios_file";
   if(screen==Screen::PsxCoreSettings)return row==0?"psx_firmware":"psx_controller";
@@ -1048,7 +1070,7 @@ std::string App::infoKey() const {
   if(screen==Screen::Clock || screen==Screen::ClockEdit)return "clock";
   if (screen==Screen::WifiPassword) return "";
   if (screen==Screen::Wifi || screen==Screen::WifiNetworks || screen==Screen::WifiNetwork) return "wifi";
-  if (screen == Screen::GameSettings) return row==0?"scaling":core->discCount()>1&&row==1?"disc":"psx_controller";
+  if (screen == Screen::GameSettings) return game.system=="PSX"?(core->discCount()>1&&row==0?"disc":"psx_controller"):"scaling";
   if (screen == Screen::SaveSlots || screen == Screen::LoadSlots) return "slots";
   if (screen == Screen::Regions || screen == Screen::Zones) return "timezone";
   if (screen == Screen::Settings && settingsFocus >= 9) return "system_power";
@@ -1158,6 +1180,7 @@ void App::batterySample(const std::string &event) {
   if (ok) batteryLogWarning = false;
 }
 void App::saveOnExit(bool skipAutomatic) {
+  if(core)core->stopRumble();else if(motor)motor->stop();
   volumeTick(true);
   if(!core)return;
   if(!skipAutomatic && store.data.value("autosave_enabled",true)) {
@@ -1303,6 +1326,7 @@ void App::sleep() {
   try {wakeScreen();}catch(...){notice=locale.tr("power.screen_error");return;}
   if (!device->canSleep()) { notice=locale.tr("sleep.unsupported");return; }
   sleeping=true;
+  if(motor)motor->stop();
   clockSleep();
   btSleep();
   wifiQueued={};wifiQueuedTask.clear();wifiToggle.reset();
@@ -1367,6 +1391,10 @@ std::string App::slotDate(long long utc) const {
 }
 void App::capture(const std::string &name) {
   draw();
+  if(options.headless&&ui->artworkCache) {
+    for(int i=0;i<500;++i){auto state=ui->artworkCache->statistics();if(state["queued"]==0&&!state["busy"].get<bool>())break;SDL_Delay(10);}
+    draw(); // Deterministic headless captures; interactive navigation never waits.
+  }
   ui->save(options.output / (name + ".png"));
   record("capture:" + name);
 }
@@ -1381,10 +1409,9 @@ SDL_Rect App::gameViewport() const {
     h=480;w=int(h*core->aspectRatio);
     if(w>720){w=720;h=int(w/core->aspectRatio);}
   }
-  if(store.integerScaling(game.id)) {
+  if(game.system!="PSX" && store.integerScaling(game.id)) {
     int scale=std::min(720/core->width,480/core->height);
-    // Interlaced PSX may be taller than the panel. There is no positive
-    // integer scale in this case: fit the frame instead of clipping it.
+    // Oversized frames have no positive integer scale; keep the fitted view.
     if(scale>0){w=core->width*scale;h=core->height*scale;}
   }
   return {(720-w)/2,(480-h)/2,w,h};
@@ -1479,11 +1506,16 @@ void App::draw() {
       SDL_RenderSetClipRect(ui->renderer, nullptr);
       ui->rect(16, 408, 452, 24, ui->bg);
       ui->scrollbar(content, viewport, scroll, true);
-      auto path = g.path.parent_path() / (artwork + ".png");
-      if (!g.available || !ui->image(path, 492, 140, 204, 204, artwork == "cover")) {
+      std::vector<ArtworkRequest> previews;
+      for(int offset:{0,1,-1,2,-2}) {
+        int index=selected+offset;
+        if(index>=0&&index<int(v.size())&&games[v[index]].available)
+          previews.push_back({games[v[index]].path.parent_path()/(artwork+".png"),204,204,artwork=="cover"});
+      }
+      if (!g.available || !ui->artworkImage(previews, 492, 140, 204, 204)) {
         ui->rect(492, 140, 204, 204, ui->focus, 9);
         ui->icon("folder", 578, 193, 32);
-        ui->text(tr(!g.available ? "recent.unavailable_short" : artwork == "cover"   ? "art.missing_cover"
+        if(!g.available||!ui->artworkPending)ui->text(tr(!g.available ? "recent.unavailable_short" : artwork == "cover"   ? "art.missing_cover"
                     : artwork == "title" ? "art.missing_title"
                                          : "art.missing_gameplay"),
                  504, 244, 17, 500, ui->secondary, 180);
@@ -1522,7 +1554,7 @@ void App::draw() {
   } else if (screen == Screen::Settings) {
     const std::vector<std::string> labels = {"section.interface", "section.display", "section.sound",
       "clock.title", "section.network", "section.power", "section.debug", "section.cores", "sysinfo.title", "power.restart", "power.shutdown"};
-    const std::vector<std::string> icons = {"panels-top-left","monitor","volume-2","clock","wifi","battery","bug","grid-2x2","panels-top-left","rotate-cw","power"};
+    const std::vector<std::string> icons = {"palette","monitor","volume-2","clock","radio-tower","battery","activity","cpu","info","rotate-cw","power"};
     ui->frame(tr("screen.settings"), "", zone, "settings");
     constexpr double viewport = 324, content = 11 * 54 + 16;
     const double top = settingsFocus * 54 + (settingsFocus >= 9 ? 16 : 0);
@@ -1543,11 +1575,16 @@ void App::draw() {
     std::vector<std::pair<std::string,std::string>> hints{{"A",tr("action.open")},{"B",tr("action.back")}};
     if(settingsFocus >= 9) hints.push_back({"X",tr("footer.info")});
     ui->hints(hints);
+  } else if(screen==Screen::InputTest) {
+    drawInputTest(zone);
   } else if(screen==Screen::CoreSettings) {
     ui->frame(tr("section.cores"),tr("screen.settings"),zone);
-    ui->row("Sony PlayStation",128,row==0,672,"",true,52,"chevron-right","grid-2x2");
+    ui->row("Sony PlayStation",128,row==0,672,"",true,52,"chevron-right","gamepad-2");
     ui->binaryRow(tr("setting.left_stick_dpad"),182,row==1,store.data.value("left_stick_dpad",true),locale);
+    ui->binaryRow(tr("setting.rumble"),236,row==2,store.data.value("rumble_enabled",true),locale);
+    ui->row(tr("input.test"),290,row==3,672,"",true,52,"chevron-right","joystick");
     if(row==0)ui->hints({{"A",tr("action.open")},{"B",tr("action.back")}});
+    else if(row==3)ui->hints({{"A",tr("action.open")},{"B",tr("action.back")},{"X",tr("footer.info")}});
     else ui->hints({{"LEFT/RIGHT",tr("footer.value")},{"B",tr("action.back")},{"X",tr("footer.info")}});
   } else if(screen==Screen::PsxCoreSettings) {
     ui->frame("Sony PlayStation",tr("section.cores"),zone);
@@ -1594,6 +1631,7 @@ void App::draw() {
       ui->binaryRow(tr("debug.enabled"),128,row==0,enabled,locale);
       ui->row(tr("debug.level"),182,row==1,672,tr("debug."+store.data.value("debug_level","events")),enabled);
       ui->row(tr("debug.clear"),236,row==2,672,"",true,52,"chevron-right");
+      ui->row(tr("input.test"),290,row==3,672,"",true,52,"chevron-right","joystick");
     } else if (category == 3) {
       const int top=128,viewport=284,content=322;
       if(row*54<powerScroll)powerScroll=row*54;
@@ -1628,7 +1666,7 @@ void App::draw() {
       std::string value = category == 2 ? std::to_string(previewVolume)+"%" : brightness ? std::to_string(*brightness)+"%" : "—";
       ui->row(tr(category==1?"setting.brightness":"setting.volume"),128,true,672,value,supported);
     }
-    const bool opens = (category == 0 && row == 0) || category == 5 || (category == 4 && row == 2);
+    const bool opens = (category == 0 && row == 0) || category == 5 || (category == 4 && row >= 2);
     std::vector<std::pair<std::string,std::string>> hints;
     if (opens) hints.push_back({"A",tr("action.open")});
     else {
@@ -1718,10 +1756,10 @@ void App::draw() {
     bool inherited = !options.contains(game.id) || !options.at(game.id).contains("integer_scaling");
     auto effective = tr(store.integerScaling(game.id)?"value.on":"value.off");
     auto value = inherited ? locale.tr("value.global_state",{{"value",effective}}) : effective;
-    ui->row(tr("setting.integer_scaling"),128,row==0,672,value);
-    if(core->discCount()>1)ui->row(tr("setting.disc"),182,row==1,672,std::to_string(core->discIndex()+1)+" / "+std::to_string(core->discCount()));
+    if(game.system!="PSX")ui->row(tr("setting.integer_scaling"),128,row==0,672,value);
+    if(core->discCount()>1)ui->row(tr("setting.disc"),128,row==0,672,std::to_string(core->discIndex()+1)+" / "+std::to_string(core->discCount()));
     if(game.system=="PSX") {
-      int controllerRow=core->discCount()>1?2:1;
+      int controllerRow=core->discCount()>1?1:0;
       bool inherited=!options.contains(game.id)||!options.at(game.id).contains("psx_controller");
       auto mode=tr(psxDualshock()?"psx.controller.dualshock":"psx.controller.digital");
       ui->row(tr("psx.controller"),128+controllerRow*54,row==controllerRow,672,inherited?locale.tr("value.global_state",{{"value",mode}}):mode);

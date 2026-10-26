@@ -41,6 +41,7 @@ public:
   explicit Store(fs::path);
   void commit(Json);
   fs::path gameDir(const Game &) const;
+  void migrateLegacyTf1(const std::vector<Game> &,const std::vector<Volume> &);
   bool integerScaling(const std::string &gameId) const;
 };
 class Locale {

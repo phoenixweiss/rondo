@@ -36,7 +36,7 @@ class BuildGraphTests(unittest.TestCase):
                 return [line for line in output.splitlines() if ' -c ' in line]
 
             output = make()
-            self.assertEqual(len(compiles(output)), 34, output)
+            self.assertEqual(len(compiles(output)), 40, output)
             self.assertEqual(sum(' -c src/model.cpp ' in line for line in compiles(output)), 1)
             self.assertEqual(make(), '')
             time.sleep(1.05)
@@ -47,13 +47,13 @@ class BuildGraphTests(unittest.TestCase):
             self.assertEqual(len(compiles(make())), 1)
             self.assertEqual(make(), '')
             time.sleep(1.05)
-            self.assertEqual(len(compiles(make('CXXFLAGS=-std=c++17 -O1'))), 34)
+            self.assertEqual(len(compiles(make('CXXFLAGS=-std=c++17 -O1'))), 40)
             time.sleep(1.05)
-            self.assertEqual(len(compiles(make())), 34)  # Switching back is a rebuild too.
+            self.assertEqual(len(compiles(make())), 40)  # Switching back is a rebuild too.
             time.sleep(1.05)
             linked = make('LDFLAGS=-s')
             self.assertEqual(compiles(linked), [])
-            self.assertEqual(sum(' -o build/' in line for line in linked.splitlines()), 18)
+            self.assertEqual(sum(' -o build/' in line for line in linked.splitlines()), 22)
             self.assertEqual(make('LDFLAGS=-s'), '')
             # Cross-adapter wrappers stay on link commands, never object commands.
             dry = subprocess.run(['make', '-n', 'h700-programs', 'PKG_CONFIG=true'],

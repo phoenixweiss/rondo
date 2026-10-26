@@ -295,6 +295,35 @@ int main(int argc, char **argv) {
       assert(brightnessPercent(raw)==percent);
       if(percent)assert(raw>brightnessRawLevel(percent-5));
     }
+    // Canonical TF1 identities retain game data from early development launchers.
+    auto card=root/"volume-card";fs::create_directories(card/"NES/Game");atomicWrite(card/"NES/Game/game.nes",{0});
+    auto oldGames=scan({{"RONDO-TEST",card}}),newGames=scan({{"TF1",card}});
+    assert(oldGames.size()==1&&newGames.size()==1&&oldGames[0].id!=newGames[0].id);
+    auto oldId=oldGames[0].id,newId=newGames[0].id;
+    Store migration(root/"volume-migration");auto config=migration.data;
+    config["favorites"]={oldId};config["focus"]=oldId;config["resume_game"]=oldId;
+    config["game_options"][oldId]={{"integer_scaling",true}};
+    config["recent_games"]=recentAfterLaunch(Json::array(),oldGames[0],{{"RONDO-TEST",card}});migration.commit(config);
+    atomicWrite(migration.gameDir(oldGames[0])/"sram.bin",{1,2,3,4});atomicWrite(migration.gameDir(oldGames[0])/"slot-0.state",{5,6});
+    migration.migrateLegacyTf1(newGames,{{"TF1",card}});
+    assert(migration.data["favorites"]==Json::array({newId})&&migration.data["focus"]==newId&&migration.data["resume_game"]==newId);
+    assert(migration.data["game_options"][newId]["integer_scaling"]==true&&!migration.data["game_options"].contains(oldId));
+    assert(migration.data["recent_games"][0]["volume"]=="TF1"&&migration.data["recent_games"][0]["id"]==newId);
+    assert(readBytes(migration.gameDir(newGames[0])/"sram.bin")==std::vector<uint8_t>({1,2,3,4}));
+    assert(readBytes(migration.gameDir(newGames[0])/"slot-0.state")==std::vector<uint8_t>({5,6}));
+    auto revision=migration.data["revision"];migration.migrateLegacyTf1(newGames,{{"TF1",card}});assert(migration.data["revision"]==revision);
+    // Resume safely after directory rename but before the configuration commit.
+    Store interrupted(root/"volume-interrupted");interrupted.commit(config);
+    atomicWrite(interrupted.gameDir(newGames[0])/"sram.bin",{7});interrupted.migrateLegacyTf1(newGames,{{"TF1",card}});
+    assert(interrupted.data["focus"]==newId&&readBytes(interrupted.gameDir(newGames[0])/"sram.bin")==std::vector<uint8_t>({7}));
+    // Existing canonical data wins; a conflicting legacy directory is retained.
+    atomicWrite(interrupted.gameDir(oldGames[0])/"sram.bin",{9});interrupted.migrateLegacyTf1(newGames,{{"TF1",card}});
+    assert(readBytes(interrupted.gameDir(newGames[0])/"sram.bin")==std::vector<uint8_t>({7}));
+    assert(readBytes(interrupted.gameDir(oldGames[0])/"sram.bin")==std::vector<uint8_t>({9}));
+    // Previously absent games can be migrated when their ROMs return later.
+    Store later(root/"volume-later");later.commit(config);later.data["recent_games"]=Json::array();
+    atomicWrite(later.gameDir(oldGames[0])/"sram.bin",{10});later.migrateLegacyTf1({},{{"TF1",card}});
+    later.migrateLegacyTf1(newGames,{{"TF1",card}});assert(readBytes(later.gameDir(newGames[0])/"sram.bin")==std::vector<uint8_t>({10}));
     fs::remove_all(root);
     std::cout << "Model checks passed: preservation, recovery, volumes/playlists, "
                  "scrolling, localization extension, DST, write failure.\n";

@@ -1,6 +1,12 @@
 #!/bin/sh
 # BaseOS standalone entry. Does not install or update BaseOS.
 set -eu
+motor_off() {
+ MOTOR=/sys/class/power_supply/axp2202-battery/moto
+ if [ -w "$MOTOR" ]; then printf '0\n' > "$MOTOR" 2>/dev/null || :; fi
+}
+trap motor_off EXIT
+motor_off
 SD=$(pwd)
 APP="$SD/System/Rondo"
 export LD_LIBRARY_PATH="$APP/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
@@ -17,9 +23,9 @@ printf '\n--- Rondo startup %s launcher_pid=%s ---\n' "$(date '+%Y-%m-%dT%H:%M:%
 # Physical testing rejected the experimental hall-wake adapter. Do not load it.
 # A cold boot restores the vendor Power-wake path without changing saved settings.
 printf 'Lid-wake experiment disabled after device failure; using stock Power wake.\n' >> "$LOG"
-VOLUME="RONDO-DEMO=$APP/Demo/card-a"
-[ ! -d "$SD/RondoGames/NES" ] || VOLUME="RONDO-TEST=$SD/RondoGames"
-# Use the explicit test-library directory when present; otherwise the original demo.
+VOLUME="TF1=$APP/Demo/card-a"
+[ ! -d "$SD/RondoGames" ] || VOLUME="TF1=$SD/RondoGames"
+# Use the card's library when present, including collections without NES.
 run_frontend() {
  set +e
  "$RONDO_RUNTIME_LOADER" "$APP/bin/rondo" --assets "$APP/assets" \

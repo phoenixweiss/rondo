@@ -3,6 +3,7 @@
 #pragma once
 #include "libretro.h"
 #include "model.hpp"
+#include "rumble.hpp"
 #include <SDL.h>
 #include <array>
 namespace rondo {
@@ -26,6 +27,8 @@ class Core {
   static void audioSample(int16_t, int16_t);
   static void inputPoll();
   static int16_t inputState(unsigned, unsigned, unsigned, unsigned);
+  static bool rumbleState(unsigned, retro_rumble_effect, uint16_t);
+  std::array<uint16_t,2> rumbleStrength{};
   void (*init)() = nullptr;
   void (*deinit)() = nullptr;
   void (*run)() = nullptr;
@@ -39,6 +42,9 @@ class Core {
   template <class T> T sym(const char *name);
 
 public:
+  std::shared_ptr<Rumble> rumble;
+  bool rumbleEnabled=true;
+  void stopRumble();
   std::vector<uint32_t> frame;
   int width = 256, height = 240;
   uint16_t buttons = 0;

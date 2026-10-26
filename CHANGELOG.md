@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## [0.10.0] - 2026-10-26
+
+### Added
+
+- Input test with live buttons and stick positions, Start + Select to exit, and a short motor test using L1 + R1 + L2 + R2.
+- Built-in H700 game vibration through the libretro rumble interface, with a persistent global switch and motor shutdown on pause, sleep, exit and controller disconnection.
+
+### Performance
+
+- Prepare library artwork asynchronously, prefetch nearby games and reuse bounded, checksum-verified thumbnails across launches. Keep originals untouched and use byte-budgeted LRU caches.
+- Run lightweight source/documentation checks before CI chooses the full native matrix; documentation-only changes skip emulator compilation. Release verification remains unchanged.
+
+### Changed
+
+- Give settings sections distinct icons and identify the main memory card as TF1. Existing saves, favorites and per-game preferences migrate to the canonical card identity.
+- PlayStation always fits the core display aspect ratio. Global and legacy per-game integer-scaling preferences no longer change PSX sizing; the PSX game menu omits that setting.
+
 ## [0.9.0] - 2026-10-25
 
 ### Added

@@ -16,6 +16,7 @@ enum class Screen {
   Search,
   Settings,
   SettingsSection,
+  InputTest,
   SystemInfo,
   LogClear,
   SystemConfirm,
@@ -92,7 +93,19 @@ public:
   std::string timezoneSortKey(const std::string &) const;
   void openTimezones();
   std::unique_ptr<UI> ui;
+  void configureArtwork();
   std::unique_ptr<DeviceControl> device;
+  std::shared_ptr<Rumble> motor;
+  uint16_t testButtons=0;
+  std::array<int16_t,4> testAxes{};
+  std::set<std::string> testExtras;
+  bool testChordHeld=false,testInputArmed=false;
+  bool testFromCores=false;
+  uint64_t testFeedbackUntil=0;
+  std::string testFeedback;
+  void openInputTest(bool fromCores);
+  void testInput(uint16_t,const std::array<int16_t,4> &,const std::set<std::string> &);
+  void drawInputTest(const std::string &zone);
   std::optional<int> brightness;
   std::optional<bool> lastLidOpen = true;
   uint64_t lidCheckAt = 0;

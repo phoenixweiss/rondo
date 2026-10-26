@@ -66,3 +66,11 @@ assert hashlib.sha256((ROOT/'assets/Firmware/OpenBIOS'/ob['output']).read_bytes(
 assert (ROOT/'assets/Firmware/OpenBIOS/LICENSE').read_text().startswith('MIT License')
 
 print(f"PASS: {len(files)} publication input files, JSON, local links, vendor hashes and locale placeholders")
+
+settings_icons = ROOT / "assets/Assets/Icons"
+icon_inputs = json.loads((settings_icons / "settings-sources.json").read_text())
+assert re.fullmatch(r"[0-9a-f]{40}", icon_inputs["revision"])
+assert hashlib.sha256((settings_icons / icon_inputs["license"]).read_bytes()).hexdigest() == icon_inputs["license_sha256"]
+for name, record in icon_inputs["icons"].items():
+    assert hashlib.sha256((settings_icons / (name + ".svg")).read_bytes()).hexdigest() == record["svg_sha256"], name
+    assert hashlib.sha256((ROOT / "assets/IconsPNG" / (name + ".png")).read_bytes()).hexdigest() == record["png_sha256"], name

@@ -7,6 +7,14 @@
 #include <cctype>
 #include <cmath>
 namespace rondo {
+bool VolumeKeys::pressed(bool up) const {
+  for(const auto &d:devices)if(d.state.held.count(up?115:114))return true;
+  return false;
+}
+bool PowerKeys::pressed() const {
+  for(const auto &d:devices)if(d.state.held)return true;
+  return false;
+}
 static std::string value(const fs::path &p) {
   std::ifstream f(p);
   std::string s;

@@ -7,7 +7,6 @@
 #include <cmath>
 #define STBI_ONLY_PNG
 #define STBI_MAX_DIMENSIONS 4096
-#define STB_IMAGE_IMPLEMENTATION
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
@@ -67,6 +66,8 @@ UI::UI(fs::path a, bool hidden) : assets(std::move(a)), headless(hidden) {
   }
 }
 UI::~UI() {
+  artworkCache.reset();
+  for(auto &entry:imageTextures)SDL_DestroyTexture(entry.second.texture);
   for (auto &entry : controllers) SDL_GameControllerClose(entry.second);
   for (auto &entry : unmappedControllers) SDL_JoystickClose(entry.second);
   for (auto &t : textures)
@@ -507,21 +508,21 @@ void UI::inputHints(bool keyboard) {
   // The separately spawned runner inherits the active input mode.
   SDL_setenv("RONDO_INPUT_HINTS", keyboard ? "keyboard" : "controller", 1);
 }
-void UI::keycap(int x, int y, int width, bool round, SDL_Color c) {
+void UI::keycap(int x, int y, int width, bool round, SDL_Color c, int height, bool filled) {
   // One antialiased 1.25px outline for circular and rectangular footer keys.
-  auto key="keycap:"+std::to_string(width)+":"+std::to_string(round)+":"+
+  auto key="keycap:"+std::to_string(width)+":"+std::to_string(height)+":"+std::to_string(round)+":"+std::to_string(filled)+":"+
            std::to_string(c.r)+":"+std::to_string(c.g)+":"+std::to_string(c.b)+":"+std::to_string(c.a);
   if (!textures.count(key)) {
-    auto *surface=SDL_CreateRGBSurfaceWithFormat(0,width,32,32,SDL_PIXELFORMAT_RGBA32);
-    const double radius=round?15.5:5.5;
-    for(int yy=0;yy<32;++yy) for(int xx=0;xx<width;++xx) {
+    auto *surface=SDL_CreateRGBSurfaceWithFormat(0,width,height,32,SDL_PIXELFORMAT_RGBA32);
+    const double radius=round?(height-1)/2.0:5.5;
+    for(int yy=0;yy<height;++yy) for(int xx=0;xx<width;++xx) {
       int coverage=0;
       for(int sy=0;sy<4;++sy) for(int sx=0;sx<4;++sx) {
         double qx=std::abs(xx+(sx+0.5)/4-width/2.0)-(width/2.0-radius-0.5);
-        double qy=std::abs(yy+(sy+0.5)/4-16)-(16-radius-0.5);
+        double qy=std::abs(yy+(sy+0.5)/4-height/2.0)-(height/2.0-radius-0.5);
         double distance=std::min(std::max(qx,qy),0.0)+
                         std::hypot(std::max(qx,0.0),std::max(qy,0.0))-radius;
-        coverage+=distance<=0 && distance>=-1.25;
+        coverage+=distance<=0 && (filled || distance>=-1.25);
       }
       auto *pixels=reinterpret_cast<Uint32*>(static_cast<Uint8*>(surface->pixels)+yy*surface->pitch);
       pixels[xx]=SDL_MapRGBA(surface->format,c.r,c.g,c.b,Uint8(coverage*c.a/16));
@@ -531,7 +532,7 @@ void UI::keycap(int x, int y, int width, bool round, SDL_Color c) {
     SDL_SetTextureBlendMode(texture,SDL_BLENDMODE_BLEND);
     textures[key]=texture;
   }
-  SDL_Rect dst{x,y,width,32};
+  SDL_Rect dst{x,y,width,height};
   SDL_RenderCopy(renderer,textures.at(key),nullptr,&dst);
 }
 void UI::binaryRow(const std::string &label, int y, bool selected, std::optional<bool> value,
@@ -588,7 +589,7 @@ void UI::keyArrows(int x, int y, int width, bool vertical, SDL_Color c) {
   }
   SDL_Rect dst{x,y,width,32};SDL_RenderCopy(renderer,textures.at(key),nullptr,&dst);
 }
-void UI::keyLabel(const std::string &label, int x, int y, int width, int size, SDL_Color c) {
+void UI::keyLabel(const std::string &label, int x, int y, int width, int size, SDL_Color c, int height) {
   auto *surface=TTF_RenderUTF8_Blended(font(size,700),label.c_str(),c);
   if(!surface)return;
   int left=surface->w,top=surface->h,right=-1,bottom=-1;
@@ -600,7 +601,7 @@ void UI::keyLabel(const std::string &label, int x, int y, int width, int size, S
   if(right>=left) {
     auto *texture=SDL_CreateTextureFromSurface(renderer,surface);
     SDL_Rect ink{left,top,right-left+1,bottom-top+1};
-    SDL_Rect dst{x+(width-ink.w)/2,y+(32-ink.h)/2,ink.w,ink.h};
+    SDL_Rect dst{x+(width-ink.w)/2,y+(height-ink.h)/2,ink.w,ink.h};
     SDL_RenderCopy(renderer,texture,&ink,&dst);SDL_DestroyTexture(texture);
   }
   SDL_FreeSurface(surface);
@@ -701,34 +702,53 @@ bool UI::image(const fs::path &p, int x, int y, int w, int h, bool smooth) {
   std::string key = p.string() + "#" + std::to_string(smooth) + "#" +
                     std::to_string(static_cast<long long>(stamp.time_since_epoch().count())) + "#" +
                     std::to_string(size);
-  auto it = textures.find(key);
+  auto it = imageTextures.find(key);
   SDL_Texture *t = nullptr;
-  if (it == textures.end()) {
+  bool temporary=false;
+  if (it == imageTextures.end()) {
     int iw = 0, ih = 0, channels = 0;
     auto *bytes = stbi_load(p.c_str(), &iw, &ih, &channels, 4);
     if (!bytes)
       return false;
-    auto *surface =
-        SDL_CreateRGBSurfaceWithFormatFrom(bytes, iw, ih, 32, iw * 4, SDL_PIXELFORMAT_RGBA32);
-    t = SDL_CreateTextureFromSurface(renderer, surface);
-    SDL_FreeSurface(surface);
+    t=rememberImage(key,bytes,iw,ih,smooth);
+    temporary=size_t(iw)*ih*4>4*1024*1024;
     stbi_image_free(bytes);
     if (!t)
       return false;
-    SDL_SetTextureScaleMode(t, smooth ? SDL_ScaleModeLinear : SDL_ScaleModeNearest);
-    if (textures.size() >= 64) {
-      SDL_DestroyTexture(textures.begin()->second);
-      textures.erase(textures.begin());
-    }
-    textures[key] = t;
-  } else
-    t = it->second;
+  } else {it->second.used=++imageClock;t = it->second.texture;}
   int iw, ih;
   SDL_QueryTexture(t, nullptr, nullptr, &iw, &ih);
   double scale=std::min(double(w)/iw,double(h)/ih);
   SDL_Rect r{x+(w-int(iw*scale))/2,y+(h-int(ih*scale))/2,int(iw*scale),int(ih*scale)};
   SDL_RenderCopy(renderer, t, nullptr, &r);
+  if(temporary)SDL_DestroyTexture(t);
   return true;
+}
+SDL_Texture *UI::rememberImage(const std::string &key,const uint8_t *pixels,int width,int height,bool smooth) {
+  size_t bytes=size_t(width)*height*4;
+  while(imageTextureBytes+bytes>4*1024*1024&&!imageTextures.empty()) {
+    auto oldest=std::min_element(imageTextures.begin(),imageTextures.end(),[](const auto &a,const auto &b){return a.second.used<b.second.used;});
+    imageTextureBytes-=oldest->second.bytes;SDL_DestroyTexture(oldest->second.texture);imageTextures.erase(oldest);
+  }
+  auto *surface=SDL_CreateRGBSurfaceWithFormatFrom(const_cast<uint8_t *>(pixels),width,height,32,width*4,SDL_PIXELFORMAT_RGBA32);
+  if(!surface)return nullptr;auto *texture=SDL_CreateTextureFromSurface(renderer,surface);SDL_FreeSurface(surface);
+  if(!texture)return nullptr;
+  SDL_SetTextureScaleMode(texture,smooth?SDL_ScaleModeLinear:SDL_ScaleModeNearest);
+  if(bytes<=4*1024*1024){imageTextures[key]={texture,bytes,++imageClock};imageTextureBytes+=bytes;}
+  return texture;
+}
+bool UI::artworkImage(const std::vector<ArtworkRequest> &requests,int x,int y,int w,int h) {
+  artworkPending=false;
+  if(!artworkCache||requests.empty())return false;
+  artworkCache->select(requests);auto image=artworkCache->get(requests.front());
+  if(!image){artworkPending=!artworkCache->missing(requests.front());return false;}
+  auto id="art:"+image->identity;auto found=imageTextures.find(id);SDL_Texture *texture=nullptr;
+  if(found!=imageTextures.end()){found->second.used=++imageClock;texture=found->second.texture;}
+  else texture=rememberImage(id,image->rgba.data(),image->width,image->height,requests.front().smooth);
+  if(!texture)return false;
+  double scale=std::min(double(w)/image->width,double(h)/image->height);
+  SDL_Rect target{x+(w-int(image->width*scale))/2,y+(h-int(image->height*scale))/2,int(image->width*scale),int(image->height*scale)};
+  SDL_RenderCopy(renderer,texture,nullptr,&target);return true;
 }
 void UI::pixels(const std::vector<uint32_t> &p, int iw, int ih, int x, int y, int w, int h, bool fitRawAspect) {
   if (p.empty())

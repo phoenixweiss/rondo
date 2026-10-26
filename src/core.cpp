@@ -97,6 +97,8 @@ Core::Core(const fs::path &path, const Game &game, const fs::path &saves, bool s
   }
 }
 Core::~Core() {
+  stopRumble();
+  rumbleEnabled=false;
   if (audio)
     SDL_CloseAudioDevice(audio);
   if (loaded)
@@ -113,6 +115,9 @@ static void coreLog(enum retro_log_level level,const char *format,...) {
 bool Core::environment(unsigned cmd, void *data) {
   auto &c = *active;
   switch (cmd) {
+  case RETRO_ENVIRONMENT_GET_RUMBLE_INTERFACE:
+    if(!data)return false;
+    static_cast<retro_rumble_interface *>(data)->set_rumble_state=rumbleState;return true;
   case RETRO_ENVIRONMENT_GET_LOG_INTERFACE:
     static_cast<retro_log_callback *>(data)->log=coreLog;return true;
   case RETRO_ENVIRONMENT_GET_DISK_CONTROL_INTERFACE_VERSION:
@@ -158,6 +163,7 @@ bool Core::environment(unsigned cmd, void *data) {
         while (!values.empty() && values[0] == ' ')
           values.erase(0, 1);
         c.variables[v->key] = values.substr(0, values.find('|'));
+        if(std::string(v->key)=="pcsx_rearmed_vibration")c.variables[v->key]="enabled";
         // The handheld GBA policy uses wall time and hardware-rate audio;
         // link-cable sessions are outside this frontend's supported scope.
         if(std::string(v->key)=="gpsp_rtc_time_source")c.variables[v->key]="system";
@@ -264,6 +270,7 @@ int16_t Core::inputState(unsigned port, unsigned device, unsigned index, unsigne
 }
 void Core::psxController(bool dualshock) {
   if(!psx)return;
+  stopRumble();
   // PCSX ReARMed advertises DualShock as ANALOG subclass 1, not plain ANALOG.
   sym<void (*)(unsigned,unsigned)>("retro_set_controller_port_device")(
       0,dualshock?RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_ANALOG,1):RETRO_DEVICE_JOYPAD);
@@ -271,11 +278,26 @@ void Core::psxController(bool dualshock) {
 }
 void Core::tick() {
   if (!paused) {
-    run();
+    try{run();}catch(...){stopRumble();throw;}
+    if(rumble) {
+      if(rumbleEnabled)rumble->update(rumbleStrength[0],rumbleStrength[1]);
+      else {rumbleStrength={};rumble->update(0,0);}
+    }
     ++frames;
     if (frames % 600 == 0)
       flushSram();
-  }
+  } else {rumbleStrength={};if(rumble)rumble->update(0,0);}
+}
+bool Core::rumbleState(unsigned port,retro_rumble_effect effect,uint16_t strength) {
+  if(!active||port!=0||(effect!=RETRO_RUMBLE_STRONG&&effect!=RETRO_RUMBLE_WEAK))return false;
+  auto &c=*active;
+  if(!c.rumbleEnabled||c.paused||!c.rumble||!c.rumble->available())return false;
+  c.rumbleStrength[effect==RETRO_RUMBLE_STRONG?0:1]=strength;
+  return true;
+}
+void Core::stopRumble() {
+  rumbleStrength={};
+  if(rumble)rumble->stop();
 }
 void Core::closeAudio() {
   if (audio) { SDL_ClearQueuedAudio(audio); SDL_CloseAudioDevice(audio); audio=0; }
@@ -290,6 +312,7 @@ void Core::openAudio() {
   SDL_PauseAudioDevice(audio,0);
 }
 void Core::silence() {
+  stopRumble();
   if (audio)
     SDL_ClearQueuedAudio(audio);
 }

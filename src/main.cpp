@@ -113,7 +113,8 @@ static std::string pad(uint8_t b) {
   }
 }
 static void held(App &a) {
-  if (!a.core || a.screen != Screen::Running)
+  bool testing=a.screen==Screen::InputTest;
+  if (!testing&&(!a.core || a.screen != Screen::Running))
     return;
   const auto *k = SDL_GetKeyboardState(nullptr);
   uint16_t mask = 0;
@@ -133,6 +134,12 @@ static void held(App &a) {
   put(RETRO_DEVICE_ID_JOYPAD_Y, k[SDL_SCANCODE_A]);
   put(RETRO_DEVICE_ID_JOYPAD_L, k[SDL_SCANCODE_Q]);
   put(RETRO_DEVICE_ID_JOYPAD_R, k[SDL_SCANCODE_E]);
+  if(testing) {
+    put(RETRO_DEVICE_ID_JOYPAD_L2,k[SDL_SCANCODE_W]);
+    put(RETRO_DEVICE_ID_JOYPAD_R2,k[SDL_SCANCODE_R]);
+    put(RETRO_DEVICE_ID_JOYPAD_L3,k[SDL_SCANCODE_T]);
+    put(RETRO_DEVICE_ID_JOYPAD_R3,k[SDL_SCANCODE_Y]);
+  }
   auto &raw = *a.ui->handheldKeys;
   put(RETRO_DEVICE_ID_JOYPAD_A, raw.pressed("A"));
   put(RETRO_DEVICE_ID_JOYPAD_B, raw.pressed("B"));
@@ -150,7 +157,17 @@ static void held(App &a) {
   put(RETRO_DEVICE_ID_JOYPAD_R2,raw.pressed("R2"));
   put(RETRO_DEVICE_ID_JOYPAD_L3,raw.pressed("L3"));
   put(RETRO_DEVICE_ID_JOYPAD_R3,raw.pressed("R3"));
-  mask |= a.ui->controllerButtons(!a.psxDualshock() && a.store.data.value("left_stick_dpad",true));
+  mask |= a.ui->controllerButtons(!testing&&!a.psxDualshock() && a.store.data.value("left_stick_dpad",true));
+  if(testing) {
+    std::set<std::string> extras;
+    if(raw.pressed("MENU")||k[SDL_SCANCODE_TAB])extras.insert("MENU");
+    for(auto &entry:a.ui->controllers)
+      if(SDL_GameControllerGetButton(entry.second,SDL_CONTROLLER_BUTTON_GUIDE))extras.insert("MENU");
+    if(a.ui->volumeKeys->pressed(true)||k[SDL_SCANCODE_EQUALS])extras.insert("VOL+");
+    if(a.ui->volumeKeys->pressed(false)||k[SDL_SCANCODE_MINUS])extras.insert("VOL-");
+    if(a.ui->powerKeys->pressed())extras.insert("POWER");
+    a.testInput(mask,a.ui->controllerAxes(),extras);return;
+  }
   a.gameInput(mask,a.ui->controllerAxes());
 }
 static void events(App &a) {
@@ -171,6 +188,7 @@ static void events(App &a) {
        e.type==SDL_CONTROLLERDEVICEREMAPPED || e.type==SDL_JOYDEVICEADDED || e.type==SDL_JOYDEVICEREMOVED)
       a.ui->refreshControllers();
     a.ui->controllerEvent(e);
+    if((e.type==SDL_CONTROLLERDEVICEREMOVED||e.type==SDL_JOYDEVICEREMOVED)&&a.core)a.core->stopRumble();
     if (e.type == SDL_QUIT) {
       if (a.core) {
         a.screen = Screen::GameMenu;
@@ -402,6 +420,7 @@ static Json supervise(App &a, const Json &runnerScript) {
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
       failure = "Runner failed; unsaved progress may be lost";
   }
+  if(a.motor)a.motor->stop(); // Also clear a motor left on by a crashed runner.
   if (failure.empty() && result.value("game_closed",false)) {
     try { a.rememberClosedGame(); }
     catch (const std::exception &e) {
@@ -410,6 +429,7 @@ static Json supervise(App &a, const Json &runnerScript) {
     }
   }
   a.ui = std::make_unique<UI>(a.options.assets, a.options.headless);
+  a.configureArtwork();
   // Time spent in the runner is not idle time in the library.
   a.lastActivity=monotonicMs();
   a.batteryWarningsLoaded=false;

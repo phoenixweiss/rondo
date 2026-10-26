@@ -1,0 +1,41 @@
+{
+  "repository": "https://github.com/lucide-icons/lucide",
+  "revision": "7faf87628a1ad6175975bc595344337ce14a7db4",
+  "license": "LICENSE.lucide-settings",
+  "license_sha256": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57",
+  "raster": {
+    "size": 48,
+    "color": "#F4EBD8",
+    "tool": "CairoSVG"
+  },
+  "icons": {
+    "palette": {
+      "svg_sha256": "8e7d3fde990cffd10469ba351f27c50202b057a9bb9af5626322e53fd3abc78c",
+      "png_sha256": "715c80599e90b43c4d221b3a04f7cb45280077b0756bc6a1af899ed5492742ae"
+    },
+    "radio-tower": {
+      "svg_sha256": "d5d2728425fe115bed9f309c03b9dd1e2b7483a9242df87966c37e36ee3381cf",
+      "png_sha256": "13ed72ad28fc4e11b7fecea10136b4d3ea1e073cc864861e377b649630114e71"
+    },
+    "activity": {
+      "svg_sha256": "050fbcda05e13c2051cf857683645e19c6b180861ef4d0cc28a6f09ba1ea1666",
+      "png_sha256": "7233d6dc397710eb1c781c1274a8cad8897c4fd933616d97e5261c705bf9becc"
+    },
+    "cpu": {
+      "svg_sha256": "ec83bb69ec029d367d749afc445b39c8e95891ebf99b0400652677c2b149b99c",
+      "png_sha256": "77acdecd289601e2091f50754df47c62c30001681bedb9a2142410762218ce05"
+    },
+    "info": {
+      "svg_sha256": "bc977a64eb96f3e9c1041ffd09a3fceb70e3e65c02b571f76064062ed31f3cb9",
+      "png_sha256": "69dbe6568ba16a8b20617a02ca4a0fa05bf2727c3414dcf2c9fe8192dd6807b0"
+    },
+    "gamepad-2": {
+      "svg_sha256": "b0671de7afbebdafc4d655d867d9851947170b906fb187e749410039df867509",
+      "png_sha256": "5cac57ae7d202bacb98e458be1d0a79257e07d033b1f3a97da790bf0b20d5cc1"
+    },
+    "joystick": {
+      "svg_sha256": "73e5481260335dc44f627ceacd0c5b954fc41bfd2ccd8b8e6b80d3f638174090",
+      "png_sha256": "bd8d2982bd9f16407e05f397327eedb1fc844d5f5e2af46d814668e47ff3662b"
+    }
+  }
+}

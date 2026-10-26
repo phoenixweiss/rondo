@@ -3,7 +3,9 @@
 Settings → Display contains brightness, the global integer-scaling default and
 the game background color. The scaling default is Off, preserving the previous
 behavior for games without an explicit preference. Existing per-game On/Off
-values retain precedence; no settings migration rewrites those overrides.
+values retain precedence on other systems; no settings migration rewrites those overrides.
+PlayStation always uses aspect-correct fitting and ignores both global and stored
+per-game integer-scaling values. Its game menu omits Integer scaling.
 
 Game menu → Game settings cycles Integer scaling through Global, On and Off
 with Left/Right or Confirm. Global removes only that game's scaling override,

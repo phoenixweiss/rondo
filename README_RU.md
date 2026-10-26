@@ -123,6 +123,8 @@ python3 tools/build_h700_runtime.py --work build/h700-second
 
 Сообщения об ошибках с шагами воспроизведения приветствуются. Существенные PR лучше предварительно обсуждать: сейчас разработка идёт по бэклогу автора. Подробнее — в [CONTRIBUTING.md](CONTRIBUTING.md).
 
+Проверка кнопок, стиков и встроенного мотора описана в [Input test](docs/input-test.md) (English).
+
 ## Автор
 
 Автор и сопровождающий проекта — [Павел Ткачев (@phoenixweiss)](https://github.com/phoenixweiss).

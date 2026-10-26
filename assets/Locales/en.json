@@ -463,5 +463,14 @@
   "psx.file_unavailable": "The selected BIOS is missing or invalid",
   "info.psx_bios_file.title": "Choose a BIOS file",
   "info.psx_bios_file.body": "Automatic lets the core choose from RondoState/BIOS/PSX. A specific file is used alone, with no substitution by another BIOS. A confirms and saves; B cancels. This choice applies only to User BIOS and takes effect at the next game launch. If the file disappears, restore it or choose another one. Changing firmware may make previous states incompatible; memory card saves remain available.",
-  "psx.missing.selected": "The selected BIOS file is missing or invalid: {path}. Restore it or choose another file in Core settings. Rondo will not substitute a different BIOS automatically."
+  "psx.missing.selected": "The selected BIOS file is missing or invalid: {path}. Restore it or choose another file in Core settings. Rondo will not substitute a different BIOS automatically.",
+  "setting.rumble": "Game vibration",
+  "rumble.unavailable": "Vibration is off or unavailable on this device.",
+  "info.rumble.title": "Game vibration",
+  "info.rumble.body": "Plays vibration signals from supported games through the built-in motor. PlayStation games need a DualShock controller and rumble support in the game. Stops while paused, asleep or outside the game. Input test offers a short motor pulse. This switch applies to all cores; games without rumble signals remain silent. External gamepad vibration is not connected.",
+  "input.test": "Input test",
+  "input.motor_combo": "L1 + R1 + L2 + R2: test vibration",
+  "input.motor_pulse": "Motor pulse requested",
+  "info.input_test.title": "Input test",
+  "info.input_test.body": "Shows held buttons and both sticks. Press L1 + R1 + L2 + R2 together for one short motor pulse; release the combination before repeating. Start + Select exits. Buttons here do not change settings, volume or sleep the device. Closing the lid still follows the sleep setting. On a keyboard: Q/W/E/R are L1/L2/R1/R2; Enter + Right Shift exits."
 }

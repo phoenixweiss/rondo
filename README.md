@@ -121,6 +121,8 @@ See the [runtime guide](runtime/README.md) for package audit and optional isolat
 
 Bug reports with reproduction steps are welcome. Please discuss substantial pull requests first; development currently follows the maintainer's backlog. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
+Input diagnostics and built-in game vibration are described in [Input test](docs/input-test.md).
+
 ## Author
 
 Created and maintained by [Pavel Tkachev (@phoenixweiss)](https://github.com/phoenixweiss).

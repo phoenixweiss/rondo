@@ -3,24 +3,7 @@ name: Native checks
 on:
   push:
     branches: [dev, main]
-    paths:
-      - src/**
-      - assets/**
-      - vendor/**
-      - tests/**
-      - tools/**
-      - runtime/**
-      - docs/**
-      - licenses/**
-      - README*
-      - LICENSE
-      - THIRD_PARTY_NOTICES.md
-      - Makefile
-      - VERSION
-      - CHANGELOG.md
-      - .bumpsterrc
-      - .bumpster/**
-      - .github/workflows/**
+    paths-ignore: ['website/**']
   pull_request:
     branches: [dev, main]
     paths-ignore: ['website/**']
@@ -34,7 +17,32 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      runtime: ${{ steps.scope.outputs.runtime }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+      - name: Select check scope
+        id: scope
+        run: python tools/ci_scope.py
+      - name: Validate source and release tooling
+        run: |
+          python tools/check_source.py
+          python tests/ci_scope_tests.py
+          python tests/release_tests.py
+          python tests/runtime_build_tests.py
+          python tests/installer_tests.py
   native:
+    needs: source
+    if: ${{ !cancelled() && (needs.source.result != 'success' || needs.source.outputs.runtime == 'true') }}
     strategy:
       fail-fast: false
       matrix:

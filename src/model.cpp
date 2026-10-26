@@ -248,7 +248,7 @@ static void validateConfig(const Json &candidate, const Json &defaults) {
   if (!candidate.is_object() || candidate.value("schema", 0) != 1)
     throw std::runtime_error("Unsupported configuration");
   for (const auto &key : {"revision", "locale", "artwork", "section", "focus", "timezone", "volume",
-                          "favorites", "game_options", "psx_hle_warning_acknowledged", "psx_firmware", "psx_bios_file", "psx_controller", "left_stick_dpad", "replace_boot_logo", "brightness", "lid_sleep", "wake_on_lid_open", "show_battery_percent", "wifi_enabled", "bluetooth_enabled", "bluetooth_device", "ntp_auto", "debug_enabled", "debug_level", "integer_scaling", "game_background", "autosave_enabled", "startup_resume", "resume_game", "idle_screen_minutes", "battery_warning"})
+                          "favorites", "game_options", "psx_hle_warning_acknowledged", "psx_firmware", "psx_bios_file", "psx_controller", "rumble_enabled", "left_stick_dpad", "replace_boot_logo", "brightness", "lid_sleep", "wake_on_lid_open", "show_battery_percent", "wifi_enabled", "bluetooth_enabled", "bluetooth_device", "ntp_auto", "debug_enabled", "debug_level", "integer_scaling", "game_background", "autosave_enabled", "startup_resume", "resume_game", "idle_screen_minutes", "battery_warning"})
     if (candidate.contains(key) && candidate[key].type() != defaults[key].type() &&
         !(candidate[key].is_number() && defaults[key].is_number()))
       throw std::runtime_error("Invalid configuration field");
@@ -303,6 +303,7 @@ Store::Store(fs::path p) : root(std::move(p)) {
           {"psx_hle_warning_acknowledged", false},
           {"psx_firmware", "openbios"},
           {"psx_controller", "digital"},
+          {"rumble_enabled", true},
           {"psx_bios_file", "auto"},
           {"left_stick_dpad", true},
           {"artwork", "cover"},
@@ -340,6 +341,8 @@ Store::Store(fs::path p) : root(std::move(p)) {
     data["artwork"] = "cover";
 }
 void Store::commit(Json next) {
+  if(next.contains("rumble_enabled")&&!next.at("rumble_enabled").is_boolean())
+    throw std::runtime_error("Invalid vibration setting");
   if(next.contains("psx_bios_file")&&(!next.at("psx_bios_file").is_string()||!psxBiosFilename(next.at("psx_bios_file").get<std::string>())))
     throw std::runtime_error("Invalid PSX BIOS filename");
   if (readOnly)
@@ -375,6 +378,53 @@ void Store::commit(Json next) {
   data = std::move(next);
 }
 fs::path Store::gameDir(const Game &g) const { return root / "games" / g.id; }
+void Store::migrateLegacyTf1(const std::vector<Game> &games,const std::vector<Volume> &volumes) {
+  if(readOnly)return;
+  auto volume=std::find_if(volumes.begin(),volumes.end(),[](const auto &v){return v.id=="TF1";});
+  if(volume==volumes.end())return;
+  std::map<std::string,std::string> aliases;
+  auto identity=[](const std::string &id,const std::string &relative){auto text=id+"\n"+relative;return hashBytes({text.begin(),text.end()});};
+  // Compatibility with early development launchers only. Normal scans and new
+  // saves use TF1; no legacy namespace is retained as the active identity.
+  const std::set<std::string> legacy{"RONDO-TEST","RONDO-DEMO"};
+  auto base=fs::weakly_canonical(volume->root);
+  for(const auto &g:games)if(g.volume=="TF1") {
+    auto relative=g.path.lexically_relative(base).generic_string();
+    for(auto &old:legacy)aliases[identity(old,relative)]=g.id;
+  }
+  auto next=data;
+  for(auto &entry:next["recent_games"])if(legacy.count(entry.value("volume",""))) {
+    auto old=entry.at("id").get<std::string>();auto id=identity("TF1",entry.at("relative_path").get<std::string>());
+    aliases[old]=id;entry["volume"]="TF1";entry["id"]=id;
+  }
+  for(auto key:{"focus","resume_game"}) {
+    auto found=aliases.find(next.value(key,""));if(found!=aliases.end())next[key]=found->second;
+  }
+  Json favorites=Json::array();std::set<std::string> seen;
+  for(const auto &value:next["favorites"]) {
+    auto id=value.get<std::string>();auto found=aliases.find(id);if(found!=aliases.end())id=found->second;
+    if(seen.insert(id).second)favorites.push_back(id);
+  }
+  next["favorites"]=favorites;next["recent_games"]=cleanRecents(next["recent_games"]);
+  for(auto &alias:aliases)if(next["game_options"].contains(alias.first)) {
+    auto old=next["game_options"][alias.first];auto &current=next["game_options"][alias.second];
+    if(!current.is_object())current=Json::object();
+    for(auto &option:old.items())if(!current.contains(option.key()))current[option.key()]=option.value();
+    next["game_options"].erase(alias.first);
+  }
+  // Enumerate names once, without reading SRAM/state contents. This also allows
+  // a previously absent ROM to migrate when it returns on a later boot.
+  std::set<std::string> occupied,directories;auto parent=root/"games";
+  if(fs::is_directory(parent))for(auto &entry:fs::directory_iterator(parent)) {
+    auto name=entry.path().filename().string();occupied.insert(name);
+    if(!entry.is_symlink()&&entry.is_directory())directories.insert(name);
+  }
+  bool moved=false;
+  for(auto &alias:aliases)if(directories.count(alias.first)&&!occupied.count(alias.second)) {
+    fs::rename(parent/alias.first,parent/alias.second);directories.erase(alias.first);occupied.erase(alias.first);occupied.insert(alias.second);moved=true;
+  }
+  if(next!=data||moved)commit(next); // Existing atomic config write flushes the owning filesystem.
+}
 bool Store::integerScaling(const std::string &gameId) const {
   const auto &options = data.at("game_options");
   if (options.contains(gameId) && options.at(gameId).contains("integer_scaling"))

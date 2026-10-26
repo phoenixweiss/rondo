@@ -28,7 +28,7 @@ The frontend does not allocate an entire CHD or read every gigabyte on each laun
 
 ## Controls
 
-Digital pad: B → Cross, A → Circle, Y → Square, X → Triangle; L1/R1 and L2/R2 map directly. D-pad, Start and Select map directly. Menu opens Rondo. Analog-only controls, rumble and external Bluetooth controllers are not part of this acceptance.
+Digital pad: B → Cross, A → Circle, Y → Square, X → Triangle; L1/R1 and L2/R2 map directly. D-pad, Start and Select map directly. Menu opens Rondo. DualShock analog controls are available; external Bluetooth input remains experimental.
 
 ## Licenses and tests
 
@@ -55,11 +55,11 @@ Rondo ships **only OpenBIOS**, with its source and notices. The proprietary imag
 
 ## Display and controllers
 
-PlayStation gameplay uses the core's display aspect ratio (normally 4:3), including when a game submits 512×240 or changes resolution for video. The renderer must use the calculated destination directly rather than fitting the raw pixel aspect a second time. Integer scaling remains a separate per-game/global choice; frames taller than the panel fall back to aspect-correct fitting when no positive integer scale fits. Black borders authored by the game are retained.
+PlayStation gameplay uses the core's display aspect ratio (normally 4:3), including when a game submits 512×240 or changes resolution for video. The renderer must use the calculated destination directly rather than fitting the raw pixel aspect a second time. Global integer scaling and existing per-game scaling overrides do not affect PlayStation. Its game settings omit integer scaling; frames always fit the display aspect, including interlaced output. Black borders authored by the game are retained.
 
 **Settings → Core settings** includes **Left stick as D-pad**, enabled by default for digital systems. It applies to NES, GB/GBC, GBA, SNES, Mega Drive and digital PSX, while keeping the physical D-pad active. The right stick has no synthetic digital binding.
 
-**Core settings → Sony PlayStation → Controller** selects Digital (default, for older games) or DualShock. The in-game settings can override this per game; returning to the global value removes the override. Choose before launching if the game only detects its controller at startup. DualShock forwards both sticks, L3/R3, L2/R2 and face/directional buttons without duplicating analog directions as D-pad input. Some games need analog enabled in their own settings; L1 + R1 + Select toggles the emulated Analog button. This is separate from physical rumble support.
+**Core settings → Sony PlayStation → Controller** selects Digital (default, for older games) or DualShock. The in-game settings can override this per game; returning to the global value removes the override. Choose before launching if the game only detects its controller at startup. DualShock forwards both sticks, L3/R3, L2/R2 and face/directional buttons without duplicating analog directions as D-pad input. Some games need analog enabled in their own settings; L1 + R1 + Select toggles the emulated Analog button. Compatible games can drive the built-in motor when Game vibration is enabled. See [input testing and vibration](input-test.md).
 
 Built-in RG34XXSP input uses ANBERNIC-keys evdev axes 2/3/4/5 and buttons 313–316. Axis ranges are read from evdev with the H700 ±4096 fallback, normalized with a dead zone, and cleared on dropped events/disconnect. Mapped external SDL controllers use the same libretro analog contract. Menu resume waits for neutral buttons **and sticks** before forwarding input.
 

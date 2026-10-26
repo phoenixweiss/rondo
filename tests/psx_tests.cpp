@@ -49,7 +49,9 @@ int main(int argc,char **argv) {
     auto cfg=a.store.data;cfg["integer_scaling"]=false;a.store.commit(cfg);
     auto rect=a.gameViewport();assert(rect.x==40&&rect.y==0&&rect.w==640&&rect.h==480);
     cfg["integer_scaling"]=true;a.store.commit(cfg);rect=a.gameViewport();
-    assert(rect.x>=0&&rect.y>=0&&rect.x+rect.w<=720&&rect.y+rect.h<=480);
+    assert(rect.x==40&&rect.y==0&&rect.w==640&&rect.h==480);
+    cfg["game_options"][game.id]["integer_scaling"]=true;a.store.commit(cfg);rect=a.gameViewport();
+    assert(rect.x==40&&rect.y==0&&rect.w==640&&rect.h==480);
   }
   a.core->width=oldWidth;a.core->height=oldHeight;
   auto cfg=a.store.data;cfg["integer_scaling"]=false;a.store.commit(cfg);
@@ -72,9 +74,9 @@ int main(int argc,char **argv) {
   a.core->save(0);assert(a.core->compatible(0));a.ticks(3);assert(counter()!=current);a.core->loadState(0);assert(counter()==current);
   auto *m=static_cast<uint8_t *>(memory(RETRO_MEMORY_SAVE_RAM));assert(m&&size(RETRO_MEMORY_SAVE_RAM)==128*1024);m[1234]=0x5a;a.core->flushSram();card={m,m+size(RETRO_MEMORY_SAVE_RAM)};
   a.action("MENU");a.row=3;a.action("A");
-  a.action("DOWN");a.action("DOWN");assert(a.row==2);a.action("RIGHT");assert(a.store.data["game_options"][game.id]["psx_controller"]=="digital");a.action("RIGHT");assert(a.psxDualshock());
-  a.capture("psx-game-controller");a.action("RIGHT");assert(!a.store.data["game_options"].contains(game.id));
-  a.row=0;a.action("DOWN");assert(a.row==1);a.action("RIGHT");assert(a.core->discIndex()==1);assert(a.core->paused);a.locale.select(o.assets,"ru");a.capture("psx-disc-ru");a.locale.select(o.assets,"en");a.capture("psx-disc-en");a.action("X");a.capture("psx-disc-info");a.action("B");
+  a.action("DOWN");assert(a.row==1);a.action("RIGHT");assert(a.store.data["game_options"][game.id]["psx_controller"]=="digital");a.action("RIGHT");assert(a.psxDualshock());
+  a.capture("psx-game-controller");a.action("RIGHT");assert(a.store.data["game_options"][game.id]["integer_scaling"]==true&&!a.store.data["game_options"][game.id].contains("psx_controller"));
+  a.row=0;assert(a.infoKey()=="disc");a.action("RIGHT");assert(a.core->discIndex()==1);assert(a.core->paused);a.locale.select(o.assets,"ru");a.capture("psx-disc-ru");a.locale.select(o.assets,"en");a.capture("psx-disc-en");a.action("X");a.capture("psx-disc-info");a.action("B");
   a.core->save(1);assert(readState(a.store.gameDir(game)/"slot-1.state",StateRead::Metadata).meta["disc"]==1);a.core->changeDisc(0);a.core->loadState(1);assert(a.core->discIndex()==1);a.core->saveAutomatic();
   auto device=std::make_unique<PsxDevice>();auto *d=device.get();a.device=std::move(device);a.sleep();assert(d->sleeps==1&&a.core->discIndex()==1);
   a.core->deleteSlot(0);assert(!fs::exists(a.store.gameDir(game)/"slot-0.state"));dlclose(handle);

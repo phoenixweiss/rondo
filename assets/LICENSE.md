@@ -9,7 +9,7 @@ This copyright permission does not grant trademark rights or permission to imply
 Third-party assets retain their own terms:
 
 - Ubuntu font files: Ubuntu Font Licence 1.0, with Canonical copyright notices retained in the font metadata and Fonts/Ubuntu-UFL.txt. Font files are unmodified; they are not relicensed as MIT. Rendered wordmarks are artwork, not redistributed font software.
-- Lucide SVG icons and raster derivatives: ISC plus the applicable Feather-derived MIT notices, retained in Assets/Icons/LICENSE. Keep the complete license file with derivatives.
+- Lucide SVG icons and raster derivatives: ISC plus the applicable Feather-derived MIT notices, retained in Assets/Icons/LICENSE. Additional settings icons retain the complete upstream license in Assets/Icons/LICENSE.lucide-settings; their pinned revision and SVG/PNG hashes are in Assets/Icons/settings-sources.json. Keep these license files with derivatives.
 
 - Unicode CLDR country/city names: Unicode License v3, retained in Timezones/LICENSE, with the pinned revision and input hashes in Timezones/sources.json. These data are not original MIT artwork.
 

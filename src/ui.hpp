@@ -3,6 +3,7 @@
 #pragma once
 #include "model.hpp"
 #include "platform.hpp"
+#include "artwork.hpp"
 #include <SDL.h>
 #include <SDL_ttf.h>
 #include <memory>
@@ -17,8 +18,16 @@ class UI {
   time_t frameSecond = -1;
   std::map<std::pair<int, int>, TTF_Font *> fonts;
   std::map<std::string, SDL_Texture *> textures;
+  struct ImageTexture {SDL_Texture *texture;size_t bytes;uint64_t used;};
+  std::map<std::string,ImageTexture> imageTextures;
+  size_t imageTextureBytes=0;
+  uint64_t imageClock=0;
+  SDL_Texture *rememberImage(const std::string &,const uint8_t *,int,int,bool);
 
 public:
+  std::unique_ptr<ArtworkCache> artworkCache;
+  bool artworkPending=false;
+  bool artworkImage(const std::vector<ArtworkRequest> &,int,int,int,int);
   SDL_Surface *surface = nullptr;
   SDL_Renderer *renderer = nullptr;
   Json tokens;
@@ -69,9 +78,9 @@ public:
   void row(const std::string &, int, bool, int = 672, const std::string &value = "",
            bool enabled = true, int h = 52, const std::string &endIcon = "", const std::string &startIcon = "");
   void circle(int, int, int, SDL_Color, bool filled = false);
-  void keycap(int x, int y, int width, bool round, SDL_Color);
+  void keycap(int x, int y, int width, bool round, SDL_Color, int height = 32, bool filled = false);
   void keyArrows(int x, int y, int width, bool vertical, SDL_Color);
-  void keyLabel(const std::string &, int x, int y, int width, int size, SDL_Color);
+  void keyLabel(const std::string &, int x, int y, int width, int size, SDL_Color, int height = 32);
   void notice(const std::string &, const std::string &, bool library = false);
   void hints(const std::vector<std::pair<std::string, std::string>> &, bool disabledActions = false);
   int info(const std::string &, const std::string &, int scroll, const Json &sections = Json());
