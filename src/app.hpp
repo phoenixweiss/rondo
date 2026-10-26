@@ -2,6 +2,7 @@
 // Copyright (c) 2026 PAVEL TKACHEV
 #pragma once
 #include "core.hpp"
+#include "preferences.hpp"
 #include "battery_log.hpp"
 #include "clock.hpp"
 #include "wifi.hpp"
@@ -12,6 +13,7 @@
 #include <future>
 namespace rondo {
 enum class Screen {
+  Themes, CoreCatalog, MappingCores, Mapping, MappingReset, Wizard, WizardExit,
   Library,
   Search,
   Settings,
@@ -79,12 +81,43 @@ struct Options {
     return {};
   }
   std::vector<Volume> volumes;
-  bool headless = false;
+  bool headless = false, setup = false;
 };
 class App {
 public:
   Options options;
   Store store;
+  mutable std::optional<std::vector<CoreEntry>> coreCatalogCache;
+  std::vector<CoreEntry> installedCores() const;
+  bool coreEnabled(const std::string &) const;
+  std::string themeName(const std::string &) const;
+  void openThemes();
+  void preferenceAction(const std::string &);
+  void preferenceDraw(const std::string &);
+  double featureScroll=0;
+  std::string mappingCore;
+  int mappingCoreRow=0,mappingReturnRow=0;
+  bool mappingTest=false;
+  bool wizardActive=false,wizardRepeat=false,wizardExternal=false,wizardPending=false;
+  int wizardStep=0,wizardRow=0,wizardExternalRow=0;
+  Screen wizardChildRoot=Screen::Library;
+  bool wizardPendingNetworks=false;
+  Json wizardChildBaseline;
+  int wizardNextRow() const;
+  void wizardOpenChild(Screen);
+  void wizardReturn();
+  void wizardMaybeReturn();
+  Json wizardDraft;
+  SDL_AudioDeviceID soundTest=0;
+  uint64_t soundTestUntil=0;
+  void startWizard(bool repeat=false);
+  void wizardAction(const std::string &);
+  void wizardDraw(const std::string &);
+  void wizardRestore();
+  void wizardEnter(int);
+  void wizardAdvance(bool);
+  void wizardTick();
+  void wizardTestSound();
   Locale locale;
   Timezones zones;
   Json timezoneNames;
@@ -196,13 +229,14 @@ public:
   std::future<std::pair<std::optional<bool>, std::string>> bootJob;
   std::optional<bool> bootAcknowledged;
   bool bootTarget = true;
+  std::string bootRequestedTheme;
   bool infoOpen = false;
   int infoScroll = 0;
   std::string bootLastError, scalingLastError, bootNotice;
   std::string infoKey() const;
   uint64_t bootMessageUntil = 0, noticeUntil = 0;
   bool bootPending() const { return bootJob.valid(); }
-  void requestBootLogo(bool);
+  void requestBootLogo(bool, bool force=false);
   std::function<bool(Json)> requestSettings;
   App(Options, bool runner = false, const Game &entry = {});
   ~App();

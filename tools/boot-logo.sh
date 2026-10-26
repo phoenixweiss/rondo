@@ -8,7 +8,10 @@ grep -q '^BASEOS_TARGET=rg34xxsp$' /etc/baseos-release
 APP=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
 SD=$(CDPATH= cd -- "$APP/../.." && pwd)
 BACKUP="$SD/RondoState/BootLogo"
-LOGO="$APP/assets/Boot/bootlogo.bmp"
+THEME=${2:-rondo}
+case "$THEME" in slate) THEME=nord;; moss) THEME=pine;; rondo|nord|pine|paper|rose|sand|scarlet) :;; *) THEME=rondo;; esac
+LOGO="$APP/assets/Boot/Themes/$THEME.bmp"
+[ -f "$LOGO" ] || LOGO="$APP/assets/Boot/bootlogo.bmp"
 LOCK=/tmp/rondo-bootlogo.lock
 mkdir "$LOCK" || { echo 'Boot logo update already running' >&2; exit 1; }
 MOUNT="$LOCK/boot"

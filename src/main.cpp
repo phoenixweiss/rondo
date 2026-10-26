@@ -429,6 +429,7 @@ static Json supervise(App &a, const Json &runnerScript) {
     }
   }
   a.ui = std::make_unique<UI>(a.options.assets, a.options.headless);
+  a.ui->setTheme(a.store.data.value("theme_id","rondo"));
   a.configureArtwork();
   // Time spent in the runner is not idle time in the library.
   a.lastActivity=monotonicMs();
@@ -489,7 +490,9 @@ int main(int argc, char **argv) {
         if (p == v.npos)
           throw std::runtime_error("Use --volume ID=PATH");
         opts.volumes.push_back({v.substr(0, p), fs::absolute(v.substr(p + 1))});
-      } else if (flag == "--headless")
+      } else if (flag == "--setup")
+        opts.setup=true;
+      else if (flag == "--headless")
         opts.headless = true;
       else if (flag == "--runner")
         runner = true;

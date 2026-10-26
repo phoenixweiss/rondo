@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "cores": [
+    {
+      "id": "fceumm",
+      "name": "NES \u00b7 FCEUmm",
+      "systems": [
+        "NES"
+      ],
+      "experimental": false
+    },
+    {
+      "id": "gambatte",
+      "name": "GB / GBC \u00b7 Gambatte",
+      "systems": [
+        "GB",
+        "GBC"
+      ],
+      "experimental": false
+    },
+    {
+      "id": "gpsp",
+      "name": "GBA \u00b7 gpSP",
+      "systems": [
+        "GBA"
+      ],
+      "experimental": false
+    },
+    {
+      "id": "supafaust",
+      "name": "SNES \u00b7 Supafaust",
+      "systems": [
+        "SNES"
+      ],
+      "experimental": false
+    },
+    {
+      "id": "picodrive",
+      "name": "Mega Drive \u00b7 PicoDrive",
+      "systems": [
+        "MD"
+      ],
+      "experimental": false
+    },
+    {
+      "id": "pcsx_rearmed",
+      "name": "PlayStation \u00b7 PCSX ReARMed",
+      "systems": [
+        "PSX"
+      ],
+      "experimental": false
+    }
+  ]
+}

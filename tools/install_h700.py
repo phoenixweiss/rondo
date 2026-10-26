@@ -110,7 +110,12 @@ def install(package, card, boot, backup, guard):
         if info['target'] != 'rg34xxsp' or info['baseos_version'] != '1.3.0':
             raise ValueError('Unsupported package target')
         payload = {name: archive.read(name) for name in archive.namelist() if name.startswith('System/')}
-    logo = payload['System/Rondo/assets/Boot/bootlogo.bmp']
+    selected = preferences(card).get('theme_id', 'rondo')
+    selected = {'slate': 'nord', 'moss': 'pine'}.get(selected, selected)
+    if selected not in {'rondo', 'nord', 'pine', 'paper', 'rose', 'sand', 'scarlet'}:
+        selected = 'rondo'
+    logo = payload.get('System/Rondo/assets/Boot/Themes/' + selected + '.bmp',
+                       payload['System/Rondo/assets/Boot/bootlogo.bmp'])
     if logo[:2] != b'BM' or struct.unpack_from('<iiHHI', logo, 18) != (720, 480, 1, 24, 0):
         raise ValueError('Expected uncompressed 720x480 RGB24 boot logo')
     enabled = preferences(card).get('replace_boot_logo', True)

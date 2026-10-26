@@ -49,6 +49,17 @@ class InstallerTests(unittest.TestCase):
         self.assertEqual((self.card / 'RondoState/sram.bin').read_bytes(), b'player progress')
         self.assertEqual((self.boot / 'other.bin').read_bytes(), b'untouched boot resource')
 
+    def test_theme_choice_and_alias_change_only_the_rondo_logo(self):
+        selected = (ROOT / 'assets/Boot/Themes/nord.bmp').read_bytes()
+        with zipfile.ZipFile(self.package, 'a') as package:
+            package.writestr('System/Rondo/assets/Boot/Themes/nord.bmp', selected)
+        (self.card / 'RondoState/config.json').write_text('{"theme_id":"slate"}')
+        self.install()
+        self.assertEqual((self.boot / 'bootlogo.bmp').read_bytes(), selected)
+        self.assertEqual(installer.original_logo(self.card), b'original firmware logo')
+        installer.restore_logo(self.card, self.boot, lambda: None)
+        self.assertEqual((self.boot / 'bootlogo.bmp').read_bytes(), b'original firmware logo')
+
     def test_disabled_preference_is_respected(self):
         (self.card / 'RondoState/config.json').write_text('{"replace_boot_logo":false}')
         self.install()

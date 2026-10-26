@@ -5,6 +5,7 @@
 #include <iostream>
 namespace rondo {
 App::~App() {
+  if(soundTest)SDL_CloseAudioDevice(soundTest);
   if(motor)motor->stop();
   volumeTick(true);
   try {wakeScreen();}catch(const std::exception &error){std::cerr<<error.what()<<"\n";}

@@ -111,7 +111,7 @@ bool bootLogoSupported() {
   return false;
 #endif
 }
-static int bootLogoCommand(const char *mode) {
+static int bootLogoCommand(const char *mode, const std::string &theme) {
 #ifdef __linux__
   if (!bootLogoSupported()) throw std::runtime_error("Boot logo adapter unavailable");
   std::string tool = getenv("RONDO_BOOTLOGO_TOOL");
@@ -119,7 +119,7 @@ static int bootLogoCommand(const char *mode) {
   if (pid < 0) throw std::runtime_error("Cannot start boot logo adapter");
   if (!pid) {
     setpgid(0, 0);
-    execl("/bin/sh", "sh", tool.c_str(), mode, nullptr);
+    execl("/bin/sh", "sh", tool.c_str(), mode, theme.c_str(), nullptr);
     _exit(127);
   }
   int status = 0;
@@ -139,17 +139,17 @@ static int bootLogoCommand(const char *mode) {
   }
   return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
 #else
-  (void)mode;
+  (void)mode;(void)theme;
   throw std::runtime_error("Boot logo adapter unavailable");
 #endif
 }
-void applyBootLogo(bool enabled) {
-  if (bootLogoCommand(enabled ? "on" : "off") != 0)
+void applyBootLogo(bool enabled, const std::string &theme) {
+  if (bootLogoCommand(enabled ? "on" : "off",theme) != 0)
     throw std::runtime_error("Boot logo update failed; see launcher.log");
 }
-std::optional<bool> readBootLogo() {
+std::optional<bool> readBootLogo(const std::string &theme) {
   try {
-    int result = bootLogoCommand("status");
+    int result = bootLogoCommand("status",theme);
     if (result == 10) return true;
     if (result == 11) return false;
   } catch (...) {}

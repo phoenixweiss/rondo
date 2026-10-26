@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 PAVEL TKACHEV
 #include "model.hpp"
+#include "preferences.hpp"
 #include "psx.hpp"
 #include <limits>
 #include <algorithm>
@@ -245,6 +246,7 @@ std::vector<Game> recentUnavailable(const Json &history, const std::vector<Game>
   return result;
 }
 static void validateConfig(const Json &candidate, const Json &defaults) {
+  validatePreferences(candidate);
   if (!candidate.is_object() || candidate.value("schema", 0) != 1)
     throw std::runtime_error("Unsupported configuration");
   for (const auto &key : {"revision", "locale", "artwork", "section", "focus", "timezone", "volume",
@@ -280,6 +282,7 @@ static void validateConfig(const Json &candidate, const Json &defaults) {
     }
 }
 Store::Store(fs::path p) : root(std::move(p)) {
+  fresh=!fs::exists(root/"config.json")&&!fs::exists(root/"config.previous.json");
   data = {{"schema", 1},
           {"revision", 0},
           {"locale", "en"},
@@ -314,6 +317,7 @@ Store::Store(fs::path p) : root(std::move(p)) {
           {"bluetooth_device", ""},
           {"favorites", Json::array()},
           {"recent_games", Json::array()},
+          {"theme_id", "rondo"}, {"enabled_cores",Json::object()}, {"input_mapping",Json::object()},
           {"game_options", Json::object()}};
   auto file = root / "config.json";
   if (fs::exists(file)) {
@@ -341,6 +345,7 @@ Store::Store(fs::path p) : root(std::move(p)) {
     data["artwork"] = "cover";
 }
 void Store::commit(Json next) {
+  validatePreferences(next);
   if(next.contains("rumble_enabled")&&!next.at("rumble_enabled").is_boolean())
     throw std::runtime_error("Invalid vibration setting");
   if(next.contains("psx_bios_file")&&(!next.at("psx_bios_file").is_string()||!psxBiosFilename(next.at("psx_bios_file").get<std::string>())))

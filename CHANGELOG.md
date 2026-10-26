@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## [0.11.0] - 2026-10-26
+
+### Added
+
+- Seven color themes with live preview, apply/cancel behavior and matching boot logos.
+- A systems/core selector that preserves games and progress when a core is disabled.
+- A seven-step setup wizard with saved progress, skip and rerun support. A acts on the focused control; a separate Next row applies the step. Network, time-zone and manual clock screens return to the invoking row.
+- A short original musical sound-check example, played only on request.
+- Persistent per-core button mappings, confirmed reset and direct access to the physical input test.
+
 ## [0.10.0] - 2026-10-26
 
 ### Added

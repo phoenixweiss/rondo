@@ -19,8 +19,8 @@ int brightnessPercent(int raw);
 int wifiSignalLevel(std::optional<int> dbm);
 Telemetry readTelemetry(const fs::path &sys = "/sys", const fs::path &proc = "/proc");
 bool bootLogoSupported();
-void applyBootLogo(bool enabled);
-std::optional<bool> readBootLogo();
+void applyBootLogo(bool enabled, const std::string &theme = "rondo");
+std::optional<bool> readBootLogo(const std::string &theme = "rondo");
 } // namespace rondo
 namespace rondo {
 int16_t stickAxis(int value, int minimum=-32768, int maximum=32767);

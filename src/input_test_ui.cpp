@@ -17,7 +17,7 @@ void App::testInput(uint16_t buttons,const std::array<int16_t,4> &axes,const std
   const uint16_t exit=(1<<RETRO_DEVICE_ID_JOYPAD_START)|(1<<RETRO_DEVICE_ID_JOYPAD_SELECT);
   if((buttons&exit)==exit) {
     if(motor)motor->stop();screen=testFromCores?Screen::CoreSettings:Screen::SettingsSection;
-    category=4;row=3;testButtons=0;testAxes={};testExtras.clear();return;
+    category=4;row=3;if(mappingTest){mappingTest=false;screen=Screen::Mapping;row=mappingReturnRow;}testButtons=0;testAxes={};testExtras.clear();return;
   }
   const uint16_t shoulders=(1<<RETRO_DEVICE_ID_JOYPAD_L)|(1<<RETRO_DEVICE_ID_JOYPAD_R)|
       (1<<RETRO_DEVICE_ID_JOYPAD_L2)|(1<<RETRO_DEVICE_ID_JOYPAD_R2);
@@ -33,7 +33,7 @@ void App::testInput(uint16_t buttons,const std::array<int16_t,4> &axes,const std
 void App::drawInputTest(const std::string &zone) {
   auto tr=[&](const char *key){return locale.tr(key);};
   ui->frame(tr("input.test"),"",zone);
-  const SDL_Color white{255,255,255,255};
+  const SDL_Color white=ui->currentTheme!="rondo"&&(ui->accent.r*299+ui->accent.g*587+ui->accent.b*114>150000)?ui->bg:SDL_Color{255,255,255,255};
   auto key=[&](const std::string &label,int x,int y,int w,int id,bool round=false){
     bool on=id>=0?(testButtons&(1u<<id))!=0:testExtras.count(label)>0;
     auto color=on?ui->accent:ui->separator;

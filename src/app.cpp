@@ -36,6 +36,7 @@ App::App(Options opts, bool runner, const Game &entry)
   section = store.data.value("section", "All");
   previewVolume = store.data.value("volume", 80);
   ui = std::make_unique<UI>(options.assets, options.headless);
+  ui->setTheme(store.data.value("theme_id","rondo"));
   device = deviceControl(!options.headless);
   motor=h700Rumble(!options.headless);
   brightness = device->brightness();
@@ -97,6 +98,8 @@ App::App(Options opts, bool runner, const Game &entry)
   diagnosticRunner = runner;
   configureArtwork();
   configureDiagnostics();
+  if(!runner&&(!options.headless||options.setup)&&!store.readOnly&&store.warning.empty()&&
+     (store.fresh||(store.data.contains("wizard")&&!store.data["wizard"].value("completed",false))))startWizard(false);
   record("ready");
 }
 static void eraseGlyph(std::string &text) {
@@ -243,6 +246,13 @@ void App::openTimezones() {
 }
 std::string App::screenName() const {
   switch (screen) {
+  case Screen::Themes:return "themes";
+  case Screen::CoreCatalog:return "core_catalog";
+  case Screen::MappingCores:return "mapping_cores";
+  case Screen::Mapping:return "mapping";
+  case Screen::MappingReset:return "mapping_reset";
+  case Screen::Wizard:return "wizard";
+  case Screen::WizardExit:return "wizard_exit";
   case Screen::Clock: return "clock";
   case Screen::ClockEdit: return "clock_edit";
   case Screen::Bluetooth: return "bluetooth";
@@ -433,7 +443,7 @@ uint16_t App::gameButtons(uint16_t held) {
     if(held==0)gameInputBlocked=false;
     return 0;
   }
-  return held;
+  return mappedButtons(store.data,game.system,held);
 }
 bool App::psxDualshock() const {
   auto mode=store.data.value("psx_controller","digital");
@@ -451,7 +461,7 @@ void App::gameInput(uint16_t held,const std::array<int16_t,4> &axes) {
     if(neutral)gameInputBlocked=false;
     return;
   }
-  core->buttons=held;
+  core->buttons=mappedButtons(store.data,game.system,held);
   if(game.system=="PSX")core->axes=axes;
 }
 void App::action(const std::string &a) {
@@ -471,6 +481,10 @@ void App::action(const std::string &a) {
   try {
     if(screen==Screen::PsxWarning||screen==Screen::PsxFirmwareError) {if(a=="UP")infoScroll=std::max(0,infoScroll-1);if(a=="DOWN")++infoScroll;}
     if (a == "SLEEP") { sleep(); record(a); return; }
+    if(screen==Screen::Wizard&&wizardStep==2&&(a=="VOLUME_UP"||a=="VOLUME_DOWN")) {
+      int value=std::clamp(previewVolume+(a=="VOLUME_UP"?5:-5),0,100);wizardDraft["volume"]=value;applyVolume(value);
+      volumeFeedback.confirmed=value;volumeFeedback.begin(monotonicMs());volumeFeedback.result(volumeFeedback.sequence,value,true,monotonicMs());return;
+    }
     if (a == "VOLUME_UP" || a == "VOLUME_DOWN") {
       volumeFeedback.begin(monotonicMs());
       if(screen!=Screen::Running)draw();
@@ -494,12 +508,14 @@ void App::action(const std::string &a) {
       record("info:open");
       return;
     }
+    if(screen==Screen::Wizard||screen==Screen::WizardExit){wizardAction(a);record("setup:"+a);return;}
+    if(screen==Screen::Themes||screen==Screen::CoreCatalog||screen==Screen::MappingCores||screen==Screen::Mapping||screen==Screen::MappingReset){preferenceAction(a);record("preferences:"+a);return;}
     if(screen==Screen::SystemInfo){systemInfoAction(a);record("system_info:"+a);return;}
     if(screen==Screen::Search) {searchAction(a);record("search:"+a);return;}
     if(screen==Screen::Bluetooth || screen==Screen::BluetoothDevices || screen==Screen::BluetoothDevice || screen==Screen::BluetoothForget){btAction(a);record("bluetooth:"+a);return;}
-    if(screen==Screen::Clock || screen==Screen::ClockEdit){clockAction(a);record("clock:"+a);return;}
+    if(screen==Screen::Clock || screen==Screen::ClockEdit){clockAction(a);wizardMaybeReturn();record("clock:"+a);return;}
     if (screen==Screen::Wifi || screen==Screen::WifiNetworks || screen==Screen::WifiNetwork || screen==Screen::WifiPassword) {
-      wifiAction(a);record("wifi:"+a);return;
+      wifiAction(a);wizardMaybeReturn();record("wifi:"+a);return;
     }
     if (screen == Screen::Library) {
       if(a=="Y") {
@@ -551,6 +567,9 @@ void App::action(const std::string &a) {
         game = games[v[selected]];
         if (!game.available || !fs::is_regular_file(game.path)) {
           notice = locale.tr("recent.unavailable");
+        } else if(fs::is_regular_file(options.coreFor(game.system))&&!coreEnabled(game.system)) {
+          notice=locale.tr("core.disabled");screen=Screen::CoreCatalog;featureScroll=0;row=0;
+          auto entries=installedCores();for(size_t i=0;i<entries.size();++i)if(entries[i].id==coreId(game.system))row=int(i);
         } else if (!fs::is_regular_file(options.coreFor(game.system))) {
           screen = Screen::Recovery;
           notice = locale.tr("error.core_unavailable");
@@ -631,7 +650,7 @@ void App::action(const std::string &a) {
       }
     } else if(screen==Screen::CoreSettings) {
       if(a=="UP")row=std::max(0,row-1);
-      if(a=="DOWN")row=std::min(3,row+1);
+      if(a=="DOWN")row=std::min(5,row+1);
       if(row==0 && a=="A") {screen=Screen::PsxCoreSettings;row=0;}
       else if(row==1 && (a=="LEFT"||a=="RIGHT"||a=="A")) {
         auto next=store.data;bool value=next.value("left_stick_dpad",true);
@@ -646,6 +665,8 @@ void App::action(const std::string &a) {
       else if(row==3 && a=="A") {
         openInputTest(true);
       }
+      else if(row==4&&a=="A"){screen=Screen::CoreCatalog;row=0;featureScroll=0;}
+      else if(row==5&&a=="A"){screen=Screen::MappingCores;row=0;featureScroll=0;}
       if(a=="B")returnToSettings();
     } else if(screen==Screen::PsxCoreSettings) {
       if(a=="B") {screen=Screen::CoreSettings;row=0;}
@@ -683,7 +704,7 @@ void App::action(const std::string &a) {
       if(a=="B") {screen=Screen::Library;resume=false;}
       if(a=="A") {screen=Screen::PsxCoreSettings;row=0;settingsFocus=7;}
     } else if (screen == Screen::SettingsSection) {
-      int count = category==3 ? 6 : category==4 ? 4 : category==1 ? 3 : (category == 0 || category == 5) ? 2 : 1;
+      int count = category==3 ? 6 : category==4 ? 4 : category==1 ? 3 : category == 0 ? 4 : category == 5 ? 2 : 1;
       if (a == "UP") row = std::max(0, row - 1);
       if (a == "DOWN") row = std::min(count - 1, row + 1);
       if (a == "B") { returnToSettings(); return; }
@@ -702,7 +723,7 @@ void App::action(const std::string &a) {
           persist(next); configureDiagnostics(); notice.clear();
         }
       }
-      if (category == 0 && row == 1 && (a == "A" || a == "LEFT" || a == "RIGHT")) {
+      if (category == 0 && row == 2 && (a == "A" || a == "LEFT" || a == "RIGHT")) {
         if (!bootLogoSupported()) {
           notice = locale.tr("bootlogo.unsupported");
           return;
@@ -767,6 +788,8 @@ void App::action(const std::string &a) {
         notice.clear();
       }
       if (a == "A" && category == 5) { screen = row == 0 ? Screen::Wifi : Screen::Bluetooth; row = 0; scroll = 0; wifiPollAt = 0; btPollAt = 0; }
+      if(a=="A"&&category==0&&row==1){openThemes();return;}
+      if(a=="A"&&category==0&&row==3){startWizard(true);return;}
       if (a == "A" && category == 0 && row == 0) {
         screen = Screen::Language;
         for (size_t i = 0; i < locale.registry["locales"].size(); i++)
@@ -1058,6 +1081,7 @@ void App::action(const std::string &a) {
     gameInputBlocked=true;
     if(core){core->buttons=0;core->axes={};}
   }
+  wizardMaybeReturn();
   record(a);
 }
 std::string App::infoKey() const {
@@ -1076,7 +1100,7 @@ std::string App::infoKey() const {
   if (screen == Screen::Settings && settingsFocus >= 9) return "system_power";
   if (screen != Screen::SettingsSection) return "";
   if (category == 4) return "debug";
-  if (category == 0) return row == 0 ? "language" : "boot";
+  if (category == 0) return row == 0 ? "language" : row==2?"boot":"";
   if (category == 5) return row == 0 ? "wifi" : "bluetooth";
   if(category==3 && row>=2)return row==2?"autosave":row==3?"startup_resume":row==4?"idle_screen":"battery_warning";
   return category == 1 ? (row == 0 ? "brightness" : row == 1 ? "scaling" : "game_background") : category == 2 ? "sound" : row == 0 ? "battery" : "lid";
@@ -1112,19 +1136,22 @@ SDL_Color App::gameBackground() const {
   return {0,0,0,255};
 }
 void App::returnToSettings() {
+  if(wizardActive&&wizardExternal){wizardReturn();return;}
   screen = Screen::Settings;
   row = settingsFocus;
 }
-void App::requestBootLogo(bool desired) {
-  if (bootPending() || (bootAcknowledged && *bootAcknowledged == desired)) return;
+void App::requestBootLogo(bool desired, bool force) {
+  if (bootPending() || (!force && bootAcknowledged && *bootAcknowledged == desired)) return;
   bootTarget = desired;
   bootLastError.clear();
-  bootJob = std::async(std::launch::async, [desired] {
+  auto theme=themeId(store.data.value("theme_id","rondo"));
+  bootRequestedTheme=theme;
+  bootJob = std::async(std::launch::async, [desired,theme] {
     try {
-      applyBootLogo(desired);
+      applyBootLogo(desired,theme);
       return std::make_pair(std::optional<bool>(desired), std::string());
     } catch (const std::exception &e) {
-      return std::make_pair(readBootLogo(), std::string(e.what()));
+      return std::make_pair(readBootLogo(theme), std::string(e.what()));
     }
   });
 }
@@ -1202,7 +1229,7 @@ void App::offerStartupResume() {
   auto id=store.data.value("resume_game",std::string());
   if(id.empty())return;
   auto found=std::find_if(games.begin(),games.end(),[&](const Game &candidate){return candidate.id==id && candidate.available;});
-  if(found==games.end() || !fs::is_regular_file(options.coreFor(found->system)) || !fs::is_regular_file(found->path))return;
+  if(found==games.end() || !coreEnabled(found->system) || !fs::is_regular_file(options.coreFor(found->system)) || !fs::is_regular_file(found->path))return;
   game=*found;
   if(latestResumeSlot()>=0) {screen=Screen::StartupResume;row=0;}
 }
@@ -1277,6 +1304,7 @@ void App::ticks(unsigned n) {
   wifiTick();
   btTick();
   clockTick();
+  wizardTick();
   if (ui && !sleeping && monotonicMs()>=lidCheckAt) {
     lidCheckAt=monotonicMs()+100;
     auto open=device->lidOpen();
@@ -1302,7 +1330,7 @@ void App::ticks(unsigned n) {
         bootMessageUntil = monotonicMs() + 2000;
       } catch (...) {
         // The boot file may have changed: retain the reread hardware value.
-        bootAcknowledged = readBootLogo();
+        bootAcknowledged = readBootLogo(themeId(store.data.value("theme_id","rondo")));
         bootMessageUntil = monotonicMs() + 4000;
       }
     } else {
@@ -1312,6 +1340,7 @@ void App::ticks(unsigned n) {
     if (!result.second.empty() || notice.find(locale.tr("notice.not_persisted")) == 0)
       bootLastError = notice;
     bootNotice = notice;
+    if(result.second.empty()&&bootRequestedTheme!=themeId(store.data.value("theme_id","rondo")))requestBootLogo(store.data.value("replace_boot_logo",true),true);
   }
   if (bootMessageUntil && monotonicMs() >= bootMessageUntil) {
     if (notice == bootNotice) notice.clear();
@@ -1575,17 +1604,28 @@ void App::draw() {
     std::vector<std::pair<std::string,std::string>> hints{{"A",tr("action.open")},{"B",tr("action.back")}};
     if(settingsFocus >= 9) hints.push_back({"X",tr("footer.info")});
     ui->hints(hints);
+  } else if(screen==Screen::Themes||screen==Screen::CoreCatalog||screen==Screen::MappingCores||screen==Screen::Mapping||screen==Screen::MappingReset) {
+    preferenceDraw(zone);
+  } else if(screen==Screen::Wizard||screen==Screen::WizardExit) {
+    wizardDraw(zone);
   } else if(screen==Screen::InputTest) {
     drawInputTest(zone);
   } else if(screen==Screen::CoreSettings) {
     ui->frame(tr("section.cores"),tr("screen.settings"),zone);
-    ui->row("Sony PlayStation",128,row==0,672,"",true,52,"chevron-right","gamepad-2");
-    ui->binaryRow(tr("setting.left_stick_dpad"),182,row==1,store.data.value("left_stick_dpad",true),locale);
-    ui->binaryRow(tr("setting.rumble"),236,row==2,store.data.value("rumble_enabled",true),locale);
-    ui->row(tr("input.test"),290,row==3,672,"",true,52,"chevron-right","joystick");
-    if(row==0)ui->hints({{"A",tr("action.open")},{"B",tr("action.back")}});
-    else if(row==3)ui->hints({{"A",tr("action.open")},{"B",tr("action.back")},{"X",tr("footer.info")}});
-    else ui->hints({{"LEFT/RIGHT",tr("footer.value")},{"B",tr("action.back")},{"X",tr("footer.info")}});
+    if(row*54<featureScroll)featureScroll=row*54;
+    if((row+1)*54>featureScroll+280)featureScroll=(row+1)*54-280;
+    featureScroll=std::clamp(featureScroll,0.0,44.0);
+    SDL_Rect clip{16,128,688,280};SDL_RenderSetClipRect(ui->renderer,&clip);
+    int top=128-int(featureScroll);
+    ui->row("Sony PlayStation",top,row==0,672,"",true,52,"chevron-right","gamepad-2");
+    ui->binaryRow(tr("setting.left_stick_dpad"),top+54,row==1,store.data.value("left_stick_dpad",true),locale);
+    ui->binaryRow(tr("setting.rumble"),top+108,row==2,store.data.value("rumble_enabled",true),locale);
+    ui->row(tr("input.test"),top+162,row==3,672,"",true,52,"chevron-right","joystick");
+    ui->row(tr("core.catalog"),top+216,row==4,672,"",true,52,"chevron-right","cpu");
+    ui->row(tr("mapping.cores"),top+270,row==5,672,"",true,52,"chevron-right","joystick");
+    SDL_RenderSetClipRect(ui->renderer,nullptr);ui->scrollbar(324,280,featureScroll,false,128,408);
+    if(row==1||row==2)ui->hints({{"LEFT/RIGHT",tr("footer.value")},{"B",tr("action.back")},{"X",tr("footer.info")}});
+    else ui->hints({{"A",tr("action.open")},{"B",tr("action.back")}});
   } else if(screen==Screen::PsxCoreSettings) {
     ui->frame("Sony PlayStation",tr("section.cores"),zone);
     ui->row(tr("psx.firmware"),128,row==0,672,tr("psx.mode."+store.data.value("psx_firmware","openbios")));
@@ -1625,7 +1665,9 @@ void App::draw() {
       for (auto &l : locale.registry["locales"])
         if (l["code"] == locale.current) name = l["native_name"];
       ui->row(tr("screen.language"),128,row==0,672,name,true,52,"chevron-right");
-      ui->binaryRow(tr("boot.label"),182,row==1,bootAcknowledged,locale,bootLogoSupported());
+      ui->row(tr("theme.title"),182,row==1,672,themeName(store.data.value("theme_id","rondo")),true,52,"chevron-right");
+      ui->binaryRow(tr("boot.label"),236,row==2,bootAcknowledged,locale,bootLogoSupported());
+      ui->row(tr("wizard.title"),290,row==3,672,"",!core,52,"chevron-right");
     } else if (category == 4) {
       bool enabled = store.data.value("debug_enabled", false);
       ui->binaryRow(tr("debug.enabled"),128,row==0,enabled,locale);
@@ -1666,7 +1708,7 @@ void App::draw() {
       std::string value = category == 2 ? std::to_string(previewVolume)+"%" : brightness ? std::to_string(*brightness)+"%" : "—";
       ui->row(tr(category==1?"setting.brightness":"setting.volume"),128,true,672,value,supported);
     }
-    const bool opens = (category == 0 && row == 0) || category == 5 || (category == 4 && row >= 2);
+    const bool opens = (category == 0 && row != 2) || category == 5 || (category == 4 && row >= 2);
     std::vector<std::pair<std::string,std::string>> hints;
     if (opens) hints.push_back({"A",tr("action.open")});
     else {

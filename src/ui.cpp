@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 PAVEL TKACHEV
 #include "ui.hpp"
+#include "preferences.hpp"
 #include "platform.hpp"
 #include "libretro.h"
 #include <algorithm>
@@ -16,7 +17,7 @@
 #include "stb_image_write.h"
 #pragma GCC diagnostic pop
 namespace rondo {
-static SDL_Color color(const std::string &s) {
+SDL_Color UI::parseColor(const std::string &s) {
   return {uint8_t(std::stoi(s.substr(1, 2), 0, 16)), uint8_t(std::stoi(s.substr(3, 2), 0, 16)),
           uint8_t(std::stoi(s.substr(5, 2), 0, 16)), 255};
 }
@@ -25,13 +26,14 @@ UI::UI(fs::path a, bool hidden) : assets(std::move(a)), headless(hidden) {
   powerKeys = std::make_unique<PowerKeys>();
   handheldKeys = std::make_unique<H700Keys>();
   tokens = readJson(assets / "tokens.json");
+  themes=readJson(assets/"themes.json");
   auto c = tokens["color"];
-  bg = color(c["background"]);
-  cream = color(c["text"]);
-  secondary = color(c["secondary"]);
-  accent = color(c["accent"]);
-  focus = color(c["focus_surface"]);
-  separator = color(c["separator"]);
+  bg = parseColor(c["background"]);
+  cream = parseColor(c["text"]);
+  secondary = parseColor(c["secondary"]);
+  accent = parseColor(c["accent"]);
+  focus = parseColor(c["focus_surface"]);
+  separator = parseColor(c["separator"]);
   if (headless)
     SDL_setenv("SDL_VIDEODRIVER", "dummy", 1);
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER | SDL_INIT_EVENTS))
@@ -63,6 +65,15 @@ UI::UI(fs::path a, bool hidden) : assets(std::move(a)), headless(hidden) {
     SDL_RenderSetLogicalSize(display, width, height);
     output = SDL_CreateTexture(display, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING,
                                width, height);
+  }
+}
+void UI::setTheme(const std::string &id) {
+  auto canonical=themeId(id);if(canonical==currentTheme)return;
+  for(const auto &theme:themes.at("themes"))if(theme.at("id")==canonical) {
+    const auto &c=theme.at("colors");tokens["color"]=c;
+    bg=parseColor(c["background"]);cream=parseColor(c["text"]);secondary=parseColor(c["secondary"]);
+    accent=parseColor(c["accent"]);focus=parseColor(c["focus_surface"]);separator=parseColor(c["separator"]);
+    for(auto &entry:textures)SDL_DestroyTexture(entry.second);textures.clear();currentTheme=canonical;return;
   }
 }
 UI::~UI() {
@@ -312,7 +323,16 @@ void UI::icon(const std::string &name, int x, int y, int size) {
     }
     return;
   }
-  image(assets / "IconsPNG" / (name + ".png"), x, y, size, size, true);
+  const auto key="symbol:"+name+":"+std::to_string(cream.r)+":"+std::to_string(cream.g)+":"+std::to_string(cream.b);
+  if(!textures.count(key)) {
+    int w=0,h=0,n=0;auto *data=stbi_load((assets/"IconsPNG"/(name+".png")).c_str(),&w,&h,&n,4);
+    if(!data)return;
+    for(int i=0;i<w*h;++i){data[4*i]=cream.r;data[4*i+1]=cream.g;data[4*i+2]=cream.b;}
+    auto *sf=SDL_CreateRGBSurfaceWithFormatFrom(data,w,h,32,w*4,SDL_PIXELFORMAT_RGBA32);
+    auto *texture=sf?SDL_CreateTextureFromSurface(renderer,sf):nullptr;if(sf)SDL_FreeSurface(sf);stbi_image_free(data);
+    if(!texture)return;SDL_SetTextureBlendMode(texture,SDL_BLENDMODE_BLEND);textures[key]=texture;
+  }
+  SDL_Rect dst{x,y,size,size};SDL_RenderCopy(renderer,textures.at(key),nullptr,&dst);
 }
 void UI::battery(const Telemetry &telemetry, bool showPercent, int x) {
   const int y = 34, w = 27, h = 14;

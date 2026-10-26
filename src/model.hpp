@@ -38,6 +38,7 @@ public:
   Json data;
   std::string warning;
   bool readOnly = false;
+  bool fresh = false;
   explicit Store(fs::path);
   void commit(Json);
   fs::path gameDir(const Game &) const;

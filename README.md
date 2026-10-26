@@ -18,6 +18,8 @@ The package baseline is BaseOS 1.3.0. Rondo has also been tested on RG34XXSP wit
 
 **Experimental Bluetooth:** pairing and connection controls are available, but controller input is not working on the tested 8BitDo Micro (D mode). Bluetooth audio and PIN confirmation are not supported. See [Bluetooth limitations](docs/bluetooth.md).
 
+See [themes, core switches and button mapping](docs/preferences.md) and the [setup wizard](docs/setup.md) for available settings.
+
 ## Components
 
 - Library catalog and persistent preferences, with recovery after a failed write.

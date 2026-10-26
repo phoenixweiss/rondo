@@ -1,0 +1,130 @@
+{
+  "schema": 2,
+  "default": "rondo",
+  "aliases": {
+    "slate": "nord",
+    "moss": "pine"
+  },
+  "themes": [
+    {
+      "id": "rondo",
+      "name": {
+        "en": "Rondo",
+        "ru": "Рондо"
+      },
+      "colors": {
+        "background": "#1C1B18",
+        "text": "#F4EBD8",
+        "secondary": "#BBAF9F",
+        "accent": "#D56853",
+        "focus_surface": "#443A32",
+        "separator": "#49413A",
+        "disabled_text": "#8E8477"
+      },
+      "appearance": "dark"
+    },
+    {
+      "id": "nord",
+      "appearance": "dark",
+      "name": {
+        "en": "Nord",
+        "ru": "Норд"
+      },
+      "colors": {
+        "background": "#2E3440",
+        "text": "#ECEFF4",
+        "secondary": "#D8DEE9",
+        "accent": "#88C0D0",
+        "focus_surface": "#434C5E",
+        "separator": "#4C566A",
+        "disabled_text": "#81A1C1"
+      },
+      "source": "https://www.nordtheme.com/docs/colors-and-palettes/"
+    },
+    {
+      "id": "pine",
+      "appearance": "dark",
+      "name": {
+        "en": "Pine",
+        "ru": "Сосна"
+      },
+      "colors": {
+        "background": "#151F1A",
+        "text": "#EDF1DE",
+        "secondary": "#B7C4AE",
+        "accent": "#A5C779",
+        "focus_surface": "#334735",
+        "separator": "#4C614D",
+        "disabled_text": "#879C84"
+      }
+    },
+    {
+      "id": "paper",
+      "name": {
+        "en": "Paper",
+        "ru": "Бумага"
+      },
+      "colors": {
+        "background": "#EDE5D5",
+        "text": "#2A2721",
+        "secondary": "#554B40",
+        "accent": "#A34634",
+        "focus_surface": "#CEC0A6",
+        "separator": "#968A77",
+        "disabled_text": "#746A5B"
+      },
+      "appearance": "light"
+    },
+    {
+      "id": "rose",
+      "appearance": "light",
+      "name": {
+        "en": "Rose",
+        "ru": "Роза"
+      },
+      "colors": {
+        "background": "#F4E4EB",
+        "text": "#3D2835",
+        "secondary": "#624151",
+        "accent": "#A84173",
+        "focus_surface": "#DDB7CB",
+        "separator": "#AC8799",
+        "disabled_text": "#8C6A7D"
+      }
+    },
+    {
+      "id": "sand",
+      "appearance": "light",
+      "name": {
+        "en": "Sand",
+        "ru": "Песок"
+      },
+      "colors": {
+        "background": "#EEE2BD",
+        "text": "#3D3426",
+        "secondary": "#51452F",
+        "accent": "#95552A",
+        "focus_surface": "#D2B971",
+        "separator": "#A28C57",
+        "disabled_text": "#87754E"
+      }
+    },
+    {
+      "id": "scarlet",
+      "appearance": "dark",
+      "name": {
+        "en": "Scarlet",
+        "ru": "Багрянец"
+      },
+      "colors": {
+        "background": "#681B16",
+        "text": "#F6E6DE",
+        "secondary": "#EED4C7",
+        "accent": "#F1B69B",
+        "focus_surface": "#9A3C31",
+        "separator": "#AA5A4C",
+        "disabled_text": "#C48777"
+      }
+    }
+  ]
+}

@@ -41,9 +41,10 @@ run("runtime-build-tools", [sys.executable, str(ROOT / "tests/runtime_build_test
 run("release-tools", [sys.executable, str(ROOT / "tests/release_tests.py")])
 run("system-power", [sys.executable, str(ROOT / "tests/system_power_tests.py")])
 run("installer", [sys.executable, str(ROOT / "tests/installer_tests.py")])
-run("build", ["make", "-j4", "all", "build/battery-log-tests", "build/model-tests", "build/core-tests", "build/state-tests", "build/rumble-tests", "build/input-tests", "build/artwork-tests",
+run("build", ["make", "-j4", "all", "build/battery-log-tests", "build/model-tests", "build/core-tests", "build/state-tests", "build/rumble-tests", "build/input-tests", "build/artwork-tests", "build/preferences-tests",
               "build/device-tests", "build/system-info-tests", "build/psx-tests", "build/md-tests", "build/snes-tests", "build/gba-tests", "build/gb-tests", "build/bluetooth-tests", "build/volume-ui-tests", "build/timezone-tests", "build/battery-tests", "build/wifi-tests", "build/clock-tests"], timeout=300)
 run("system-info", [str(ROOT / "build/system-info-tests"), str(ROOT / "assets"), str(work / "system-info"), str(ROOT / "build/rondo")])
+run("preferences", [str(ROOT / "build/preferences-tests"), str(ROOT / "assets"), str(work / "preferences"), str(core)])
 run("artwork", [str(ROOT / "build/artwork-tests"), str(ROOT / "assets"), str(work / "artwork")])
 run("rumble", [str(ROOT / "build/rumble-tests"), str(work / "rumble")])
 run("input", [str(ROOT / "build/input-tests"), str(ROOT / "assets"), str(work / "input")])

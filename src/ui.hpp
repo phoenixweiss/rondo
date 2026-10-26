@@ -30,7 +30,10 @@ public:
   bool artworkImage(const std::vector<ArtworkRequest> &,int,int,int,int);
   SDL_Surface *surface = nullptr;
   SDL_Renderer *renderer = nullptr;
-  Json tokens;
+  Json tokens, themes;
+  std::string currentTheme;
+  static SDL_Color parseColor(const std::string &);
+  void setTheme(const std::string &);
   std::unique_ptr<VolumeKeys> volumeKeys;
   std::unique_ptr<PowerKeys> powerKeys;
   std::unique_ptr<H700Keys> handheldKeys;
