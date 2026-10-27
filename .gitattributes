@@ -6,3 +6,6 @@ VERSION text eol=lf
 website/VERSION text eol=lf
 # Preserve the byte-for-byte upstream controller database license.
 assets/ControllerMappings/LICENSE -whitespace
+
+# Preserve the byte-for-byte upstream console icon notice.
+assets/Systems/UPSTREAM-README.txt -whitespace
