@@ -23,6 +23,8 @@ class Core {
   static Core *active;
   static bool environment(unsigned, void *);
   static void video(const void *, unsigned, unsigned, size_t);
+  std::vector<int16_t> screenshotClick;
+  size_t screenshotClickOffset=0;
   static size_t audioBatch(const int16_t *, size_t);
   static void audioSample(int16_t, int16_t);
   static void inputPoll();
@@ -57,6 +59,7 @@ public:
   unsigned geometryWidth=0,geometryHeight=0,geometryChanges=0;
   Json videoGeometry() const;
   int volume = 80, audioPeak = 0;
+  bool playScreenshotClick();
   bool paused = false;
   Core(const fs::path &core, const Game &, const fs::path &saves, bool silent, const fs::path &bios = {}, bool allowTestHle = false);
   bool usesHle() const {return psx&&testHle;}

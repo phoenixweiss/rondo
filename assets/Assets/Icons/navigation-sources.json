@@ -1,0 +1,20 @@
+{
+  "repository": "https://github.com/lucide-icons/lucide",
+  "revision": "7faf87628a1ad6175975bc595344337ce14a7db4",
+  "license": "LICENSE.lucide-settings",
+  "raster": {
+    "tool": "rsvg-convert",
+    "size": 48,
+    "color": "#F4EBD8"
+  },
+  "icons": {
+    "search": {
+      "svg_sha256": "283d371c2e433817bb9c0c8310caa6c77fa4177c0f4f1168d9c83b97af7389dc",
+      "png_sha256": "c6aa0d75e2e2637b857333a8f044b94d1fc5f5424646207148041945fb26fa5e"
+    },
+    "moon": {
+      "svg_sha256": "205b959e940d5841f0ce1d09c933153da9d9c94130a54d5cc0c68c2af1d403da",
+      "png_sha256": "01349d6390a579991c221a3b19d14d27f6ef283b6a64c603af253994de971b51"
+    }
+  }
+}

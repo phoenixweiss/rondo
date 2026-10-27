@@ -159,7 +159,7 @@ void UI::line(int x, int y, int xx, int yy, SDL_Color c) {
 void UI::refreshControllers() {
   for(auto it=controllers.begin();it!=controllers.end();) {
     if(!SDL_GameControllerGetAttached(it->second)) {
-      controllerActivity.erase(it->first);axisRepeats.erase(it->first);
+      controllerActivity.erase(it->first);axisRepeats.erase(it->first);controllerTriggers.erase(it->first);
       SDL_GameControllerClose(it->second);it=controllers.erase(it);
     } else ++it;
   }
@@ -300,8 +300,12 @@ std::vector<std::string> UI::controllerNavigation() {
   if(direction.empty())axisRepeats.erase(-1);
   else if(held.first!=direction){held={direction,now+350};result.push_back(direction);}
   else if(now>=held.second){held.second=now+110;result.push_back(direction);}
+  for(auto it=controllerTriggers.begin();it!=controllerTriggers.end();) {if(!controllers.count(it->first))it=controllerTriggers.erase(it);else ++it;}
   for(const auto &entry:controllers) {
     auto *controller=entry.second;
+    uint8_t triggers=0;
+    for(int side=0;side<2;++side){int axis=side?SDL_CONTROLLER_AXIS_TRIGGERRIGHT:SDL_CONTROLLER_AXIS_TRIGGERLEFT;int value=SDL_GameControllerGetAxis(controller,SDL_GameControllerAxis(axis));uint8_t bit=1u<<side;bool on=value>((controllerTriggers[entry.first]&bit)?8000:12000);if(on)triggers|=bit;if(on&&!(controllerTriggers[entry.first]&bit))result.push_back(side?"R2":"L2");}
+    controllerTriggers[entry.first]=triggers;
     const int x=SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_LEFTX);
     const int y=SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_LEFTY);
     const std::string direction=y < -12000?"UP":y > 12000?"DOWN":x < -12000?"LEFT":x > 12000?"RIGHT":"";
@@ -312,27 +316,35 @@ std::vector<std::string> UI::controllerNavigation() {
   }
   return result;
 }
-void UI::icon(const std::string &name, int x, int y, int size) {
-  if (name == "check") {
-    // Draw the selection mark independently of the text font's glyph coverage.
-    for (int offset = 0; offset < 2; ++offset) {
-      line(x + size * 4 / 24, y + size * 12 / 24 + offset,
-           x + size * 9 / 24, y + size * 17 / 24 + offset, cream);
-      line(x + size * 9 / 24, y + size * 17 / 24 + offset,
-           x + size * 20 / 24, y + size * 6 / 24 + offset, cream);
-    }
-    return;
-  }
-  const auto key="symbol:"+name+":"+std::to_string(cream.r)+":"+std::to_string(cream.g)+":"+std::to_string(cream.b);
+void UI::icon(const std::string &name, int x, int y, int size,int height,SDL_Color color) {
+  if(!color.a)color=cream;
+  const auto key="symbol:"+name+":"+std::to_string(color.r)+":"+std::to_string(color.g)+":"+std::to_string(color.b);
   if(!textures.count(key)) {
     int w=0,h=0,n=0;auto *data=stbi_load((assets/"IconsPNG"/(name+".png")).c_str(),&w,&h,&n,4);
     if(!data)return;
-    for(int i=0;i<w*h;++i){data[4*i]=cream.r;data[4*i+1]=cream.g;data[4*i+2]=cream.b;}
+    for(int i=0;i<w*h;++i){data[4*i]=color.r;data[4*i+1]=color.g;data[4*i+2]=color.b;}
     auto *sf=SDL_CreateRGBSurfaceWithFormatFrom(data,w,h,32,w*4,SDL_PIXELFORMAT_RGBA32);
     auto *texture=sf?SDL_CreateTextureFromSurface(renderer,sf):nullptr;if(sf)SDL_FreeSurface(sf);stbi_image_free(data);
     if(!texture)return;SDL_SetTextureBlendMode(texture,SDL_BLENDMODE_BLEND);textures[key]=texture;
   }
-  SDL_Rect dst{x,y,size,size};SDL_RenderCopy(renderer,textures.at(key),nullptr,&dst);
+  SDL_Rect dst{x,y,size,height?height:size};SDL_RenderCopy(renderer,textures.at(key),nullptr,&dst);
+}
+void UI::artworkPlaceholder(int x,int y,int w,int h,const std::string &label,bool unavailable) {
+  rect(x,y,w,h,focus,9);
+  const int size=17,iconSize=32,gap=12,maxWidth=w-24;
+  std::vector<std::string> lines;std::string current;
+  for(size_t start=0;start<label.size();) {
+    auto end=label.find(' ',start);if(end==std::string::npos)end=label.size();
+    auto word=label.substr(start,end-start);auto next=current.empty()?word:current+" "+word;
+    if(!current.empty()&&measure(next,size)>maxWidth){lines.push_back(current);current=word;}else current=next;
+    start=end+1;
+  }
+  if(!current.empty())lines.push_back(current);
+  int lineHeight=TTF_FontHeight(font(size,400));
+  int top=y+(h-iconSize-gap-int(lines.size())*lineHeight)/2;
+  icon(unavailable?"file-unavailable":"image-off",x+(w-iconSize)/2,top,iconSize);
+  top+=iconSize+gap;
+  for(const auto &line:lines){auto fitted=fit(line,maxWidth,size,400);text(fitted,x+(w-measure(fitted,size))/2,top,size,400,cream,maxWidth);top+=lineHeight;}
 }
 void UI::battery(const Telemetry &telemetry, bool showPercent, int x) {
   const int y = 34, w = 27, h = 14;
@@ -453,7 +465,8 @@ void UI::frame(const std::string &title, const std::string &context, const std::
   text(context, 24, 85, 19, 500, secondary, 672);
 }
 void UI::row(const std::string &label, int y, bool selected, int width, const std::string &value,
-             bool enabled, int h, const std::string &endIcon, const std::string &startIcon) {
+             bool enabled, int h, const std::string &endIcon, const std::string &startIcon, bool editableValue) {
+  selected=selected&&contentFocus;
   if (selected) {
     rect(16, y, width, h, focus, 9);
     rect(16, y + 7, 4, h - 14, accent, 2);
@@ -462,12 +475,12 @@ void UI::row(const std::string &label, int y, bool selected, int width, const st
   int available = width - 38;
   int labelX = startIcon.empty() ? 32 : 66;
   if (!startIcon.empty()) {
-    icon(startIcon, 32, y + (h - 22) / 2, 22);
+    icon(startIcon, 32, y + (h - 24) / 2, 24);
     available -= 34;
   }
   int valueW = measure(value, 21);
   if (!value.empty())
-    available -= valueW + 38;
+    available -= valueW + 38 + (editableValue ? 48 : 0);
   if (!endIcon.empty())
     available -= 38;
   // Focused long game titles use a measured two-line row, never byte
@@ -489,10 +502,16 @@ void UI::row(const std::string &label, int y, bool selected, int width, const st
     text(second, labelX, y + 38, 23, 700, c, available);
   } else
     text(label, labelX, y + 12, 23, selected ? 700 : 500, c, available);
-  if (!value.empty())
-    text(value, width - 8 - valueW - (endIcon.empty() ? 0 : 38), y + 14, 21, 500, c);
+  if (!value.empty()) {
+    int valueX=width-8-valueW-(endIcon.empty()?0:38)-(editableValue?24:0);
+    text(value,valueX,y+14,21,500,c);
+    if(editableValue&&selected&&enabled){icon("chevron-left",valueX-24,y+17,18);icon("chevron-right",valueX+valueW+6,y+17,18);}
+  }
   if (!endIcon.empty())
-    icon(endIcon, width - 30, y + (h - 22) / 2, 22);
+    icon(endIcon, width - 32, y + (h - 24) / 2, 24);
+}
+void UI::valueRow(const std::string &label,int y,bool selected,int width,const std::string &value,bool enabled) {
+  row(label,y,selected,width,value,enabled,52,"","",true);
 }
 // Coverage-sampled reusable outlines remain smooth on the native 720x480 panel.
 void UI::circle(int x, int y, int size, SDL_Color c, bool filled) {
@@ -557,19 +576,7 @@ void UI::keycap(int x, int y, int width, bool round, SDL_Color c, int height, bo
 }
 void UI::binaryRow(const std::string &label, int y, bool selected, std::optional<bool> value,
                    const Locale &locale, bool supported) {
-  row(fit(label, 496, 23, selected ? 700 : 500), y, selected);
-  if (!supported || !value) {
-    text("—", 644, y + 12, 23, 500, secondary);
-    return;
-  }
-  rect(552, y + 9, 128, 34, separator, 6);
-  rect(553, y + 10, 126, 32, bg, 5);
-  rect(*value ? 616 : 552, y + 9, 64, 34, cream, 6);
-  for (int i = 0; i < 2; ++i) {
-    auto label = locale.tr(i ? "value.on" : "value.off");
-    text(label, 552 + i * 64 + (64 - measure(label, 19)) / 2, y + 15, 19, 500,
-         *value == bool(i) ? bg : secondary);
-  }
+  valueRow(label,y,selected,672,supported&&value?locale.tr(*value?"value.on":"value.off"):"—",supported&&value.has_value());
 }
 void UI::keyArrows(int x, int y, int width, bool vertical, SDL_Color c) {
   auto key="keyarrows:"+std::to_string(width)+":"+std::to_string(vertical)+":"+
@@ -632,33 +639,34 @@ std::string UI::buttonLabel(const std::string &action) const {
     return action;
   static const std::map<std::string, std::string> labels = {
       {"A", "Enter"}, {"B", "Esc"}, {"X", "C"}, {"Y", "V"},
-      {"L1", "Q"}, {"R1", "E"}, {"L1/R1", "Q/E"}, {"MENU", "Tab"}};
+      {"L1", "Q"}, {"R1", "E"}, {"L1/R1", "Q/E"}, {"L2","W"}, {"R2","R"}, {"L2/R2","W/R"}, {"MENU", "Tab"}, {"SELECT","F1"}};
   auto it = labels.find(action);
   return it == labels.end() ? action : it->second;
 }
 void UI::hints(const std::vector<std::pair<std::string, std::string>> &items, bool disabledActions) {
-  int x = 24;
-  for (auto &[action, label] : items) {
-    bool vertical = action == "UP/DOWN", horizontal = action == "LEFT/RIGHT";
-    auto button = buttonLabel(action);
-    auto c = disabledActions && (action == "A" || action == "LEFT/RIGHT") ? secondary : cream;
-    bool round = !keyboardHints && button.size() == 1;
-    int keySize = button == "L1/R1" ? 14 : 16;
-    int bw = vertical || horizontal ? 44 : round ? 32 : std::max(36, measure(button, keySize, 700) + 20);
-    int lw = measure(label, 19);
-    if (x + bw + 8 + lw > 696)
-      break;
-    auto outline=c;
-    outline.a=200;
-    keycap(x,440,bw,round,outline);
-    if (vertical || horizontal) {
-      keyArrows(x,440,bw,vertical,c);
-    } else
-      keyLabel(button,x,440,bw,keySize,c);
-    text(label, x + bw + 8, 444, 19, 500, c);
-    x += bw + 8 + lw + 16;
+  // A footer is replaced as one surface, including when its actions are empty.
+  rect(0,436,720,44,bg);
+  if(items.empty())return;
+  int x=24,size=19,gap=16;
+  auto keyWidth=[&](const std::string &action) {
+    auto button=buttonLabel(action);bool round=!keyboardHints&&button.size()==1;
+    return action=="UP/DOWN"||action=="LEFT/RIGHT"?44:round?32:std::max(36,measure(button,(button=="L1/R1"||button=="L2/R2")?14:16,700)+20);
+  };
+  int needed=0;for(const auto &item:items)needed+=keyWidth(item.first)+8+measure(item.second,size)+gap;
+  if(needed>688){size=17;gap=8;}
+  int keys=0,labels=0;for(const auto &item:items){keys+=keyWidth(item.first)+8+gap;labels+=measure(item.second,size);}
+  int budget=std::max(0,672-keys);
+  for(const auto &[action,label]:items) {
+    bool vertical=action=="UP/DOWN",horizontal=action=="LEFT/RIGHT";
+    auto button=buttonLabel(action);auto c=disabledActions&&(action=="A"||horizontal)?secondary:cream;
+    bool round=!keyboardHints&&button.size()==1;int bw=keyWidth(action),keySize=(button=="L1/R1"||button=="L2/R2")?14:16;
+    int lw=measure(label,size);if(labels>budget&&labels)lw=lw*budget/labels;
+    auto outline=c;outline.a=200;keycap(x,440,bw,round,outline);
+    if(vertical||horizontal)keyArrows(x,440,bw,vertical,c);else keyLabel(button,x,440,bw,keySize,c);
+    text(label,x+bw+8,444,size,500,c,std::max(1,lw));x+=bw+8+lw+gap;
   }
 }
+
 int UI::info(const std::string &title, const std::string &body, int scroll, const Json &sections) {
   auto wrap = [&](const std::string &input, int width, int size) {
     std::vector<std::string> lines;
@@ -757,10 +765,10 @@ SDL_Texture *UI::rememberImage(const std::string &key,const uint8_t *pixels,int 
   if(bytes<=4*1024*1024){imageTextures[key]={texture,bytes,++imageClock};imageTextureBytes+=bytes;}
   return texture;
 }
-bool UI::artworkImage(const std::vector<ArtworkRequest> &requests,int x,int y,int w,int h) {
+bool UI::artworkImage(const std::vector<ArtworkRequest> &requests,int x,int y,int w,int h,bool schedule) {
   artworkPending=false;
   if(!artworkCache||requests.empty())return false;
-  artworkCache->select(requests);auto image=artworkCache->get(requests.front());
+  if(schedule)artworkCache->select(requests);auto image=artworkCache->get(requests.front());
   if(!image){artworkPending=!artworkCache->missing(requests.front());return false;}
   auto id="art:"+image->identity;auto found=imageTextures.find(id);SDL_Texture *texture=nullptr;
   if(found!=imageTextures.end()){found->second.used=++imageClock;texture=found->second.texture;}

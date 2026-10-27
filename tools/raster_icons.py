@@ -1,4 +1,4 @@
-"""Regenerate licensed Lucide raster derivatives for SDL; requires cairosvg."""
+"""Regenerate SDL UI icon derivatives from licensed SVG sources; requires cairosvg."""
 from pathlib import Path
 import cairosvg
 import subprocess

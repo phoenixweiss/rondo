@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iostream>
 #include <sys/stat.h>
+#include <sys/resource.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <signal.h>
@@ -201,6 +202,28 @@ int main(int argc, char **argv) {
   put(blockedDir/"runner.jsonl","old telemetry\n");
   clearDiagnosticLogs(blockedDir,ram);
   assert(!fs::exists(blockedDir/"runner.log")&&!fs::exists(blockedDir/"runner.jsonl")&&!fs::exists(blockedDir/"runner.recovered.log")&&fs::exists(blockedDir/"keep-me"));
+#ifdef __linux__
+  // Fail an actual append midway, then restart the writer. Earlier complete
+  // records remain readable and the next row is separated from the torn tail.
+  auto torn=root/"partial-append";
+  {BatteryLog journal(torn,"shell",sys,proc);assert(journal.sample(1,context,"before"));}
+  auto originalSize=fs::file_size(torn/"shell.log");
+  pid_t appendChild=fork();assert(appendChild>=0);
+  if(appendChild==0) {
+    struct rlimit limit{rlim_t(originalSize+64),rlim_t(originalSize+64)};
+    if(setrlimit(RLIMIT_FSIZE,&limit))_exit(90);
+    signal(SIGXFSZ,SIG_IGN);
+    BatteryLog journal(torn,"shell",sys,proc);
+    bool ok=journal.sample(2,context,"interrupted");_exit(!ok&&!journal.lastError.empty()?83:91);
+  }
+  int appendStatus=0;while(waitpid(appendChild,&appendStatus,0)<0&&errno==EINTR){}
+  if(!WIFEXITED(appendStatus)||WEXITSTATUS(appendStatus)!=83)std::cerr<<"partial append child status="<<appendStatus<<" size="<<fs::file_size(torn/"shell.log")<<" initial="<<originalSize<<"\n";
+  assert(WIFEXITED(appendStatus)&&WEXITSTATUS(appendStatus)==83);
+  assert(fs::file_size(torn/"shell.log")==originalSize+64);
+  {BatteryLog journal(torn,"shell",sys,proc);assert(journal.sample(3,context,"after"));}
+  auto complete=rows(torn/"shell.log");
+  assert(complete.size()==2&&complete[0]["event"]=="before"&&complete[1]["event"]=="after");
+#endif
   // The sampled gauge must not overwrite a different value submitted to the UI.
   put(battery / "capacity", "10\n");
   Json display = {{"screen", "game_menu"}, {"header_visible", true},

@@ -30,7 +30,7 @@ int main(int argc,char **argv) {
   a.core->saveAutomatic();assert(a.core->compatibleAutomatic());a.ticks(3);a.core->loadAutomatic();assert(ramHash()==saved);dlclose(handle);
   auto device=std::make_unique<MdDevice>();auto *d=device.get();a.device=std::move(device);a.sleep();assert(d->sleeps==1 && !a.core->paused);
   a.store.data["integer_scaling"]=true;a.capture("md-integer");a.store.data["integer_scaling"]=false;a.capture("md-aspect");
-  a.action("MENU");a.row=4;a.action("A");a.row=1;a.action("A");assert(a.stop && a.gameClosed);a.core->flushSram();assert(readBytes(dir/"sram.bin")==seed);
+  a.action("MENU");a.row=int(GameMenuItem::Exit);a.action("A");a.row=1;a.action("A");assert(a.stop && a.gameClosed);a.core->flushSram();assert(readBytes(dir/"sram.bin")==seed);
  }
  {App a(o,true,game);a.core->flushSram();assert(readBytes(dir/"sram.bin")==seed);a.core->loadAutomatic();assert(a.core->compatible(0));}
  {App shell(o);shell.game=game;shell.rememberLaunch();}

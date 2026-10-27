@@ -4,6 +4,7 @@ Original Rondo code, scripts, synthetic test fixtures and original artwork are M
 
 | Component | Exact input | Terms retained |
 |---|---|---|
+| Automatic console icons, baxysquare / BAXY Themes | assets/Systems/sources.json, revision 3798875e3a592b2b5d737212be3a2d4bc9454629 | MIT as declared by the author; assets/Systems/LICENSE.txt and UPSTREAM-README.txt, unmodified geometry and themed raster derivatives |
 | Unicode CLDR localized countries/cities | assets/Timezones/sources.json | Unicode License v3, assets/Timezones/LICENSE; offline derived labels, pinned generator |
 | nlohmann/json 3.12.0, including Hoehrmann/Loitsch code | vendor/sources.json | MIT; licenses/nlohmann-json-MIT.txt and preserved header attribution |
 | libretro API header | vendor/sources.json | MIT grant in header; not a license for all cores |

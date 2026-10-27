@@ -38,6 +38,7 @@ void App::clockTick() {
         if (clockLocalUpdated) {
           screen = Screen::Clock;
           row = 2;
+          if(!navigation.empty()&&navigation.back().route==Screen::Clock)navigationBack();
         }
       }
       if (ack) {

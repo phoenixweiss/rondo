@@ -329,9 +329,11 @@ static void recoverJournal(const fs::path &directory, const fs::path &fallback, 
 void clearDiagnosticLogs(const fs::path &directory, const fs::path &fallback) {
   for (const auto &root : {directory, fallback}) {
     if (root.empty()) continue;
+    bool removed = false;
     for (const auto *role : {"shell", "runner"})
       for (const auto *suffix : {".jsonl", ".previous.jsonl", ".recovered.jsonl", ".log", ".previous.log", ".recovered.log"})
-        fs::remove(root / (std::string(role) + suffix));
+        removed = fs::remove(root / (std::string(role) + suffix)) || removed;
+    if (removed) syncDirectory(root);
   }
 }
 // The producer never reads sysfs/proc or touches the card. A bounded queue

@@ -31,6 +31,9 @@ int main(int argc, char **argv) {
     assert(c.stateHash() != hash);
     c.loadState(0);
     assert(c.stateHash() == hash);
+    c.save(1);c.save(1);assert(fs::exists(state/"slot-1.state.previous"));
+    c.deleteSlot(1);assert(!fs::exists(state/"slot-1.state")&&!fs::exists(state/"slot-1.state.previous"));
+    c.deleteSlot(1); // Repeating an acknowledged deletion remains harmless.
     auto manual=readBytes(state/"slot-0.state");
     c.saveAutomatic();assert(c.compatibleAutomatic());auto automaticHash=c.stateHash();
     for(int i=0;i<12;++i)c.tick();c.loadAutomatic();assert(c.stateHash()==automaticHash);

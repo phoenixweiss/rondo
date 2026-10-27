@@ -73,12 +73,20 @@ static std::string key(SDL_Keycode k) {
     return "X";
   case SDLK_v:
     return "Y";
+  case SDLK_w:
+    return "L2";
+  case SDLK_r:
+    return "R2";
   case SDLK_q:
     return "L1";
   case SDLK_e:
     return "R1";
   case SDLK_TAB:
     return "MENU";
+  case SDLK_F1:
+    return "SELECT";
+  case SDLK_F12:
+    return "SCREENSHOT";
   default:
     return "";
   }
@@ -112,64 +120,7 @@ static std::string pad(uint8_t b) {
     return "";
   }
 }
-static void held(App &a) {
-  bool testing=a.screen==Screen::InputTest;
-  if (!testing&&(!a.core || a.screen != Screen::Running))
-    return;
-  const auto *k = SDL_GetKeyboardState(nullptr);
-  uint16_t mask = 0;
-  auto put = [&](int id, bool on) {
-    if (on)
-      mask |= uint16_t(1 << id);
-  };
-  put(RETRO_DEVICE_ID_JOYPAD_A, k[SDL_SCANCODE_Z]);
-  put(RETRO_DEVICE_ID_JOYPAD_B, k[SDL_SCANCODE_X]);
-  put(RETRO_DEVICE_ID_JOYPAD_START, k[SDL_SCANCODE_RETURN]);
-  put(RETRO_DEVICE_ID_JOYPAD_SELECT, k[SDL_SCANCODE_RSHIFT]);
-  put(RETRO_DEVICE_ID_JOYPAD_UP, k[SDL_SCANCODE_UP]);
-  put(RETRO_DEVICE_ID_JOYPAD_DOWN, k[SDL_SCANCODE_DOWN]);
-  put(RETRO_DEVICE_ID_JOYPAD_LEFT, k[SDL_SCANCODE_LEFT]);
-  put(RETRO_DEVICE_ID_JOYPAD_RIGHT, k[SDL_SCANCODE_RIGHT]);
-  put(RETRO_DEVICE_ID_JOYPAD_X, k[SDL_SCANCODE_S]);
-  put(RETRO_DEVICE_ID_JOYPAD_Y, k[SDL_SCANCODE_A]);
-  put(RETRO_DEVICE_ID_JOYPAD_L, k[SDL_SCANCODE_Q]);
-  put(RETRO_DEVICE_ID_JOYPAD_R, k[SDL_SCANCODE_E]);
-  if(testing) {
-    put(RETRO_DEVICE_ID_JOYPAD_L2,k[SDL_SCANCODE_W]);
-    put(RETRO_DEVICE_ID_JOYPAD_R2,k[SDL_SCANCODE_R]);
-    put(RETRO_DEVICE_ID_JOYPAD_L3,k[SDL_SCANCODE_T]);
-    put(RETRO_DEVICE_ID_JOYPAD_R3,k[SDL_SCANCODE_Y]);
-  }
-  auto &raw = *a.ui->handheldKeys;
-  put(RETRO_DEVICE_ID_JOYPAD_A, raw.pressed("A"));
-  put(RETRO_DEVICE_ID_JOYPAD_B, raw.pressed("B"));
-  put(RETRO_DEVICE_ID_JOYPAD_START, raw.pressed("START"));
-  put(RETRO_DEVICE_ID_JOYPAD_SELECT, raw.pressed("SELECT"));
-  put(RETRO_DEVICE_ID_JOYPAD_UP, raw.pressed("UP"));
-  put(RETRO_DEVICE_ID_JOYPAD_DOWN, raw.pressed("DOWN"));
-  put(RETRO_DEVICE_ID_JOYPAD_LEFT, raw.pressed("LEFT"));
-  put(RETRO_DEVICE_ID_JOYPAD_RIGHT, raw.pressed("RIGHT"));
-  put(RETRO_DEVICE_ID_JOYPAD_X, raw.pressed("X"));
-  put(RETRO_DEVICE_ID_JOYPAD_Y, raw.pressed("Y"));
-  put(RETRO_DEVICE_ID_JOYPAD_L, raw.pressed("L1"));
-  put(RETRO_DEVICE_ID_JOYPAD_R, raw.pressed("R1"));
-  put(RETRO_DEVICE_ID_JOYPAD_L2,raw.pressed("L2"));
-  put(RETRO_DEVICE_ID_JOYPAD_R2,raw.pressed("R2"));
-  put(RETRO_DEVICE_ID_JOYPAD_L3,raw.pressed("L3"));
-  put(RETRO_DEVICE_ID_JOYPAD_R3,raw.pressed("R3"));
-  mask |= a.ui->controllerButtons(!testing&&!a.psxDualshock() && a.store.data.value("left_stick_dpad",true));
-  if(testing) {
-    std::set<std::string> extras;
-    if(raw.pressed("MENU")||k[SDL_SCANCODE_TAB])extras.insert("MENU");
-    for(auto &entry:a.ui->controllers)
-      if(SDL_GameControllerGetButton(entry.second,SDL_CONTROLLER_BUTTON_GUIDE))extras.insert("MENU");
-    if(a.ui->volumeKeys->pressed(true)||k[SDL_SCANCODE_EQUALS])extras.insert("VOL+");
-    if(a.ui->volumeKeys->pressed(false)||k[SDL_SCANCODE_MINUS])extras.insert("VOL-");
-    if(a.ui->powerKeys->pressed())extras.insert("POWER");
-    a.testInput(mask,a.ui->controllerAxes(),extras);return;
-  }
-  a.gameInput(mask,a.ui->controllerAxes());
-}
+
 static void events(App &a) {
   for (auto &action:a.ui->powerKeys->poll()) a.action(action);
   for (auto &action : a.ui->handheldKeys->poll()) {
@@ -194,21 +145,26 @@ static void events(App &a) {
         a.screen = Screen::GameMenu;
         a.core->paused = true;
         a.action("DOWN");
-        a.row = 4;
+        a.row = int(GameMenuItem::Exit);
         a.action("A");
       } else
         a.stop = true;
     }
-    if(e.type==SDL_TEXTINPUT && a.screen==Screen::Search && !a.ui->handheldKeys->available()) {a.ui->inputHints(true);a.searchText(e.text.text);continue;}
+    if(e.type==SDL_TEXTINPUT && a.screen==Screen::Search && !a.ui->handheldKeys->available()) {a.ui->inputHints(true);if(!a.navigationActions)a.searchText(e.text.text);continue;}
     if(e.type==SDL_KEYDOWN && a.screen==Screen::Search && !a.ui->handheldKeys->available()) {
       a.ui->inputHints(true);
       auto k=e.key.keysym.sym;
-      if(k==SDLK_BACKSPACE)a.action("SEARCH_DELETE");
+      if(k==SDLK_F12){if(!e.key.repeat)a.action("SCREENSHOT");}
+      else if(k==SDLK_F1){if(!e.key.repeat)a.action("SELECT");}
+      else if(k==SDLK_TAB)a.action("MENU");
+      else if(a.navigationActions){auto action=key(k);if(!action.empty())a.action(action);}
+      else if(k==SDLK_BACKSPACE)a.action("SEARCH_DELETE");
       else if(k==SDLK_RETURN)a.action("SEARCH_SUBMIT");
       else if(k==SDLK_ESCAPE)a.action("B");
       else if(k==SDLK_UP || k==SDLK_DOWN || k==SDLK_LEFT || k==SDLK_RIGHT)a.action(key(k));
       continue;
     }
+    if(e.type==SDL_KEYDOWN&&e.key.keysym.sym==SDLK_F12){if(!e.key.repeat)a.action("SCREENSHOT");continue;}
     if(e.type==SDL_TEXTINPUT && a.screen==Screen::WifiPassword){a.ui->inputHints(true);a.wifiText(e.text.text);continue;}
     if(e.type==SDL_KEYDOWN && a.screen==Screen::WifiPassword && !a.ui->handheldKeys->available()) {
       a.ui->inputHints(true);
@@ -245,7 +201,7 @@ static void events(App &a) {
       auto action = pad(e.cbutton.button);
       // Keep Select usable in NES; Guide or Start+Back opens the game menu.
       if(e.cbutton.button==SDL_CONTROLLER_BUTTON_BACK)
-        action=a.screen==Screen::Running?(controller && SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_START)?"MENU":""):"B";
+        action=a.screen==Screen::Running?(controller && SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_START)?"MENU":""):(a.libraryActionsAvailable()?"SELECT":"B");
       if(e.cbutton.button==SDL_CONTROLLER_BUTTON_START && controller && SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_BACK))action="MENU";
       if (!action.empty()) {
         a.ui->inputHints(false);
@@ -260,6 +216,11 @@ static void events(App &a) {
 }
 static void script(App &a, const Json &commands, const std::function<void(const Json &)> &after) {
   for (auto &c : commands) {
+    if(c.value("open_search",false))a.openSearch(true);
+    if(c.contains("menu_item")){
+      static const std::map<std::string,GameMenuItem> items{{"resume",GameMenuItem::Resume},{"save",GameMenuItem::Save},{"load",GameMenuItem::Load},{"screenshot",GameMenuItem::Screenshot},{"settings",GameMenuItem::Settings},{"info",GameMenuItem::Info},{"exit",GameMenuItem::Exit}};
+      if(a.screen!=Screen::GameMenu)throw std::runtime_error("Expected game menu");a.row=int(items.at(c.at("menu_item").get<std::string>()));
+    }
     if (c.contains("action"))
       a.action(c.at("action"));
     if (c.contains("text") && a.screen==Screen::Search)
@@ -436,7 +397,7 @@ static Json supervise(App &a, const Json &runnerScript) {
   a.batteryWarningsLoaded=false;
   a.slotCache.clear();
   a.launch = false;
-  a.screen = failure.empty() ? Screen::Library : Screen::Recovery;
+  if(failure.empty())a.navigationGameReturn();else a.screen=Screen::Recovery;
   a.notice = failure.empty() ? historyWarning : failure;
   a.record(failure.empty() ? "runner_released" : "runner_failure");
   return result;
@@ -593,6 +554,7 @@ int main(int argc, char **argv) {
       }
       app.ticks(1);
       message(fd, {{"type", "ready"}});
+      app.startStatistics();
     }
     auto after = [&](const Json &c) {
       if (c.contains("assert_info") && app.infoOpen != c.at("assert_info").get<bool>())
@@ -623,7 +585,7 @@ int main(int argc, char **argv) {
       while (!app.stop) {
         auto inputAt=SDL_GetPerformanceCounter();
         events(app);
-        held(app);
+        app.sampleInput();
         after(Json::object());
         auto updateAt=SDL_GetPerformanceCounter();
         app.ticks(1);
@@ -640,6 +602,7 @@ int main(int argc, char **argv) {
           next = now;
       }
     }
+    while(app.screenshotWriter.busy()){app.screenshotTick();SDL_Delay(1);}
     app.volumeTick(true);
     // The adapter has its own bounded deadline; finish its acknowledgement on exit.
     while (app.bootPending()) { app.ticks(0); SDL_Delay(5); }

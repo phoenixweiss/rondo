@@ -23,6 +23,7 @@ void applyBootLogo(bool enabled, const std::string &theme = "rondo");
 std::optional<bool> readBootLogo(const std::string &theme = "rondo");
 } // namespace rondo
 namespace rondo {
+std::vector<int16_t> makeScreenshotClick(double sampleRate,int volume);
 int16_t stickAxis(int value, int minimum=-32768, int maximum=32767);
 struct H700InputState {
   std::array<int16_t,4> axes{};

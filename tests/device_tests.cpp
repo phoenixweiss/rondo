@@ -31,7 +31,7 @@ int main(int argc,char **argv) {
   {
     App a(o);auto fake=std::make_unique<FakeDevice>();auto *d=fake.get();a.device=std::move(fake);a.brightness=60;
     auto group=[&](int index) { a.returnToSettings();a.settingsFocus=index;a.row=index;a.action("A"); };
-    a.action("MENU");group(1);a.action("RIGHT");assert(d->level==65 && a.store.data["brightness"]==65);a.capture("brightness-inline");
+    a.action("MENU");if(a.screen==Screen::LibraryMenu)a.action("A");group(1);a.action("RIGHT");assert(d->level==65 && a.store.data["brightness"]==65);a.capture("brightness-inline");
     a.action("DOWN");assert(a.row==1);a.action("DOWN");assert(a.row==2);a.action("UP");a.action("UP");assert(a.row==0); // Display: brightness, global scaling, background.
     a.requestSettings=[](Json){return false;};a.action("LEFT");assert(d->level==65 && a.brightness==65 && a.store.data["brightness"]==65);a.requestSettings={};
     group(5);a.action("LEFT");assert(a.row==0 && !a.store.data["show_battery_percent"].get<bool>() && d->level==65);
@@ -52,7 +52,7 @@ int main(int argc,char **argv) {
     const auto original=a.store.data;
     for(const auto *language:{"en","ru"}) {
       a.locale.select(o.assets,language);a.screen=Screen::Library;a.settingsFocus=0;a.settingsScroll=0;
-      a.action("MENU");a.action("UP");a.action("LEFT");a.action("L1");a.action("R1");
+      a.action("MENU");if(a.screen==Screen::LibraryMenu)a.action("A");a.action("LEFT");a.action("L1");a.action("R1");
       assert(a.screen==Screen::Settings && a.row==0);
       a.capture(std::string("settings-top-")+language);assert(a.settingsScroll==0);
       a.ui->inputHints(true);a.capture(std::string("settings-keyboard-")+language);a.ui->inputHints(false);
@@ -63,7 +63,7 @@ int main(int argc,char **argv) {
       assert(a.row==6);a.capture(std::string("settings-bottom-")+language);assert(a.settingsScroll>0);
       auto offset=a.settingsScroll;a.action("A");assert(a.category==4 && a.row==0);
       a.action("B");assert(a.row==6 && a.settingsScroll==offset);
-      a.action("B");assert(a.screen==Screen::Library);a.action("MENU");assert(a.row==6 && a.settingsScroll==offset);
+      a.action("B");assert(a.screen==Screen::Library);a.action("MENU");if(a.screen==Screen::LibraryMenu)a.action("A");assert(a.row==6 && a.settingsScroll==offset);
       for(int i=0;i<3;++i) { a.action("UP"); }
       a.action("A");assert(a.screen==Screen::Clock);
       a.capture(std::string("settings-clock-")+language);a.action("B");assert(a.screen==Screen::Settings && a.row==3);
@@ -75,7 +75,7 @@ int main(int argc,char **argv) {
   }
   {
     for(const auto *language:{"en","ru"}) {
-      for(int target:{9,10}) {
+      for(int target:{10,11}) {
         o.state=root/(std::string("system-power-")+language+std::to_string(target));App a(o);
         a.locale.select(o.assets,language);a.settingsFocus=0;a.screen=Screen::Settings;
         a.capture(std::string("settings-icons-top-")+language);
@@ -90,7 +90,7 @@ int main(int argc,char **argv) {
         a.action("A");assert(a.screen==Screen::Settings && a.row==target && !a.stop);
         a.action("A");a.action("DOWN");a.action("B");assert(!a.stop && a.row==target);
         a.action("A");a.action("DOWN");a.action("A");
-        assert(a.stop && a.systemExitCode==(target==10?64:65) && a.store.data==before);
+        assert(a.stop && a.systemExitCode==(target==11?64:65) && a.store.data==before);
         assert(a.screen==Screen::SystemProgress);
         a.capture(std::string("power-progress-")+language+std::to_string(target));
         a.action("B");a.action("A");a.action("VOLUME_UP");a.action("SLEEP");
@@ -179,7 +179,7 @@ int main(int argc,char **argv) {
       auto before=offline.store.data["recent_games"];offline.action("A");
       assert(!offline.launch && offline.screen==Screen::Library && !offline.notice.empty());
       assert(offline.store.data["recent_games"]==before);offline.notice.clear();
-      offline.action("Y");offline.searchText("First");offline.action("SEARCH_SUBMIT");assert(offline.visible().size()==1);
+      offline.openSearch(true);offline.searchText("First");offline.action("SEARCH_SUBMIT");assert(offline.visible().size()==1);
       offline.action("B");offline.section="All";assert(offline.visible().empty());
     }
     fs::rename(library.string()+".away",library);
@@ -235,7 +235,7 @@ int main(int argc,char **argv) {
     { App input(o,true,entry);
       auto A=uint16_t(1<<RETRO_DEVICE_ID_JOYPAD_A),B=uint16_t(1<<RETRO_DEVICE_ID_JOYPAD_B);
       assert(input.gameButtons(A)==0);assert(input.gameButtons(0)==0);assert(input.gameButtons(A)==A);
-      input.action("MENU");input.action("A");assert(input.screen==Screen::Running && !input.core->paused);
+      input.action("MENU");if(input.screen==Screen::LibraryMenu)input.action("A");input.action("A");assert(input.screen==Screen::Running && !input.core->paused);
       for(int i=0;i<10;++i)assert(input.gameButtons(A)==0);
       assert(input.gameButtons(A|B)==0);assert(input.gameButtons(B)==0);
       assert(input.gameButtons(0)==0);assert(input.gameButtons(A)==A);
@@ -267,6 +267,8 @@ int main(int argc,char **argv) {
       for(const auto *language:{"en","ru"}) {failed.locale.select(o.assets,language);failed.notice=failed.locale.tr("autosave.failed");failed.capture(std::string("autosave-error-")+language);}
       fs::remove(dir);fs::rename(dir.string()+".saved",dir);
       auto prior=readBytes(dir/"autosave.state");failed.action("DOWN");assert(failed.row==2);failed.action("A");
+      assert(failed.screen==Screen::DiscardConfirm&&!failed.stop&&failed.row==0);failed.action("A");assert(failed.screen==Screen::ExitConfirm&&!failed.stop);
+      failed.action("A");failed.action("DOWN");failed.action("A");
       assert(failed.stop && failed.gameClosed && readBytes(dir/"autosave.state")==prior);
     }
     { App closed(o);auto recent=closed.store.data["recent_games"];
@@ -293,25 +295,25 @@ int main(int argc,char **argv) {
     a.games.push_back({"world","test","SNES","Super Mario World",{}});
     a.sections={"All","Favorites","NES","SNES"};
     a.selected=87;const auto original=a.store.data;
-    a.action("Y");assert(a.screen==Screen::Search);a.searchText("CONTRA");
+    a.openSearch(true);assert(a.screen==Screen::Search);a.searchText("CONTRA");
     a.ui->inputHints(true);a.capture("search-physical-en");a.action("B");
     assert(a.screen==Screen::Library && a.selected==87 && a.visible().size()==207);
-    a.action("Y");assert(a.searchDraft.empty());a.searchText("CONTRA");a.action("SEARCH_SUBMIT");
+    a.openSearch(true);assert(a.searchDraft.empty());a.searchText("CONTRA");a.action("SEARCH_SUBMIT");
     assert(a.visible().size()==1 && a.games[a.visible()[0]].id=="contra");a.capture("search-found-en");
-    a.action("B");assert(a.visible().size()==207);
-    a.locale.select(o.assets,"ru");a.ui->inputHints(false);a.action("Y");
+    a.action("B");assert(a.screen==Screen::Search&&a.searchDraft=="CONTRA");a.action("B");assert(a.visible().size()==207);
+    a.locale.select(o.assets,"ru");a.ui->inputHints(false);a.openSearch(true);
     a.searchText("ЧЁРНЫЙ ПЛАЩ");a.capture("search-physical-ru");a.action("SEARCH_SUBMIT");
     assert(a.visible().size()==1 && a.games[a.visible()[0]].id=="duck");a.capture("search-found-ru");
-    a.action("Y");a.action("SEARCH_DELETE");assert(a.searchDraft=="чёрный пла");
-    a.action("B");assert(a.visible().size()==1);a.action("B");
-    a.action("Y");a.action("Y");a.capture("search-keyboard-ru");
+    a.openSearch(true);a.action("SEARCH_DELETE");assert(a.searchDraft=="ЧЁРНЫЙ ПЛА");
+    a.action("B");assert(a.screen==Screen::Library);
+    a.openSearch(true);a.action("Y");a.capture("search-keyboard-ru");
     a.action("DOWN");a.action("A");assert(a.searchDraft=="й");a.action("X");assert(a.searchDraft.empty());
     a.searchText(std::string(120,'a'));assert(a.searchDraft.size()==96);a.action("SEARCH_SUBMIT");
-    assert(a.visible().empty());a.capture("search-empty-ru");a.action("B");
-    a.section="NES";a.action("Y");a.searchText("mario");a.action("SEARCH_SUBMIT");assert(a.visible().empty());
-    a.action("B");a.section="Favorites";a.store.data["favorites"]={"contra"};
-    a.action("Y");a.searchText("tra");a.action("SEARCH_SUBMIT");assert(a.visible().size()==1);
-    a.action("X");assert(a.visible().empty());a.action("B");
+    assert(a.visible().empty());a.capture("search-empty-ru");a.action("B");a.action("B");
+    a.section="NES";a.openSearch(true);a.searchText("mario");a.action("SEARCH_SUBMIT");assert(a.section=="All"&&a.visible().size()==1&&a.games[a.visible()[0]].id=="world");
+    a.action("B");a.action("B");a.section="Favorites";a.store.data["favorites"]={"contra"};
+    a.openSearch(true);a.searchText("tra");a.action("SEARCH_SUBMIT");assert(a.visible().size()==1);
+    a.action("X");assert(a.visible().size()==1&&a.store.data["favorites"].empty());a.action("B");a.action("B");
     a.store.data=original;assert(a.store.data==original);
     // Search is session-only; a fresh app opens the unfiltered library.
     App restarted(o);assert(restarted.searchQuery.empty());
@@ -319,7 +321,7 @@ int main(int argc,char **argv) {
   {
     o.state=root/"lid-options";App a(o);auto fake=std::make_unique<FakeDevice>();auto *d=fake.get();a.device=std::move(fake);
     assert(a.store.data["lid_sleep"]==true && a.store.data["wake_on_lid_open"]==true);
-    a.action("MENU");for(int i=0;i<5;++i)a.action("DOWN");a.action("A");
+    a.action("MENU");if(a.screen==Screen::LibraryMenu)a.action("A");for(int i=0;i<5;++i)a.action("DOWN");a.action("A");
     a.action("DOWN");
     assert(a.row==1 && a.infoKey()=="lid"); // No wake-on-open row, even with a capable adapter.
     a.action("LEFT");assert(a.store.data["wake_on_lid_open"]==true && a.store.data["lid_sleep"]==false);
@@ -443,7 +445,7 @@ int main(int argc,char **argv) {
     o.state=root/"debug-settings";App a(o);
     for(int i=0;i<1000;++i)a.record("bounded-trace");assert(a.trace.size()==256);
     assert(!a.store.data.value("debug_enabled",true) && !a.batteryLog && !fs::exists(o.state/"Logs"));
-    a.action("MENU");for(int i=0;i<6;++i)a.action("DOWN");a.action("A");assert(a.category==4);a.action("DOWN");
+    a.action("MENU");if(a.screen==Screen::LibraryMenu)a.action("A");for(int i=0;i<6;++i)a.action("DOWN");a.action("A");assert(a.category==4);a.action("DOWN");
     a.action("RIGHT");assert(a.store.data["debug_level"]=="events" && !a.batteryLog);
     a.action("UP");a.requestSettings=[](Json){return false;};a.action("RIGHT");assert(!a.batteryLog && !a.store.data["debug_enabled"].get<bool>());
     a.requestSettings={};a.action("RIGHT");assert(a.batteryLog);a.batteryLog->drain();assert(fs::exists(o.state/"Logs/shell.log"));
@@ -460,7 +462,7 @@ int main(int argc,char **argv) {
     a.action("DOWN");a.action("A");assert(a.screen==Screen::LogClear);
     a.capture("debug-clear-confirm");a.action("B");assert(fs::exists(path));
     std::ofstream(o.state/"keep-me")<<"user data";
-    a.action("A");a.action("A");assert(!fs::exists(path) && fs::exists(o.state/"keep-me"));
+    a.action("A");a.action("DOWN");a.action("A");assert(!fs::exists(path) && fs::exists(o.state/"keep-me"));
     a.action("UP");a.action("UP");a.action("LEFT");assert(!a.batteryLog);
     a.capture("debug-off-ru");
     Store restart(o.state);assert(!restart.data["debug_enabled"].get<bool>() && restart.data["debug_level"]=="errors");
@@ -526,11 +528,13 @@ int main(int argc,char **argv) {
     SDL_JoystickSetVirtualButton(joystick,7,1);SDL_JoystickSetVirtualButton(joystick,8,1);SDL_GameControllerUpdate();
     auto axes=ui.controllerAxes();assert(axes[0]==-32768&&axes[2]==32767&&axes[3]<-12000);
     auto full=ui.controllerButtons(false);assert(full&(1<<RETRO_DEVICE_ID_JOYPAD_R2));
+    auto triggerActions=ui.controllerNavigation();assert(std::find(triggerActions.begin(),triggerActions.end(),"R2")!=triggerActions.end());
+    assert(ui.controllerNavigation().empty()); // Holding a trigger does not repeatedly change the view.
     assert(full&(1<<RETRO_DEVICE_ID_JOYPAD_L3));assert(full&(1<<RETRO_DEVICE_ID_JOYPAD_R3));
     SDL_JoystickSetVirtualAxis(joystick,0,0);SDL_JoystickSetVirtualAxis(joystick,2,0);SDL_JoystickSetVirtualAxis(joystick,3,0);
     SDL_JoystickSetVirtualAxis(joystick,1,4000);SDL_GameControllerUpdate();assert(ui.controllerNavigation().empty());
     SDL_JoystickClose(joystick);assert(SDL_JoystickDetachVirtual(index)==0);SDL_PumpEvents();ui.refreshControllers();
-    assert(ui.controllers.empty() && ui.controllerButtons()==0 && ui.axisRepeats.empty() && ui.controllerActivity.empty());
+    assert(ui.controllers.empty() && ui.controllerButtons()==0 && ui.axisRepeats.empty() && ui.controllerTriggers.empty() && ui.controllerActivity.empty());
     assert((ui.controllerAxes()==std::array<int16_t,4>{}));
     // An unmapped joystick stays observable and is promoted after a mapping is
     // supplied; unplugging it releases both the handle and activity counters.

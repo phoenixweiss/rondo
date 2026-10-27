@@ -11,7 +11,7 @@ int main(int argc,char **argv){
   a.motor=std::make_shared<Rumble>([&](bool on){if(on)++pulses;return true;});
   a.screen=Screen::SettingsSection;a.category=4;a.row=3;a.action("A");assert(a.screen==Screen::InputTest);
   a.testInput(0,{},{});assert(a.testInputArmed);
-  for(auto action:{"A","B","X","Y","MENU","UP","DOWN","VOLUME_UP","VOLUME_DOWN","SLEEP"})a.action(action);
+  for(auto action:{"A","B","X","Y","UP","DOWN","VOLUME_UP","VOLUME_DOWN","SLEEP"})a.action(action);
   assert(a.screen==Screen::InputTest&&a.store.data==before&&!a.infoOpen);
   const uint16_t shoulders=(1<<RETRO_DEVICE_ID_JOYPAD_L)|(1<<RETRO_DEVICE_ID_JOYPAD_R)|(1<<RETRO_DEVICE_ID_JOYPAD_L2)|(1<<RETRO_DEVICE_ID_JOYPAD_R2);
   a.testInput(shoulders,{},{});
@@ -25,6 +25,7 @@ int main(int argc,char **argv){
   a.testInput(exit,{},{});assert(a.screen==Screen::SettingsSection&&a.row==3&&a.category==4);
   a.openInputTest(true);a.testInput(exit,{},{});assert(a.screen==Screen::InputTest); // Entry-held chord is ignored.
   a.testInput(0,{},{});a.testInput(exit,{},{});assert(a.screen==Screen::CoreSettings&&a.row==3);
+  a.openInputTest(true);a.action("MENU");assert(a.screen==Screen::CoreSettings);
   a.openInputTest(true);a.testInput(0,{},{});a.store.data["rumble_enabled"]=false;
   a.testInput(shoulders,{},{});assert(!a.testFeedback.empty());SDL_Delay(20);assert(pulses==2);
   a.store.data=before;

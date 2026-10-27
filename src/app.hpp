@@ -9,13 +9,18 @@
 #include "bluetooth.hpp"
 #include "ui.hpp"
 #include "system_info.hpp"
+#include "screenshots.hpp"
+#include "game_statistics.hpp"
 #include <functional>
 #include <future>
 namespace rondo {
+enum class GameMenuItem { Resume, Save, Load, Screenshot, Settings, Info, Exit, Count };
 enum class Screen {
+  Systems, LibraryPreferences, LibraryMenu,
+  ScreenshotSettings, ScreenshotCapture,
   Themes, CoreCatalog, MappingCores, Mapping, MappingReset, Wizard, WizardExit,
   Library,
-  Search,
+  Search, SearchResults, GameDetails,
   Settings,
   SettingsSection,
   InputTest,
@@ -48,13 +53,25 @@ enum class Screen {
   DeleteSlot,
   Overwrite,
   LoadConfirm,
-  ExitConfirm,
+  ExitConfirm, DiscardConfirm,
   CoreSettings,
   PsxCoreSettings,
   PsxBiosFiles,
   PsxFirmwareError,
   PsxWarning,
   Recovery
+};
+// A route snapshot stores navigation only; confirmed preferences and service
+// results remain authoritative when a parent is restored.
+struct NavigationFrame {
+  Screen route=Screen::Library;
+  std::string collection,query,draft,selectedGame,region,wifiIdentity,btIdentity;
+  std::string infoPage;
+  int regionFocus=0,wifiFocus=0,wifiKeyRow=0,wifiKeyColumn=0,btFocus=0,systemInfoRow=0;
+  double btScroll=0,systemInfoScroll=0;
+  int selected=0,row=0,category=0,system=0,quick=0,settings=0,keyRow=0,keyColumn=0;
+  double scroll=0,regionScroll=0,settingsScroll=0,featureScroll=0,interfaceScroll=0;
+  bool actions=false,russian=false;
 };
 struct Options {
   fs::path assets, state, core, gbCore, gbaCore, snesCore, mdCore, psxCore, psxBios, executable, script, output;
@@ -85,6 +102,26 @@ struct Options {
 };
 class App {
 public:
+  std::vector<NavigationFrame> navigation;
+  std::optional<NavigationFrame> gameOrigin;
+  size_t gameOriginDepth=0;
+  uint64_t navigationRevision=0;
+  bool navigationActions=false;
+  int navigationFocus=0;
+  NavigationFrame navigationFrame() const;
+  void navigationRestore(const NavigationFrame &);
+  void navigationPush(Screen);
+  void navigationBack();
+  void navigationGameReturn();
+  void navigationSettings();
+  void openSystems();
+  bool explicitSystemsRoot=false;
+  bool libraryActionsAvailable() const;
+  bool navigationAction(const std::string &);
+  void navigationDraw();
+  void actionImpl(const std::string &);
+  struct NavigationAction {std::string id,label,icon;};
+  std::vector<NavigationAction> navigationItems() const;
   Options options;
   Store store;
   mutable std::optional<std::vector<CoreEntry>> coreCatalogCache;
@@ -95,6 +132,27 @@ public:
   void preferenceAction(const std::string &);
   void preferenceDraw(const std::string &);
   double featureScroll=0;
+  bool systemsQuick=false, gamesQuick=false;
+  int systemFocus=0,quickFocus=0,librarySettingsReturn=5;
+  Json libraryDraft;
+  double interfaceScroll=0;
+  std::map<std::string,std::string> collectionFocus;
+  std::vector<std::string> librarySystems() const;
+  void openSearch(bool global=false);
+  void libraryOpen(const std::string &);
+  void libraryRemember();
+  void libraryRestore();
+  void libraryConfigure(Screen origin);
+  void libraryPreferenceAction(const std::string &);
+  void libraryPreferenceDraw(const std::string &);
+  std::string libraryValue(const std::string &,const Json &) const;
+  void libraryCycle(Json &,int,int);
+  bool libraryAction(const std::string &);
+  void systemsAction(const std::string &);
+  void systemsDraw(const std::string &);
+  void gameTilesDraw(const std::string &);
+  void gamePositionDraw(const Game &,size_t);
+  void libraryQuickDraw();
   std::string mappingCore;
   int mappingCoreRow=0,mappingReturnRow=0;
   bool mappingTest=false;
@@ -144,8 +202,22 @@ public:
   uint64_t lidCheckAt = 0;
   bool sleeping = false;
   bool gameInputBlocked=true;
+  ScreenshotWriter screenshotWriter;
+  ScreenshotChord screenshotKeys,interfaceScreenshotKeys;
+  std::string screenshotMessage;
+  uint64_t screenshotMessageUntil=0;
+  bool screenshotRecordingArmed=false;
+  uint16_t screenshotRecording=0;
+  void takeScreenshot();
+  void screenshotTick();
+  void playScreenshotSound();
+  void screenshotDraw();
+  void screenshotAction(const std::string &);
+  void screenshotSettingsDraw(const std::string &);
+  void screenshotRecord(uint16_t);
   uint16_t gameButtons(uint16_t);
   void gameInput(uint16_t, const std::array<int16_t,4> &);
+  void sampleInput();
   bool psxDualshock() const;
   bool screenBlank=false, batteryWarningsLoaded=false;
   uint64_t wakeConsumeUntil=0, lastActivity=0, powerSampleAt=0, batteryChargeAt=0;
@@ -220,6 +292,13 @@ public:
   VolumeFeedback volumeFeedback;
   std::string section = "All", artwork = "cover", notice, region;
   std::unique_ptr<Core> core;
+  std::unique_ptr<GameStatistics> statistics;
+  Json gameInfoStatistics=Json::object();
+  void statisticsTick(bool flush=false);
+  void startStatistics();
+  void openGameInfo();
+  void prepareGame(const Game &);
+
   Game game;
   bool stop = false, launch = false, resume = false;
   // Handled by the H700 launcher only after process teardown.

@@ -7,6 +7,16 @@
 #include <cctype>
 #include <cmath>
 namespace rondo {
+std::vector<int16_t> makeScreenshotClick(double sampleRate,int volume) {
+  size_t frames=std::max(1,int(sampleRate*0.028));std::vector<int16_t> samples(frames*2);
+  uint32_t noise=0x524f4e44;
+  for(size_t i=0;i<frames;++i){noise=noise*1664525u+1013904223u;double t=double(i)/sampleRate;
+    double envelope=std::exp(-t*420)+(t>=0.012?0.65*std::exp(-(t-0.012)*500):0);
+    auto value=int16_t((int(noise>>16)-32768)*0.16*envelope*volume/100);samples[i*2]=samples[i*2+1]=value;
+  }
+  return samples;
+}
+
 bool VolumeKeys::pressed(bool up) const {
   for(const auto &d:devices)if(d.state.held.count(up?115:114))return true;
   return false;

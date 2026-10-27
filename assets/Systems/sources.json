@@ -1,0 +1,167 @@
+{
+  "author": "baxysquare / BAXY Themes",
+  "repository": "https://github.com/baxysquare/baxy-retroarch-themes",
+  "revision": "3798875e3a592b2b5d737212be3a2d4bc9454629",
+  "license": "MIT",
+  "raster_size": [
+    320,
+    200
+  ],
+  "rendering": "white alpha; uniform contain scaling, no added strokes",
+  "icons": {
+    "nes": {
+      "id": "NES",
+      "model": "NES \u00b7 front loader",
+      "source": "https://raw.githubusercontent.com/baxysquare/baxy-retroarch-themes/3798875e3a592b2b5d737212be3a2d4bc9454629/Automatic/src/svg/Nintendo%20-%20Nintendo%20Entertainment%20System.svg",
+      "source_sha256": "f13d579ad063a9aad9f77f8f6c678d4d114dce4303c4b71644b8208e3663e08a",
+      "render_sha256": "b40e21cd2aa1161a18ca85fa79b61e5f9e747d8af6d3d9b717ddeebcb99ac67e",
+      "geometry_sha256": "5465cf13ab133c779d7a1b8b25193d787f1df56b2a7be0e3909bea7e32a81678",
+      "svg_sha256": "b40e21cd2aa1161a18ca85fa79b61e5f9e747d8af6d3d9b717ddeebcb99ac67e",
+      "png_sha256": "7c5ed703964b64c0d2e11afe573987fdb40ec080cd919c8034bf106c1cb39f05",
+      "source_viewbox": [
+        0.0,
+        0.0,
+        320.0,
+        256.0
+      ],
+      "rendered_viewbox": [
+        250.0,
+        200.0
+      ],
+      "scale_x": 0.78125,
+      "scale_y": 0.78125
+    },
+    "snes": {
+      "id": "SNES",
+      "model": "SNES \u00b7 PAL / SNSP-001",
+      "source": "https://raw.githubusercontent.com/baxysquare/baxy-retroarch-themes/3798875e3a592b2b5d737212be3a2d4bc9454629/Automatic/src/svg/Nintendo%20-%20Super%20Nintendo%20Entertainment%20System%20SNSP-001.svg",
+      "source_sha256": "40f84839cab39a3f0f60c70a4c512e6e14cd4c43cc116d10ea1095b1ac461bbb",
+      "render_sha256": "747cf2b1504e6dd734106278c55a7a797fdb19b671bb0616ff935940d42d3e4f",
+      "geometry_sha256": "f1397a66896ff1d4e8970dd1e63be5bf2167d3d99f5075116166fd4752289acc",
+      "svg_sha256": "747cf2b1504e6dd734106278c55a7a797fdb19b671bb0616ff935940d42d3e4f",
+      "png_sha256": "d646d1024b8fae7f477027a614f33f85a37ec8f2067fcd85b052b5c7a20ac25d",
+      "source_viewbox": [
+        0.0,
+        0.0,
+        266.66665,
+        320.0
+      ],
+      "rendered_viewbox": [
+        166.66665625000002,
+        200.0
+      ],
+      "scale_x": 0.625,
+      "scale_y": 0.625
+    },
+    "gb": {
+      "id": "GB",
+      "model": "Game Boy \u00b7 DMG",
+      "source": "https://raw.githubusercontent.com/baxysquare/baxy-retroarch-themes/3798875e3a592b2b5d737212be3a2d4bc9454629/Automatic/src/svg/Nintendo%20-%20Game%20Boy.svg",
+      "source_sha256": "48753b989e6662d091da0e473d8a497e68ab01adf8b4e1a1e130a32eca2d2014",
+      "render_sha256": "9acca28acad8bdf3009a8178bf1698735252133c4f1484009108ed1cdd0701a2",
+      "geometry_sha256": "1e25eed2e1b1165a6023be2ce410335f512330f4d33d2f4ed92303fe84c39b30",
+      "svg_sha256": "9acca28acad8bdf3009a8178bf1698735252133c4f1484009108ed1cdd0701a2",
+      "png_sha256": "1400048e06c7f8101b3aa33318e2682ebbaf3fd517eaab51ba7a05c932a86dae",
+      "source_viewbox": [
+        0.0,
+        0.0,
+        202.66665,
+        320.0
+      ],
+      "rendered_viewbox": [
+        126.66665625,
+        200.0
+      ],
+      "scale_x": 0.625,
+      "scale_y": 0.625
+    },
+    "gbc": {
+      "id": "GBC",
+      "model": "Game Boy Color",
+      "source": "https://raw.githubusercontent.com/baxysquare/baxy-retroarch-themes/3798875e3a592b2b5d737212be3a2d4bc9454629/Automatic/src/svg/Nintendo%20-%20Game%20Boy%20Color.svg",
+      "source_sha256": "3dcaa11c55dcc52e80ef4252978bd86aa47e56aa1d700a91a3148f34e23786fa",
+      "render_sha256": "d42fdd4967b47af5049f9df2c2ce15c55c9b60fa27c6f8f2494381bf96ea3570",
+      "geometry_sha256": "c09ae9d5003db761a7664abb232df361418d034f238006a6cb398f09c6751ce3",
+      "svg_sha256": "d42fdd4967b47af5049f9df2c2ce15c55c9b60fa27c6f8f2494381bf96ea3570",
+      "png_sha256": "2f57c9d5fd45c2a01e276b6c1a8313082e928765ad5dc4ee8192d1ee4799d7f0",
+      "source_viewbox": [
+        0.0,
+        0.0,
+        192.0,
+        320.0
+      ],
+      "rendered_viewbox": [
+        120.0,
+        200.0
+      ],
+      "scale_x": 0.625,
+      "scale_y": 0.625
+    },
+    "gba": {
+      "id": "GBA",
+      "model": "Game Boy Advance \u00b7 original",
+      "source": "https://raw.githubusercontent.com/baxysquare/baxy-retroarch-themes/3798875e3a592b2b5d737212be3a2d4bc9454629/Automatic/src/svg/Nintendo%20-%20Game%20Boy%20Advance.svg",
+      "source_sha256": "502b8e8cb45ad4d2930062efa5c95d330e736818ae9aa11a7b8ef5d24f07ed41",
+      "render_sha256": "4a493c5c1fa1707104f81f4dc1d16f21f5feab39c531aed1c3e42d0929d27ff5",
+      "geometry_sha256": "099208704347cd610e00b81452f216dcbd5ac0856fa0105518224ee897460924",
+      "svg_sha256": "4a493c5c1fa1707104f81f4dc1d16f21f5feab39c531aed1c3e42d0929d27ff5",
+      "png_sha256": "abcabe915d4c5b0563e165aa48e4f7aeeeb7a85127766e34a980e4728024f661",
+      "source_viewbox": [
+        0.0,
+        0.0,
+        317.94568,
+        176.0
+      ],
+      "rendered_viewbox": [
+        320.0,
+        177.13717638811764
+      ],
+      "scale_x": 1.0064612294779411,
+      "scale_y": 1.0064612294779411
+    },
+    "md": {
+      "id": "MD",
+      "model": "Mega Drive \u00b7 Model 2",
+      "source": "https://raw.githubusercontent.com/baxysquare/baxy-retroarch-themes/3798875e3a592b2b5d737212be3a2d4bc9454629/Automatic/src/svg/Sega%20-%20Mega%20Drive%20-%20Genesis%20MK-1631%20%28U%29.svg",
+      "source_sha256": "525663a034b9ccf6d5229840a11f5d23b6267ceb8d0d0b742d69e0e8fc8c82d7",
+      "render_sha256": "0479ec214edc201e20aab66d08dff7b26c620fec95e009105be0dd881a37dd11",
+      "geometry_sha256": "daae0e638786dbc1171655797ec2aff6d2759b9946db351cd40aeb4d13bfa3bd",
+      "svg_sha256": "0479ec214edc201e20aab66d08dff7b26c620fec95e009105be0dd881a37dd11",
+      "png_sha256": "fd3a490f87861a3d4cd819ce97232aa579c5adcd2de87c7e9044891103ece37a",
+      "source_viewbox": [
+        0.0,
+        0.0,
+        320.0,
+        309.33331
+      ],
+      "rendered_viewbox": [
+        206.89656733056006,
+        200.0
+      ],
+      "scale_x": 0.6465517729080001,
+      "scale_y": 0.6465517729080001
+    },
+    "psx": {
+      "id": "PSX",
+      "model": "PlayStation \u00b7 original",
+      "source": "https://raw.githubusercontent.com/baxysquare/baxy-retroarch-themes/3798875e3a592b2b5d737212be3a2d4bc9454629/Automatic/src/svg/Sony%20-%20PlayStation.svg",
+      "source_sha256": "e3617c46eb3809620864bcc5d5fa33aa771ab3a608200f92dc89907297dfa9d8",
+      "render_sha256": "2cc07968fcdb87f6be0a2eddf9dec88441183268fca5a476e7b411a8d81b2cf4",
+      "geometry_sha256": "d040639faf45cc7699968d3d28fc4bfc08ccf7b7a96a818153ec0eba9b012346",
+      "svg_sha256": "2cc07968fcdb87f6be0a2eddf9dec88441183268fca5a476e7b411a8d81b2cf4",
+      "png_sha256": "b61debcf24ccc4de07d1bbe55af174e3bbe6cc5ff8e1264d087772765af4f9e5",
+      "source_viewbox": [
+        0.0,
+        0.0,
+        320.0,
+        234.66665
+      ],
+      "rendered_viewbox": [
+        272.72729209710883,
+        200.0
+      ],
+      "scale_x": 0.852272787803465,
+      "scale_y": 0.852272787803465
+    }
+  }
+}

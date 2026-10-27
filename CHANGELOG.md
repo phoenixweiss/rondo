@@ -2,6 +2,31 @@
 
 ## Unreleased
 
+## [0.12.0] - 2026-10-27
+
+### Added
+
+- Interface screenshots with L3 + R3 or F12, saved separately from game captures.
+- Independent library grouping, list/tile game views and three console tile layouts, with shared favorites, history, search and artwork. Layout choices are available early in setup and in Interface settings.
+- Game showcase with Y, local artwork and portable JSON launch/play-time statistics. Tracking excludes pause and sleep; unknown past activity remains unknown.
+- Sleep action in Settings and an optional screenshot shutter sound, enabled by default.
+- Game screenshots with an L3 + R3 shortcut, configurable presets/custom combinations and a game-menu action. Raw game frames are saved as PNG in the background without menus or overlays.
+
+### Changed
+
+- Show a system code with the position counter below list artwork; tile view uses the full system name on the left. Game info also shows full system names.
+- Keep Systems directly accessible from library collections and place Exit game last in the reordered pause menu.
+- Store new game captures in readable system/title folders, using numbered folders for same-title versions. Existing captures are retained.
+- Open Settings directly with Menu, expose library actions and the immediate parent, and preserve search results and selection when returning from a game.
+- Use L1/R1 for library pages and choose game artwork explicitly in View.
+- Toggle library actions with Select (F1 on a keyboard) while retaining the selected game, console, query and scroll position. Footer hints follow the active area.
+
+### Fixed
+
+- Use the selected time zone for screenshot filenames.
+- Load cover artwork on demand in the running game information screen.
+- Flush directory changes when creating screenshots, deleting save slots and clearing journals. Retry interrupted file and directory flushes without acknowledging failed writes.
+
 ## [0.11.0] - 2026-10-26
 
 ### Added

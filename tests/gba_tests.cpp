@@ -22,9 +22,9 @@ int main(int argc,char **argv) {
   auto device=std::make_unique<GbaDevice>();auto *d=device.get();a.device=std::move(device);a.sleep();assert(d->sleeps==1 && !a.core->paused);
   a.store.data["integer_scaling"]=true;a.capture("gba-integer");a.store.data["integer_scaling"]=false;a.capture("gba-aspect");
   a.rememberLaunch();
-  a.action("MENU");a.row=4;a.action("A");a.row=1;a.action("A");assert(a.stop);a.core->flushSram();assert(readBytes(dir/"sram.bin")==seed);
+  a.action("MENU");a.row=int(GameMenuItem::Exit);a.action("A");a.row=1;a.action("A");assert(a.stop);a.core->flushSram();assert(readBytes(dir/"sram.bin")==seed);
  }
  {App a(o,true,game);a.core->flushSram();assert(readBytes(dir/"sram.bin")==seed);a.core->loadAutomatic();assert(a.core->compatible(0));}
- {App shell(o);assert(shell.screen==Screen::StartupResume);shell.action("B");shell.action("MENU");assert(shell.screen==Screen::Settings);shell.action("B");shell.action("Y");assert(shell.screen==Screen::Search);shell.action("B");shell.locale.select(o.assets,"ru");shell.capture("gba-library-ru");shell.action("MENU");shell.capture("settings-menu-key-ru");shell.action("B");shell.action("Y");shell.capture("search-y-key-ru");}
- std::cout<<"PASS: actual gpSP GBA video/audio, A/B/L/R/Start/Select, manual/auto states, SRAM restart, mute, suspend, scaling and swapped library keys.\n";
+ {App shell(o);assert(shell.screen==Screen::StartupResume);shell.action("B");shell.action("MENU");if(shell.screen==Screen::LibraryMenu)shell.action("A");assert(shell.screen==Screen::Settings);shell.action("B");shell.openSearch(true);assert(shell.screen==Screen::Search);shell.action("B");shell.locale.select(o.assets,"ru");shell.capture("gba-library-ru");shell.action("MENU");if(shell.screen==Screen::LibraryMenu)shell.action("A");shell.capture("settings-menu-key-ru");shell.action("B");shell.openSearch(true);shell.capture("search-menu-ru");}
+ std::cout<<"PASS: actual gpSP GBA video/audio, A/B/L/R/Start/Select, manual/auto states, SRAM restart, mute, suspend, scaling and visible library search.\n";
 }

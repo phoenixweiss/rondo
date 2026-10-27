@@ -20,15 +20,46 @@
     "action": "X"
   },
   {
-    "action": "R1",
+    "action": "B"
+  },
+  {
+    "action": "A",
     "capture": "favorites",
     "assert_screen": "library"
   },
   {
-    "action": "L1"
+    "action": "B"
   },
   {
-    "action": "RIGHT",
+    "action": "RIGHT"
+  },
+  {
+    "action": "RIGHT"
+  },
+  {
+    "action": "RIGHT"
+  },
+  {
+    "action": "A",
+    "assert_screen": "library_preferences"
+  },
+  {
+    "action": "DOWN"
+  },
+  {
+    "action": "DOWN"
+  },
+  {
+    "action": "RIGHT"
+  },
+  {
+    "action": "DOWN"
+  },
+  {
+    "action": "DOWN"
+  },
+  {
+    "action": "A",
     "capture": "library-title",
     "assert_config": {
       "artwork": "title"
@@ -36,7 +67,8 @@
   },
   {
     "action": "MENU",
-    "capture": "settings-en"
+    "capture": "settings-en",
+    "assert_screen": "global_settings"
   },
   {
     "action": "A"
@@ -96,7 +128,7 @@
     "capture": "timezone-regions"
   },
   {
-    "action": "RIGHT"
+    "action": "DOWN"
   },
   {
     "action": "A",
@@ -123,6 +155,9 @@
     "capture": "library-ru"
   },
   {
+    "action": "DOWN"
+  },
+  {
     "action": "A",
     "runner_script": [
       {
@@ -146,12 +181,10 @@
         "capture": "game-menu"
       },
       {
-        "action": "DOWN"
-      },
-      {
         "action": "A",
         "capture": "save-slots",
-        "assert_screen": "save_slots"
+        "assert_screen": "save_slots",
+        "menu_item": "save"
       },
       {
         "action": "A",
@@ -166,15 +199,10 @@
         "action": "MENU"
       },
       {
-        "action": "DOWN"
-      },
-      {
-        "action": "DOWN"
-      },
-      {
         "action": "A",
         "capture": "load-slots",
-        "assert_screen": "load_slots"
+        "assert_screen": "load_slots",
+        "menu_item": "load"
       },
       {
         "action": "A",
@@ -199,17 +227,9 @@
         "action": "MENU"
       },
       {
-        "action": "DOWN"
-      },
-      {
-        "action": "DOWN"
-      },
-      {
-        "action": "DOWN"
-      },
-      {
         "action": "A",
-        "assert_screen": "game_settings"
+        "assert_screen": "game_settings",
+        "menu_item": "settings"
       },
       {
         "action": "RIGHT",
@@ -263,14 +283,9 @@
         "action": "B"
       },
       {
-        "action": "UP"
-      },
-      {
-        "action": "UP"
-      },
-      {
         "action": "A",
-        "assert_screen": "save_slots"
+        "assert_screen": "save_slots",
+        "menu_item": "save"
       },
       {
         "action": "DOWN"
@@ -283,17 +298,9 @@
         "assert_screen": "game_menu"
       },
       {
-        "action": "DOWN"
-      },
-      {
-        "action": "DOWN"
-      },
-      {
-        "action": "DOWN"
-      },
-      {
         "action": "A",
-        "assert_screen": "exit_confirm"
+        "assert_screen": "exit_confirm",
+        "menu_item": "exit"
       },
       {
         "action": "B",
@@ -332,19 +339,8 @@
         "action": "MENU"
       },
       {
-        "action": "DOWN"
-      },
-      {
-        "action": "DOWN"
-      },
-      {
-        "action": "DOWN"
-      },
-      {
-        "action": "DOWN"
-      },
-      {
-        "action": "A"
+        "action": "A",
+        "menu_item": "exit"
       },
       {
         "action": "DOWN"

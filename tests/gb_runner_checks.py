@@ -7,16 +7,17 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parent.parent
+binary=(Path(sys.argv[4]).resolve() if len(sys.argv)>4 else ROOT/'build')/'rondo'
 work = Path(sys.argv[1]).resolve()
 work.mkdir(parents=True, exist_ok=False)
 core, gb_core = map(lambda value: Path(value).resolve(), sys.argv[2:4])
 fixtures = ROOT / 'runtime/test-fixtures/gb'
 state, output = work / 'state', work / 'renders'
-base = [str(ROOT / 'build/rondo'), '--assets', str(ROOT / 'assets'), '--state', str(state),
+base = [str(binary), '--assets', str(ROOT / 'assets'), '--state', str(state),
         '--core', str(core), '--gb-core', str(gb_core), '--volume', 'GBTEST=' + str(fixtures),
         '--headless', '--output', str(output)]
-exit_game = [{'action': 'MENU'}] + [{'action': 'DOWN'}] * 4 + [
-    {'action': 'A', 'assert_screen': 'exit_confirm'}, {'action': 'DOWN'}, {'action': 'A'}]
+exit_game = [{'action': 'MENU'},
+    {'menu_item': 'exit', 'action': 'A', 'assert_screen': 'exit_confirm'}, {'action': 'DOWN'}, {'action': 'A'}]
 run_game = [{'frames': 90, 'assert_screen': 'running'}] + exit_game
 
 def execute(name, commands):

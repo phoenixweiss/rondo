@@ -5,7 +5,7 @@ Buttons light up while held. Both sticks show their positions and normalized
 axis deflection from −100% to +100%, with 0% at the centre. The diagram reports input, not whether a button is healthy.
 An unmapped external controller needs a mapping before its controls appear.
 
-**Start + Select** returns to the previous menu. **L1 + R1 + L2 + R2** requests one
+**Menu** returns to the previous menu; **Start + Select** also remains available. **L1 + R1 + L2 + R2** requests one
 short motor pulse. Release the combination before trying again. The motor test
 respects **Core settings → Game vibration**, which defaults to On. The screen
 reports an unavailable or disabled motor instead of claiming a successful test.
@@ -13,8 +13,8 @@ Other buttons do not change volume, open menus or enter sleep on this screen.
 Lid-close sleep still follows the power preference.
 
 On a keyboard, Z/X/S/A represent A/B/X/Y; Q/W and E/R represent L1/L2 and R1/R2.
-T/Y test stick clicks; arrows test the D-pad. Tab tests Menu, +/− test the volume
-buttons, and **Enter + Right Shift** exits. An attached mapped gamepad can supply
+T/Y test stick clicks; arrows test the D-pad. Tab exits, +/− test the volume
+buttons, and **Enter + Right Shift** also exits. An attached mapped gamepad can supply
 stick movement. Keyboard labels replace button labels on the diagram.
 
 ## Built-in game vibration

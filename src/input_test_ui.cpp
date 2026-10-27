@@ -3,6 +3,79 @@
 #include "app.hpp"
 #include <cmath>
 namespace rondo {
+// Shared by the interactive event loop and physical-input integration checks.
+void App::sampleInput() {
+  auto &a=*this;
+  bool recording=a.screen==Screen::ScreenshotCapture;
+  bool testing=a.screen==Screen::InputTest||recording;
+  bool gameFrame=a.core&&(a.screen==Screen::Running||a.screen==Screen::GameMenu);
+  if(a.stop||a.sleeping||a.screenBlank)return;
+  if(!testing&&!gameFrame) {
+    // The shell shortcut needs only the stick clicks, not a second full pad poll.
+    bool left=a.ui->handheldKeys->pressed("L3"),right=a.ui->handheldKeys->pressed("R3");
+    for(const auto &entry:a.ui->controllers)if(SDL_GameControllerGetAttached(entry.second)) {
+      left|=SDL_GameControllerGetButton(entry.second,SDL_CONTROLLER_BUTTON_LEFTSTICK);
+      right|=SDL_GameControllerGetButton(entry.second,SDL_CONTROLLER_BUTTON_RIGHTSTICK);
+    }
+    bool shot=false;a.interfaceScreenshotKeys.sample((left?0x4000:0)|(right?0x8000:0),0xc000,monotonicMs(),shot);
+    if(shot)a.takeScreenshot();return;
+  }
+  const auto *k = SDL_GetKeyboardState(nullptr);
+  uint16_t mask = 0;
+  auto put = [&](int id, bool on) {
+    if (on)
+      mask |= uint16_t(1 << id);
+  };
+  put(RETRO_DEVICE_ID_JOYPAD_A, k[SDL_SCANCODE_Z]);
+  put(RETRO_DEVICE_ID_JOYPAD_B, k[SDL_SCANCODE_X]);
+  put(RETRO_DEVICE_ID_JOYPAD_START, k[SDL_SCANCODE_RETURN]);
+  put(RETRO_DEVICE_ID_JOYPAD_SELECT, k[SDL_SCANCODE_RSHIFT]);
+  put(RETRO_DEVICE_ID_JOYPAD_UP, k[SDL_SCANCODE_UP]);
+  put(RETRO_DEVICE_ID_JOYPAD_DOWN, k[SDL_SCANCODE_DOWN]);
+  put(RETRO_DEVICE_ID_JOYPAD_LEFT, k[SDL_SCANCODE_LEFT]);
+  put(RETRO_DEVICE_ID_JOYPAD_RIGHT, k[SDL_SCANCODE_RIGHT]);
+  put(RETRO_DEVICE_ID_JOYPAD_X, k[SDL_SCANCODE_S]);
+  put(RETRO_DEVICE_ID_JOYPAD_Y, k[SDL_SCANCODE_A]);
+  put(RETRO_DEVICE_ID_JOYPAD_L, k[SDL_SCANCODE_Q]);
+  put(RETRO_DEVICE_ID_JOYPAD_R, k[SDL_SCANCODE_E]);
+  {
+    put(RETRO_DEVICE_ID_JOYPAD_L2,k[SDL_SCANCODE_W]);
+    put(RETRO_DEVICE_ID_JOYPAD_R2,k[SDL_SCANCODE_R]);
+    put(RETRO_DEVICE_ID_JOYPAD_L3,k[SDL_SCANCODE_T]);
+    put(RETRO_DEVICE_ID_JOYPAD_R3,k[SDL_SCANCODE_Y]);
+  }
+  auto &raw = *a.ui->handheldKeys;
+  put(RETRO_DEVICE_ID_JOYPAD_A, raw.pressed("A"));
+  put(RETRO_DEVICE_ID_JOYPAD_B, raw.pressed("B"));
+  put(RETRO_DEVICE_ID_JOYPAD_START, raw.pressed("START"));
+  put(RETRO_DEVICE_ID_JOYPAD_SELECT, raw.pressed("SELECT"));
+  put(RETRO_DEVICE_ID_JOYPAD_UP, raw.pressed("UP"));
+  put(RETRO_DEVICE_ID_JOYPAD_DOWN, raw.pressed("DOWN"));
+  put(RETRO_DEVICE_ID_JOYPAD_LEFT, raw.pressed("LEFT"));
+  put(RETRO_DEVICE_ID_JOYPAD_RIGHT, raw.pressed("RIGHT"));
+  put(RETRO_DEVICE_ID_JOYPAD_X, raw.pressed("X"));
+  put(RETRO_DEVICE_ID_JOYPAD_Y, raw.pressed("Y"));
+  put(RETRO_DEVICE_ID_JOYPAD_L, raw.pressed("L1"));
+  put(RETRO_DEVICE_ID_JOYPAD_R, raw.pressed("R1"));
+  put(RETRO_DEVICE_ID_JOYPAD_L2,raw.pressed("L2"));
+  put(RETRO_DEVICE_ID_JOYPAD_R2,raw.pressed("R2"));
+  put(RETRO_DEVICE_ID_JOYPAD_L3,raw.pressed("L3"));
+  put(RETRO_DEVICE_ID_JOYPAD_R3,raw.pressed("R3"));
+  mask |= a.ui->controllerButtons(!testing&&!a.psxDualshock() && a.store.data.value("left_stick_dpad",true));
+  if(recording){a.screenshotRecord(mask);return;}
+  if(testing) {
+    std::set<std::string> extras;
+    if(raw.pressed("MENU")||k[SDL_SCANCODE_TAB])extras.insert("MENU");
+    for(auto &entry:a.ui->controllers)
+      if(SDL_GameControllerGetButton(entry.second,SDL_CONTROLLER_BUTTON_GUIDE))extras.insert("MENU");
+    if(a.ui->volumeKeys->pressed(true)||k[SDL_SCANCODE_EQUALS])extras.insert("VOL+");
+    if(a.ui->volumeKeys->pressed(false)||k[SDL_SCANCODE_MINUS])extras.insert("VOL-");
+    if(a.ui->powerKeys->pressed())extras.insert("POWER");
+    a.testInput(mask,a.ui->controllerAxes(),extras);return;
+  }
+  a.gameInput(mask,a.ui->controllerAxes());
+}
+
 void App::openInputTest(bool fromCores) {
   testFromCores=fromCores;testButtons=0;testAxes={};testExtras.clear();
   testChordHeld=false;testInputArmed=false;testFeedback.clear();
@@ -16,6 +89,7 @@ void App::testInput(uint16_t buttons,const std::array<int16_t,4> &axes,const std
   if(!testInputArmed) {if(!buttons&&extras.empty())testInputArmed=true;return;}
   const uint16_t exit=(1<<RETRO_DEVICE_ID_JOYPAD_START)|(1<<RETRO_DEVICE_ID_JOYPAD_SELECT);
   if((buttons&exit)==exit) {
+    if(!navigation.empty()){if(motor)motor->stop();mappingTest=false;navigationBack();testButtons=0;testAxes={};testExtras.clear();return;}
     if(motor)motor->stop();screen=testFromCores?Screen::CoreSettings:Screen::SettingsSection;
     category=4;row=3;if(mappingTest){mappingTest=false;screen=Screen::Mapping;row=mappingReturnRow;}testButtons=0;testAxes={};testExtras.clear();return;
   }
@@ -90,6 +164,6 @@ void App::drawInputTest(const std::string &zone) {
   }
   auto message=monotonicMs()<testFeedbackUntil?testFeedback:(ui->keyboardHints?std::string("Q + W + E + R: ")+tr("setting.rumble"):tr("input.motor_combo"));
   ui->text(message,(720-ui->measure(message,20))/2,396,20,500,ui->cream,672);
-  ui->hints({{ui->keyboardHints?"Enter + RShift":"START + SELECT",tr("action.back")}});
+  ui->hints({{"MENU",tr("action.back")}});
 }
 }

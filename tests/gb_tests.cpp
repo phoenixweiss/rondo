@@ -26,7 +26,7 @@ int main(int argc,char **argv) {
     a.store.data["integer_scaling"]=false;a.capture(game.system+"-aspect");
     assert(fs::file_size(dir/"rtc.bin")>0);
     a.rememberLaunch();
-    a.action("MENU");a.row=4;a.action("A");a.row=1;a.action("A");assert(a.stop);
+    a.action("MENU");a.row=int(GameMenuItem::Exit);a.action("A");a.row=1;a.action("A");assert(a.stop);
   }
   auto rtc=readBytes(dir/"rtc.bin");seed[0]=0x33;atomicWrite(dir/"sram.bin",seed);
   { App restored(o,true,game);restored.core->flushSram();assert(readBytes(dir/"sram.bin")==seed);

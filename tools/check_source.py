@@ -33,6 +33,15 @@ for name, record in vendor.items():
     assert actual == record["sha256"], f"Vendor hash mismatch: {name}"
 
 locales = ROOT / "assets/Locales"
+system_icons = ROOT / "assets/Systems"
+system_sources = json.loads((system_icons / "sources.json").read_text())
+assert system_sources["license"] == "MIT"
+assert (system_icons / "LICENSE.txt").is_file() and (system_icons / "UPSTREAM-README.txt").is_file()
+for name, record in system_sources["icons"].items():
+    assert hashlib.sha256((system_icons / (name + ".svg")).read_bytes()).hexdigest() == record["svg_sha256"]
+    assert hashlib.sha256((ROOT / "assets/IconsPNG" / ("system-" + name + ".png")).read_bytes()).hexdigest() == record["png_sha256"]
+    assert record["scale_x"] == record["scale_y"]
+    assert max(record["rendered_viewbox"][0] / 320, record["rendered_viewbox"][1] / 200) <= 1.000001
 english = json.loads((locales / "en.json").read_text())
 russian = json.loads((locales / "ru.json").read_text())
 placeholder = re.compile(r"\{([A-Za-z_][A-Za-z_0-9]*)\}")
@@ -74,3 +83,18 @@ assert hashlib.sha256((settings_icons / icon_inputs["license"]).read_bytes()).he
 for name, record in icon_inputs["icons"].items():
     assert hashlib.sha256((settings_icons / (name + ".svg")).read_bytes()).hexdigest() == record["svg_sha256"], name
     assert hashlib.sha256((ROOT / "assets/IconsPNG" / (name + ".png")).read_bytes()).hexdigest() == record["png_sha256"], name
+
+nav_inputs=json.loads((settings_icons/"navigation-sources.json").read_text())
+assert re.fullmatch(r"[0-9a-f]{40}",nav_inputs["revision"])
+assert (settings_icons/nav_inputs["license"]).is_file()
+for name,record in nav_inputs["icons"].items():
+    assert hashlib.sha256((settings_icons/(name+".svg")).read_bytes()).hexdigest()==record["svg_sha256"]
+    assert hashlib.sha256((ROOT/"assets/IconsPNG"/(name+".png")).read_bytes()).hexdigest()==record["png_sha256"]
+
+icon_update=json.loads((settings_icons/"icon-update-sources.json").read_text())
+assert re.fullmatch(r"[0-9a-f]{40}",icon_update["revision"])
+assert (settings_icons/icon_update["license"]).is_file()
+for record in icon_update["icons"]:
+    name=Path(record["file"]).stem
+    assert hashlib.sha256((settings_icons/record["file"]).read_bytes()).hexdigest()==record["sha256"]
+    assert hashlib.sha256((ROOT/"assets/IconsPNG"/(name+".png")).read_bytes()).hexdigest()==record["png_sha256"]

@@ -101,5 +101,10 @@
     "path": "Assets/Icons/panels-top-left.svg",
     "sha256": "321a2a5500f2b814a2e62eb73c4b01dc65c7334fe2e6f7d77517239383e26bb1",
     "source": "https://raw.githubusercontent.com/lucide-icons/lucide/02eb9161b57917ccaa262f1bf070507cddde3b08/icons/panels-top-left.svg"
+  },
+  {
+    "path": "Assets/Icons/camera.svg",
+    "sha256": "ebbb3178dd80dfd942770a2237fe7bfc3515c55c7daa9d3666933a656d2790e3",
+    "source": "https://raw.githubusercontent.com/lucide-icons/lucide/02eb9161b57917ccaa262f1bf070507cddde3b08/icons/camera.svg"
   }
 ]

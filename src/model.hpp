@@ -12,10 +12,12 @@
 namespace rondo {
 namespace fs = std::filesystem;
 using Json = nlohmann::json;
+std::string systemName(const std::string &);
 long long saveSequence(const Json &);
 std::vector<uint8_t> readBytes(const fs::path &);
 std::string hashBytes(const std::vector<uint8_t> &);
 std::string hashFile(const fs::path &);
+void syncDirectory(const fs::path &);
 void atomicWrite(const fs::path &, const std::vector<uint8_t> &);
 Json readJson(const fs::path &);
 std::string utf8Prefix(std::string, size_t);

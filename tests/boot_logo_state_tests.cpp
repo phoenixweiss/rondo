@@ -24,7 +24,7 @@ int main(int argc, char **argv) {
   assert(app.bootPending());
   finish();
   assert(app.bootAcknowledged == true);
-  app.action("MENU"); app.action("DOWN"); app.action("DOWN");
+  app.action("MENU");if(app.screen==Screen::LibraryMenu)app.action("A"); app.action("DOWN"); app.action("DOWN");
   assert(app.row == 2);
   app.action("LEFT");
   assert(app.bootPending() && app.store.data["replace_boot_logo"] == true);
@@ -38,7 +38,7 @@ int main(int argc, char **argv) {
   assert(app.store.data["replace_boot_logo"] == false);
   auto fail = fs::path(std::string(argv[3]) + ".fail");
   std::ofstream(fail) << "fail";
-  app.action("MENU"); app.action("DOWN"); app.action("DOWN"); app.action("RIGHT");
+  app.action("MENU");if(app.screen==Screen::LibraryMenu)app.action("A"); app.action("DOWN"); app.action("DOWN"); app.action("RIGHT");
   finish();
   assert(app.bootAcknowledged == false && app.store.data["replace_boot_logo"] == false);
   assert(!app.notice.empty());

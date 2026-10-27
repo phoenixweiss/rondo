@@ -13,6 +13,10 @@
 #include <stdexcept>
 #include <unistd.h>
 namespace rondo {
+std::string systemName(const std::string &id) {
+  static const std::map<std::string,std::string> names{{"NES","Nintendo Entertainment System"},{"GB","Nintendo Game Boy"},{"GBC","Nintendo Game Boy Color"},{"GBA","Nintendo Game Boy Advance"},{"SNES","Super Nintendo Entertainment System"},{"MD","Sega Mega Drive / Genesis"},{"PSX","Sony PlayStation"}};
+  auto it=names.find(id);return it==names.end()?id:it->second;
+}
 long long saveSequence(const Json &meta) {
   if(!meta.contains("save_sequence"))return 0;
   const auto &value=meta["save_sequence"];
@@ -37,6 +41,24 @@ Json readJson(const fs::path &p) {
   auto b = readBytes(p);
   return Json::parse(b);
 }
+void syncDirectory(const fs::path &path) {
+  int dir;
+  do { dir = open(path.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC); } while (dir < 0 && errno == EINTR);
+  if (dir < 0) throw fs::filesystem_error("directory_open", path, std::error_code(errno, std::generic_category()));
+  int result;
+  do { result = fsync(dir); } while (result && errno == EINTR);
+  int error = result ? errno : 0;
+#ifdef __linux__
+  // Retain the vendor FAT barrier used by state/config writes. Directory fsync
+  // may be unsupported and does not alone cover the owning FAT allocation table.
+  int flushed;
+  do { flushed = syncfs(dir); } while (flushed && errno == EINTR);
+  if (flushed) { int code=errno;close(dir);throw fs::filesystem_error("filesystem_sync", path, std::error_code(code,std::generic_category())); }
+#endif
+  close(dir);
+  if (error && error != EINVAL && error != ENOTSUP)
+    throw fs::filesystem_error("directory_sync", path, std::error_code(error,std::generic_category()));
+}
 void atomicWrite(const fs::path &p, const std::vector<uint8_t> &bytes) {
   fs::create_directories(p.parent_path());
   auto temp = p.string() + ".tmp.XXXXXX";
@@ -56,7 +78,9 @@ void atomicWrite(const fs::path &p, const std::vector<uint8_t> &bytes) {
         throw std::runtime_error(std::strerror(errno));
       n += size_t(r);
     }
-    if (fsync(fd))
+    int flushed;
+    do { flushed = fsync(fd); } while (flushed && errno == EINTR);
+    if (flushed)
       throw std::runtime_error(std::strerror(errno));
     if (close(fd)) {
       fd = -1;
@@ -66,22 +90,7 @@ void atomicWrite(const fs::path &p, const std::vector<uint8_t> &bytes) {
     if (rename(name.data(), p.c_str()))
       throw std::runtime_error(std::strerror(errno));
     renamed = true;
-    int dir = open(p.parent_path().c_str(), O_RDONLY);
-    if (dir < 0)
-      throw std::runtime_error(std::strerror(errno));
-    int r = fsync(dir), e = errno;
-#ifdef __linux__
-    // Vendor FAT kernels may not make allocation-table changes durable via
-    // directory fsync alone. Flush the entire owning filesystem after rename.
-    if (syncfs(dir)) {
-      int error = errno;
-      close(dir);
-      throw std::runtime_error(std::strerror(error));
-    }
-#endif
-    close(dir);
-    if (r && e != EINVAL && e != ENOTSUP)
-      throw std::runtime_error(std::strerror(e));
+    syncDirectory(p.parent_path());
   } catch (...) {
     if (fd >= 0)
       close(fd);
@@ -309,6 +318,7 @@ Store::Store(fs::path p) : root(std::move(p)) {
           {"rumble_enabled", true},
           {"psx_bios_file", "auto"},
           {"left_stick_dpad", true},
+          {"screenshot_sound", true}, {"screenshot_shortcut", "sticks"}, {"screenshot_custom", 49152},
           {"artwork", "cover"},
           {"section", "All"},
           {"focus", ""},
@@ -317,6 +327,7 @@ Store::Store(fs::path p) : root(std::move(p)) {
           {"bluetooth_device", ""},
           {"favorites", Json::array()},
           {"recent_games", Json::array()},
+          {"library_grouping","unified"}, {"game_view","list"}, {"system_tiles","grid"},
           {"theme_id", "rondo"}, {"enabled_cores",Json::object()}, {"input_mapping",Json::object()},
           {"game_options", Json::object()}};
   auto file = root / "config.json";
@@ -327,6 +338,7 @@ Store::Store(fs::path p) : root(std::move(p)) {
         readOnly = true;
       validateConfig(d, data);
       data.update(d);
+      if(data.contains("wizard")&&data["wizard"].value("schema",1)==1){auto &w=data["wizard"];int step=w.value("step",0);w["schema"]=2;w["step"]=step?step+1:0;}
     } catch (const std::exception &e) {
       warning = e.what();
       try {
@@ -334,6 +346,7 @@ Store::Store(fs::path p) : root(std::move(p)) {
         validateConfig(d, data);
         if (d.value("schema", 0) == 1) {
           data.update(d);
+      if(data.contains("wizard")&&data["wizard"].value("schema",1)==1){auto &w=data["wizard"];int step=w.value("step",0);w["schema"]=2;w["step"]=step?step+1:0;}
           warning = "Recovered previous configuration";
         }
       } catch (...) {

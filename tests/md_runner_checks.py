@@ -3,14 +3,15 @@ from state_reader import state_metadata
 from pathlib import Path
 import json,subprocess,sys,hashlib
 ROOT=Path(__file__).resolve().parent.parent
+binary=(Path(sys.argv[4]).resolve() if len(sys.argv)>4 else ROOT/'build')/'rondo'
 work=Path(sys.argv[1]).resolve();work.mkdir(parents=True,exist_ok=False)
 core,md_core=[Path(x).resolve() for x in sys.argv[2:4]]
-base=[str(ROOT/'build/rondo'),'--assets',str(ROOT/'assets'),'--state',str(work/'state'),'--core',str(core),
+base=[str(binary),'--assets',str(ROOT/'assets'),'--state',str(work/'state'),'--core',str(core),
       '--volume','MDFIXTURE='+str(ROOT/'runtime/test-fixtures/md'),'--headless','--output',str(work/'renders')]
-exit_game=[{'action':'MENU'}]+[{'action':'DOWN'}]*4+[{'action':'A'},{'action':'DOWN'},{'action':'A'}]
+exit_game=[{'action':'MENU'},{'menu_item':'exit','action':'A'},{'action':'DOWN'},{'action':'A'}]
 play=[{'frames':120,'assert_screen':'running'}]+exit_game
 for name,commands,extra in [
- ('sibling',[{'action':'MENU','assert_screen':'global_settings'},{'action':'B'},{'action':'Y','assert_screen':'search'},{'action':'B'},{'action':'A','runner_script':play}],[]),
+ ('sibling',[{'action':'MENU','assert_screen':'global_settings'},{'action':'B'},{'open_search':True,'assert_screen':'search'},{'action':'B'},{'action':'A','runner_script':play}],[]),
  ('explicit-resume',[{'assert_screen':'library'},{'action':'A'},{'action':'A','runner_script':play}],['--md-core',str(md_core)]),
  ('unfinished',[{'assert_screen':'library'},{'action':'A'},{'action':'A','runner_script':[{'frames':5}]}],[]),
  ('startup-resume',[{'assert_screen':'startup_resume'},{'action':'A','runner_script':play}],[])]:

@@ -17,6 +17,8 @@ make
 
 The core builder downloads the exact FCEUmm revision from docs/dependencies/core-source.json, verifies the archive SHA-256, retains that archive and builds it below build/cores. It also copies the resulting library to the stable path used by the demo/check entrypoints: build/cores/fceumm_libretro.dylib on macOS or build/cores/fceumm_libretro.so on Linux.
 
+See [storage durability](storage.md) for write barriers and fault-injection checks.
+
 ## Incremental compilation
 
 `make -j4 native-programs` builds the frontend and all native test programs.
@@ -60,7 +62,7 @@ This explicit manual command opens a window and plays the original test cartridg
 
 Set RONDO_DEMO_DIR to a separate writable location to override this root. The demo preserves an existing fixture library; it does not mirror/delete user directories. Avoid editing active configuration/state files while Rondo is running.
 
-Keyboard menus: arrows, Enter/Z confirm, Esc/X back, C favorite/info, V search, Q/E section, Tab settings (in-game: game menu) and =/- volume. During NES play Z/X are A/B, Enter is Start and Right Shift is Select. SNES uses S/A for X/Y and Q/E for L/R. Input hints follow the active keyboard/controller mode.
+Keyboard menus: arrows, Enter/Z confirm, Esc/X back, C favorite/info, V game info, W/R list/tiles, Q/E pages, F1 library action row, Tab settings (in-game: game menu) and =/- volume. During NES play Z/X are A/B, Enter is Start and Right Shift is Select. SNES uses S/A for X/Y and Q/E for L/R. Input hints follow the active keyboard/controller mode.
 
 ## Assets and source boundaries
 
@@ -107,12 +109,19 @@ existing configuration keys remain compatible. Sleep on lid close remains visibl
 
 ### Library search and frame diagnostics
 
-Menu (Tab on desktop) opens title search within the current library section.
-Use the EN/RU on-screen keyboard or type on the desktop; Enter applies and Esc
-cancels. Search ignores ASCII/Cyrillic case. B/Esc clears an applied filter;
-editing and cancellation preserve the previous filter and focus. Search indexes
-already scanned titles when opened and never rescans ROM files while typing.
-Filters are session-only. X/C still toggles Favorites and Y/V opens Settings.
+Search is reached through its visible library action. Y (V on desktop) opens
+Game info for a selected game or from the pause menu. Menu/Tab opens Settings directly. Visible actions also expose Search,
+View and the immediate parent. Select (F1 on a keyboard) toggles the action row
+from any game/console position or the search keyboard, retaining selection and scroll.
+L2/R2 (W/R on desktop) switches List/Tiles;
+L1/R1 (Q/E) changes pages. Artwork is chosen explicitly in View.
+Use the EN/RU keyboard or type on the desktop; Enter submits and Esc cancels.
+Back from results restores the query input; Back from input restores its source.
+The shell retains that results route while supervising an emulator process.
+Search ignores ASCII/Cyrillic case and indexes already scanned titles without
+rescanning ROM files while typing. X/C toggles Favorites. Navigation snapshots
+retain stable game IDs, collection/query, keyboard state, focus and scroll;
+confirmed preferences are separate from editor drafts.
 
 SDL controllers are enumerated at startup and on hotplug events, not each frame.
 The header keeps its time-zone database in memory and updates the formatted

@@ -73,7 +73,7 @@ int main(int argc,char **argv) {
   auto *ram=static_cast<uint8_t *>(memory(RETRO_MEMORY_SYSTEM_RAM));assert(ram);auto counter=[&]{return std::vector<uint8_t>(ram+0x20000,ram+0x20004);};auto current=counter();assert(current!=std::vector<uint8_t>(4,0));
   a.core->save(0);assert(a.core->compatible(0));a.ticks(3);assert(counter()!=current);a.core->loadState(0);assert(counter()==current);
   auto *m=static_cast<uint8_t *>(memory(RETRO_MEMORY_SAVE_RAM));assert(m&&size(RETRO_MEMORY_SAVE_RAM)==128*1024);m[1234]=0x5a;a.core->flushSram();card={m,m+size(RETRO_MEMORY_SAVE_RAM)};
-  a.action("MENU");a.row=3;a.action("A");
+  a.action("MENU");a.row=int(GameMenuItem::Settings);a.action("A");
   a.action("DOWN");assert(a.row==1);a.action("RIGHT");assert(a.store.data["game_options"][game.id]["psx_controller"]=="digital");a.action("RIGHT");assert(a.psxDualshock());
   a.capture("psx-game-controller");a.action("RIGHT");assert(a.store.data["game_options"][game.id]["integer_scaling"]==true&&!a.store.data["game_options"][game.id].contains("psx_controller"));
   a.row=0;assert(a.infoKey()=="disc");a.action("RIGHT");assert(a.core->discIndex()==1);assert(a.core->paused);a.locale.select(o.assets,"ru");a.capture("psx-disc-ru");a.locale.select(o.assets,"en");a.capture("psx-disc-en");a.action("X");a.capture("psx-disc-info");a.action("B");
@@ -121,7 +121,7 @@ int main(int argc,char **argv) {
   {App a(opts,true,game);assert(a.core->usesHle()&&!a.core->compatible(0)&&!a.core->compatibleAutomatic());}
  }
  {auto opts=o;opts.state=o.state/"core-options-ui";
-  {App a(opts);a.action("MENU");a.settingsFocus=7;a.action("A");assert(a.screen==Screen::CoreSettings);a.locale.select(o.assets,"ru");a.capture("core-settings-ru");a.action("A");assert(a.screen==Screen::PsxCoreSettings);a.capture("psx-core-settings-ru");
+  {App a(opts);a.action("MENU");if(a.screen==Screen::LibraryMenu)a.action("A");a.settingsFocus=7;a.action("A");assert(a.screen==Screen::CoreSettings);a.locale.select(o.assets,"ru");a.capture("core-settings-ru");a.action("A");assert(a.screen==Screen::PsxCoreSettings);a.capture("psx-core-settings-ru");
    assert(a.store.data.at("psx_firmware")=="openbios");a.action("RIGHT");assert(a.store.data.at("psx_firmware")=="bios");a.action("RIGHT");assert(a.store.data.at("psx_firmware")=="hle");a.action("LEFT");assert(a.store.data.at("psx_firmware")=="bios");
    a.action("DOWN");assert(a.infoKey()=="psx_controller");a.action("RIGHT");assert(a.store.data.at("psx_controller")=="dualshock");
    a.capture("psx-controls-ru");

@@ -1,0 +1,72 @@
+{
+  "repository": "https://github.com/lucide-icons/lucide",
+  "revision": "03f11e2d6adc319ea21e9a1d5820a99cd3767257",
+  "license": "LICENSE.lucide-navigation",
+  "icons": [
+    {
+      "file": "layout-list.svg",
+      "url": "https://raw.githubusercontent.com/lucide-icons/lucide/03f11e2d6adc319ea21e9a1d5820a99cd3767257/icons/layout-list.svg",
+      "sha256": "062ced0bfe4c3fb61b42471ab3d16b3fc26e6b764cb043890caf31e64df58534",
+      "png_sha256": "f402f9b0ad1e4af296e5f096974b9511609398fd604e8be9c8049ea739ec18e7"
+    },
+    {
+      "file": "layout-grid.svg",
+      "url": "https://raw.githubusercontent.com/lucide-icons/lucide/03f11e2d6adc319ea21e9a1d5820a99cd3767257/icons/layout-grid.svg",
+      "sha256": "b8903f61d09b1d75e55c71158277d26570962f69c2099446a251871e0a2d6678",
+      "png_sha256": "5bf201df1033707b4ef9757e0dff1654d9b5e382fdac3bc465dd4de364f85920"
+    },
+    {
+      "file": "rotate-ccw-clock.svg",
+      "url": "https://raw.githubusercontent.com/lucide-icons/lucide/03f11e2d6adc319ea21e9a1d5820a99cd3767257/icons/rotate-ccw-clock.svg",
+      "sha256": "a98ff758157910b9fc9d42d5d5dc80c2f4e037afa5f8ea4dee5f5649f03d438d",
+      "png_sha256": "b3bbcecc2beb976ea18cdc756064e2cb68610aa1a795d448c92e18d754e4a57f"
+    },
+    {
+      "file": "folder-symlink.svg",
+      "url": "https://raw.githubusercontent.com/lucide-icons/lucide/03f11e2d6adc319ea21e9a1d5820a99cd3767257/icons/folder-symlink.svg",
+      "sha256": "27ad4cd394ec48540b479d1e6df61c1796f9e1a77cb5ec7a4012aad8c6a08fba",
+      "png_sha256": "5d78f43bbd56ba2b82d3ef667030da0758c48d52484e30c015a658a1ff38a15f"
+    },
+    {
+      "file": "image-off.svg",
+      "url": "https://raw.githubusercontent.com/lucide-icons/lucide/03f11e2d6adc319ea21e9a1d5820a99cd3767257/icons/image-off.svg",
+      "sha256": "7c83ed5b6ebfbe7aa36457e6c5e6d5cbe25dc5dba54203e2decdbee1654bf80c",
+      "png_sha256": "e74472073616a602f1c1343774c70b6ed048c4f2b8e8bfce96851eb1c260c0b8"
+    },
+    {
+      "file": "wifi.svg",
+      "url": "https://raw.githubusercontent.com/lucide-icons/lucide/03f11e2d6adc319ea21e9a1d5820a99cd3767257/icons/wifi.svg",
+      "sha256": "5c4c795d014fa95d1e1038362df44a0f0f32ded9cb08c833ae72419ebadc9a91",
+      "png_sha256": "07c6b6f564851ecce34b47abf613188298568f67154a7563c2f080d8c5391b7f"
+    },
+    {
+      "file": "bluetooth.svg",
+      "url": "https://raw.githubusercontent.com/lucide-icons/lucide/03f11e2d6adc319ea21e9a1d5820a99cd3767257/icons/bluetooth.svg",
+      "sha256": "f2bf3d88cf608834dc389f01b1ee41fdb7bf3656dabef69632c60d5498f3bf29",
+      "png_sha256": "50f56f51d4c891f5eed20b294fdd5ec70bea1f0ac87473e219613061fb110e32"
+    },
+    {
+      "file": "check.svg",
+      "url": "https://raw.githubusercontent.com/lucide-icons/lucide/03f11e2d6adc319ea21e9a1d5820a99cd3767257/icons/check.svg",
+      "sha256": "7f33acc9a77a61659531044525fc008edebe215bf4dcf1c789c8674ad3277db0",
+      "png_sha256": "a5eb2912cfdbc6d9019c0897aebf92b5b81ca4d7adc006650c8217230fd52d2f"
+    },
+    {
+      "file": "chevron-left.svg",
+      "url": "https://raw.githubusercontent.com/lucide-icons/lucide/03f11e2d6adc319ea21e9a1d5820a99cd3767257/icons/chevron-left.svg",
+      "sha256": "83b0681aa38bf55e9d52a1e4b4cced624abe1fe7678ecafda133a574f1161d93",
+      "png_sha256": "e3dd9812cdd55bab6028728fe99f985d616ad332a125bee4c50800ce26295ad4"
+    },
+    {
+      "file": "chevron-right.svg",
+      "url": "https://raw.githubusercontent.com/lucide-icons/lucide/03f11e2d6adc319ea21e9a1d5820a99cd3767257/icons/chevron-right.svg",
+      "sha256": "2758143d7b2434e4aa7307dfd34405c87909ff4052f21b5f3f40d45224b4f19b",
+      "png_sha256": "232cb9bc7c760b261d1589c692333bf2d7d68b4db7db4590ff04baa537cf9ea3"
+    }
+  ],
+  "raster": {
+    "tool": "rsvg-convert",
+    "size": 48,
+    "color": "#F4EBD8"
+  }
+}

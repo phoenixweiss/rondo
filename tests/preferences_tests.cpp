@@ -43,59 +43,59 @@ int main(int argc,char **argv) {
     auto input=a.store.data;input["input_mapping"]["fceumm"]["8"]=0;assert(mappedButtons(input,"NES",1)==((1<<0)|(1<<8)));assert(mappedButtons(input,"GB",1)==1);input["input_mapping"]["fceumm"]["8"]=-1;assert(mappedButtons(input,"NES",1<<8)==0);
     a.screen=Screen::MappingCores;a.row=0;a.action("A");assert(a.screen==Screen::Mapping);a.row=4;a.action("LEFT");assert(mappedSource(a.store.data,"fceumm",8)==7);
     a.action("X");assert(a.screen==Screen::InputTest);a.testInput(0,{},{});a.testInput((1<<3)|(1<<2),{},{});assert(a.screen==Screen::Mapping&&a.row==4);
-    a.action("Y");assert(a.screen==Screen::MappingReset);a.action("B");assert(mappedSource(a.store.data,"fceumm",8)==7);a.action("Y");a.action("A");assert(mappedSource(a.store.data,"fceumm",8)==8);
+    a.action("Y");assert(a.screen==Screen::MappingReset);a.action("B");assert(mappedSource(a.store.data,"fceumm",8)==7);a.action("Y");a.action("DOWN");a.action("A");assert(mappedSource(a.store.data,"fceumm",8)==8);
     for(auto lang:{"en","ru"}){a.locale.select(o.assets,lang);a.screen=Screen::MappingCores;a.capture(std::string("mapping-cores-")+lang);a.screen=Screen::Mapping;a.mappingCore="pcsx_rearmed";a.row=15;a.featureScroll=0;a.capture(std::string("mapping-psx-")+lang);a.screen=Screen::CoreCatalog;a.row=5;a.capture(std::string("core-catalog-")+lang);}
   }
   {App a(o);assert(a.ui->currentTheme=="nord");a.startWizard(true);assert(a.wizardActive&&a.wizardStep==0);auto old=a.store.data;
-    a.action("RIGHT");assert(a.locale.current!=old["locale"]);a.action("Y");assert(a.wizardStep==1&&a.locale.current==old["locale"]);
-    a.wizardRow=1;a.action("RIGHT");assert(a.ui->currentTheme!="nord");a.action("Y");assert(a.wizardStep==2&&a.store.data["theme_id"]=="nord"&&a.ui->currentTheme=="nord");
-    int volume=a.previewVolume;a.action("LEFT");assert(a.previewVolume==volume-5);a.action("MENU");assert(a.screen==Screen::WizardExit);a.action("B");a.action("Y");assert(a.previewVolume==volume&&a.wizardStep==3);
-    a.wizardRow=1;a.action("A");assert(a.screen==Screen::Wizard&&a.wizardStep==3&&!a.notice.empty());a.action("Y");
+    a.action("RIGHT");assert(a.locale.current!=old["locale"]);a.action("Y");assert(a.wizardStep==1&&a.locale.current==old["locale"]);a.action("Y");assert(a.wizardStep==2);
+    a.wizardRow=1;a.action("RIGHT");assert(a.ui->currentTheme!="nord");a.action("Y");assert(a.wizardStep==3&&a.store.data["theme_id"]=="nord"&&a.ui->currentTheme=="nord");
+    int volume=a.previewVolume;a.action("LEFT");assert(a.previewVolume==volume-5);a.action("MENU");assert(a.screen==Screen::WizardExit);a.action("B");a.action("Y");assert(a.previewVolume==volume&&a.wizardStep==4);
+    a.wizardRow=1;a.action("A");assert(a.screen==Screen::Wizard&&a.wizardStep==4&&!a.notice.empty());a.action("Y");
     a.wizardRow=1;a.action("A");assert(a.screen==Screen::Regions);a.action("B");assert(a.screen==Screen::Wizard&&a.wizardRow==1);a.action("Y");
-    a.wizardRow=1;a.action("LEFT");next(a);assert(!a.coreEnabled("GB")&&!a.coreEnabled("GBC")&&a.wizardStep==6);
-    a.action("Y");assert(a.wizardStep==7);a.action("A");assert(!a.wizardActive&&a.store.data["wizard"]["completed"]==true);
+    a.wizardRow=1;a.action("LEFT");next(a);assert(!a.coreEnabled("GB")&&!a.coreEnabled("GBC")&&a.wizardStep==7);
+    a.action("Y");assert(a.wizardStep==8);a.action("A");assert(!a.wizardActive&&a.store.data["wizard"]["completed"]==true);
     a.startWizard(true);a.action("MENU");a.action("A");assert(!a.wizardActive&&a.screen==Screen::Library&&a.store.data["wizard"]["deferred"]==true);
     auto data=a.store.data;data["wizard"]={{"schema",1},{"completed",false},{"deferred",true},{"step",2}};a.store.commit(data);
   }
   o.setup=true;
-  {App a(o);assert(a.screen==Screen::Wizard&&a.wizardStep==2);a.action("LEFT");a.requestSettings=[](const Json &){return false;};next(a);assert(a.wizardStep==2&&a.previewVolume==a.store.data["volume"]&&!a.notice.empty());a.requestSettings={};
-    for(auto lang:{"en","ru"})for(int step=0;step<8;++step){a.wizardEnter(step);a.locale.select(o.assets,lang);a.capture(std::string("wizard-")+std::to_string(step)+"-"+lang);}
+  {App a(o);assert(a.screen==Screen::Wizard&&a.wizardStep==3);a.action("LEFT");a.requestSettings=[](const Json &){return false;};next(a);assert(a.wizardStep==3&&a.previewVolume==a.store.data["volume"]&&!a.notice.empty());a.requestSettings={};
+    for(auto lang:{"en","ru"})for(int step=0;step<9;++step){a.wizardEnter(step);a.locale.select(o.assets,lang);a.capture(std::string("wizard-")+std::to_string(step)+"-"+lang);}
   }
   o.state=fs::path(argv[2])/"fresh";
-  {App a(o);assert(a.screen==Screen::Wizard&&a.previewVolume==30);auto before=a.store.data;a.action("Y");assert(a.store.data["volume"]==30);a.wizardEnter(2);a.action("X");assert(a.soundTest);assert(SDL_GetQueuedAudioSize(a.soundTest)>44100);a.soundTestUntil=0;a.ticks(0);assert(!a.soundTest);}
+  {App a(o);assert(a.screen==Screen::Wizard&&a.previewVolume==30);auto before=a.store.data;a.action("Y");assert(a.store.data["volume"]==30);a.wizardEnter(3);a.action("X");assert(a.soundTest);assert(SDL_GetQueuedAudioSize(a.soundTest)>44100);a.soundTestUntil=0;a.ticks(0);assert(!a.soundTest);}
   o.setup=false;o.state=fs::path(argv[2])/"services";
   {App a(o);a.startWizard(true);auto radio=std::make_shared<SetupWifi>();a.wifiDevice=radio;a.wifi=radio->status();a.wifiPollAt=monotonicMs()+60000;
-    a.wizardEnter(3);a.action("RIGHT");next(a);assert(a.wizardPending&&a.wizardStep==3);
-    for(int i=0;i<100&&a.wizardStep==3;++i){a.ticks(0);SDL_Delay(5);}assert(a.wizardStep==4&&radio->on&&a.store.data["wifi_enabled"]==true);
+    a.wizardEnter(4);a.action("RIGHT");next(a);assert(a.wizardPending&&a.wizardStep==4);
+    for(int i=0;i<100&&a.wizardStep==4;++i){a.ticks(0);SDL_Delay(5);}assert(a.wizardStep==5&&radio->on&&a.store.data["wifi_enabled"]==true);
     auto clock=std::make_shared<SetupClock>();a.clockDevice=clock;a.clockState=clock->status();a.clockPollAt=monotonicMs()+60000;
-    a.action("LEFT");next(a);assert(a.wizardPending&&a.wizardStep==4);
-    for(int i=0;i<100&&a.wizardStep==4;++i){a.ticks(0);SDL_Delay(5);}assert(a.wizardStep==5&&!clock->on&&!a.store.data["ntp_auto"].get<bool>());
-    a.wizardEnter(3);radio->fail=true;a.action("LEFT");next(a);
-    for(int i=0;i<100&&a.wizardPending;++i){a.ticks(0);SDL_Delay(5);}assert(a.wizardStep==3&&a.store.data["wifi_enabled"]==true&&!a.notice.empty());
-    radio->fail=false;a.wizardEnter(3);a.wizardRow=1;a.action("A");assert(a.screen==Screen::WifiNetworks);
+    a.action("LEFT");next(a);assert(a.wizardPending&&a.wizardStep==5);
+    for(int i=0;i<100&&a.wizardStep==5;++i){a.ticks(0);SDL_Delay(5);}assert(a.wizardStep==6&&!clock->on&&!a.store.data["ntp_auto"].get<bool>());
+    a.wizardEnter(4);radio->fail=true;a.action("LEFT");next(a);
+    for(int i=0;i<100&&a.wizardPending;++i){a.ticks(0);SDL_Delay(5);}assert(a.wizardStep==4&&a.store.data["wifi_enabled"]==true&&!a.notice.empty());
+    radio->fail=false;a.wizardEnter(4);a.wizardRow=1;a.action("A");assert(a.screen==Screen::WifiNetworks);
     for(int i=0;i<100&&a.wifiBusy();++i){a.ticks(0);SDL_Delay(5);}
     a.action("B");assert(a.screen==Screen::Wizard&&a.wizardRow==1);a.action("Y");assert(a.store.data["wifi_enabled"].get<bool>());
   }
   o.setup=false;o.state=fs::path(argv[2])/"focus-actions";
-  {App a(o);a.startWizard(true);a.wizardEnter(2);
+  {App a(o);a.startWizard(true);a.wizardEnter(3);
     auto revision=a.store.data["revision"];a.action("DOWN");assert(a.wizardRow==1);a.action("A");
-    assert(a.soundTest&&a.screen==Screen::Wizard&&a.wizardStep==2&&a.store.data["revision"]==revision);
-    a.action("A");assert(a.soundTest);a.action("DOWN");assert(a.wizardRow==a.wizardNextRow());a.action("A");assert(a.wizardStep==3&&!a.soundTest);
+    assert(a.soundTest&&a.screen==Screen::Wizard&&a.wizardStep==3&&a.store.data["revision"]==revision);
+    a.action("A");assert(a.soundTest);a.action("DOWN");assert(a.wizardRow==a.wizardNextRow());a.action("A");assert(a.wizardStep==4&&!a.soundTest);
     auto radio=std::make_shared<SetupWifi>();a.wifiDevice=radio;a.wifi=radio->status();a.wifiPollAt=monotonicMs()+60000;
     a.action("RIGHT");a.action("DOWN");a.action("A");assert(a.wizardPending&&a.screen==Screen::Wizard);
     for(int i=0;i<100&&a.screen==Screen::Wizard;++i){a.ticks(0);SDL_Delay(5);}
-    assert(a.screen==Screen::WifiNetworks&&a.wizardStep==3&&radio->on&&a.store.data["wifi_enabled"].get<bool>());
+    assert(a.screen==Screen::WifiNetworks&&a.wizardStep==4&&radio->on&&a.store.data["wifi_enabled"].get<bool>());
     for(int i=0;i<100&&a.wifiBusy();++i){a.ticks(0);SDL_Delay(5);}assert(radio->scans>0);
-    a.action("B");assert(a.screen==Screen::Wizard&&a.wizardRow==1);a.action("DOWN");a.action("A");assert(a.wizardStep==4);
+    a.action("B");assert(a.screen==Screen::Wizard&&a.wizardRow==1);a.action("DOWN");a.action("A");assert(a.wizardStep==5);
     auto clock=std::make_shared<SetupClock>();a.clockDevice=clock;a.clockState=clock->status();a.clockPollAt=monotonicMs()+60000;
     a.action("LEFT");a.action("DOWN");a.action("A");assert(a.screen==Screen::Regions);
     a.action("B");assert(a.screen==Screen::Wizard&&a.wizardRow==1&&!a.wizardDraft["ntp_auto"].get<bool>());
     a.action("A");a.row=0;a.action("A");assert(a.screen==Screen::Wizard&&a.wizardRow==1&&a.store.data["timezone"]=="Etc/UTC");
-    a.action("DOWN");a.action("A");assert(a.screen==Screen::ClockEdit&&a.wizardStep==4);
+    a.action("DOWN");a.action("A");assert(a.screen==Screen::ClockEdit&&a.wizardStep==5);
     a.action("A");for(int i=0;i<100&&a.screen==Screen::ClockEdit;++i){a.ticks(0);SDL_Delay(5);}
     assert(a.screen==Screen::Wizard&&a.wizardRow==2&&clock->sets==1&&!a.store.data["ntp_auto"].get<bool>());
-    a.action("Y");assert(a.wizardStep==5&&!a.store.data["ntp_auto"].get<bool>());
-    for(auto lang:{"en","ru"})for(int step:{2,3,4,5,6}){a.wizardEnter(step);a.locale.select(o.assets,lang);a.capture(std::string("focus-actions-")+std::to_string(step)+"-"+lang);a.wizardRow=a.wizardNextRow();a.capture(std::string("next-row-")+std::to_string(step)+"-"+lang);}
+    a.action("Y");assert(a.wizardStep==6&&!a.store.data["ntp_auto"].get<bool>());
+    for(auto lang:{"en","ru"})for(int step:{3,4,5,6,7}){a.wizardEnter(step);a.locale.select(o.assets,lang);a.capture(std::string("focus-actions-")+std::to_string(step)+"-"+lang);a.wizardRow=a.wizardNextRow();a.capture(std::string("next-row-")+std::to_string(step)+"-"+lang);}
   }
   o.setup=true;o.state=fs::path(argv[2])/"legacy";
   {Store legacy(o.state);auto data=legacy.data;data["volume"]=65;legacy.commit(data);}

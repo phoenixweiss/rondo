@@ -63,7 +63,7 @@ void App::preferenceAction(const std::string &a) {
     auto controls=coreControls(mappingCore);
     if(a=="UP")row=std::max(0,row-1);if(a=="DOWN")row=std::min(int(controls.size())-1,row+1);
     if(a=="B"){screen=Screen::MappingCores;row=mappingCoreRow;featureScroll=0;}
-    else if(a=="Y") {screen=Screen::MappingReset;}
+    else if(a=="Y") {screen=Screen::MappingReset;row=0;}
     else if(a=="X") {mappingTest=true;mappingReturnRow=row;openInputTest(true);}
     else if(a=="LEFT"||a=="RIGHT"||a=="A") {
       auto target=controls.at(row).first;int current=mappedSource(store.data,mappingCore,target);
@@ -71,8 +71,9 @@ void App::preferenceAction(const std::string &a) {
       auto next=store.data;next["input_mapping"][mappingCore][std::to_string(target)]=value;persist(next);
     }
   } else if(screen==Screen::MappingReset) {
-    if(a=="B")screen=Screen::Mapping;
-    if(a=="A") {auto next=store.data;next["input_mapping"].erase(mappingCore);persist(next);screen=Screen::Mapping;}
+    if(a=="UP")row=0;if(a=="DOWN")row=1;
+    if(a=="B"||(a=="A"&&row==0))screen=Screen::Mapping;
+    else if(a=="A"&&row==1) {auto next=store.data;next["input_mapping"].erase(mappingCore);persist(next);screen=Screen::Mapping;}
   }
 }
 static double listScroll(int row,int count,double old,int viewport=280) {
@@ -95,7 +96,9 @@ void App::preferenceDraw(const std::string &zone) {
   } else if(screen==Screen::MappingReset) {
     ui->frame(tr("mapping.title"),tr("mapping.cores"),zone);
     ui->text(tr("mapping.reset_confirm"),32,136,23,500,ui->cream,656);
-    ui->hints({{"A",tr("mapping.reset")},{"B",tr("action.cancel")}});
+    ui->row(tr("action.cancel"),236,row==0);
+    ui->row(tr("mapping.reset"),290,row==1);
+    ui->hints({{"A",tr("action.select")},{"B",tr("action.cancel")}});
   } else {
     bool mapping=screen==Screen::Mapping;
     auto entries=installedCores();auto controls=coreControls(mappingCore);
@@ -104,7 +107,7 @@ void App::preferenceDraw(const std::string &zone) {
     ui->frame(tr(mapping?"mapping.title":screen==Screen::CoreCatalog?"core.catalog":"mapping.cores"),mapping?displayCore:tr("section.cores"),zone);
     featureScroll=listScroll(row,count,featureScroll);SDL_Rect clip{16,128,688,280};SDL_RenderSetClipRect(ui->renderer,&clip);
     for(int i=0;i<count;++i){int y=128+i*54-int(featureScroll);
-      if(mapping)ui->row(locale.tr("control."+controls[i].second),y,row==i,672,physicalButton(mappedSource(store.data,mappingCore,controls[i].first)));
+      if(mapping)ui->valueRow(locale.tr("control."+controls[i].second),y,row==i,672,physicalButton(mappedSource(store.data,mappingCore,controls[i].first)));
       else if(screen==Screen::CoreCatalog){const auto &c=entries[i];if(c.available())ui->binaryRow(c.name,y,row==i,c.enabled(store.data),locale);else ui->row(c.name,y,row==i,672,tr("core.missing"),false);}
       else ui->row(entries[i].name,y,row==i,672,"",true,52,"chevron-right");
     }

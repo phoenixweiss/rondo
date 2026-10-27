@@ -5,6 +5,7 @@
 #include <iostream>
 namespace rondo {
 App::~App() {
+  if(statistics)try {statistics->flush(monotonicMs(),false);}catch(...) {}
   if(soundTest)SDL_CloseAudioDevice(soundTest);
   if(motor)motor->stop();
   volumeTick(true);

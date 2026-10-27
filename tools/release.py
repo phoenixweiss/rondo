@@ -107,7 +107,7 @@ def bundle(root, first, second, output, tag=None):
     report.update(independent_builds_identical=True, tag=tag, version=number)
     (output / "verification.json").write_text(json.dumps(report, indent=2) + "\n")
     (output / "release-notes.md").write_text(
-        "Early development preview for RG34XXSP / BaseOS 1.3.0. Back up games, saves and preferences.\n\n"
+        "Early development preview for RG34XXSP / BaseOS 1.5.2. Back up games, saves and preferences.\n\n"
         + body + "\nSee the repository installation and compatibility guides. "
         "Corresponding source and licenses are inside the ZIP.\n")
     (output / "SHA256SUMS.txt").write_text("".join(sha(p) + "  " + p.name + "\n"

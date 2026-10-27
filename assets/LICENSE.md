@@ -2,11 +2,13 @@
 
 Copyright (c) 2026 PAVEL TKACHEV
 
-Original Rondo identity artwork (wordmark and symbol), boot artwork and original UI artwork are available under the MIT License in the repository root. Redistribution and modification in builds and forks are permitted under that license. Original synthetic cartridge artwork is also MIT.
+Original Rondo identity artwork (wordmark and symbol), boot artwork and original UI artwork are available under the MIT License in the repository root. Redistribution and modification in builds and forks are permitted under that license. Original synthetic cartridge artwork is also MIT. The file-unavailable UI icon is original Rondo artwork under MIT.
 
 This copyright permission does not grant trademark rights or permission to imply that a modified build is the official Rondo release or is endorsed by its maintainer. No registered trademark status or name clearance is claimed here. This paragraph describes the distinction between copyright and branding; it adds no restriction to the MIT copyright grant.
 
 Third-party assets retain their own terms:
+
+- Automatic console icons: baxysquare / BAXY Themes, MIT as declared in the upstream README. Attribution and permission notice are retained in Systems/LICENSE.txt and Systems/UPSTREAM-README.txt; pinned SVG inputs, models and raster hashes are in Systems/sources.json. Geometry is unchanged; Rondo adapts color and renders proportional transparent derivatives. These are not original Rondo drawings.
 
 - Ubuntu font files: Ubuntu Font Licence 1.0, with Canonical copyright notices retained in the font metadata and Fonts/Ubuntu-UFL.txt. Font files are unmodified; they are not relicensed as MIT. Rendered wordmarks are artwork, not redistributed font software.
 - Lucide SVG icons and raster derivatives: ISC plus the applicable Feather-derived MIT notices, retained in Assets/Icons/LICENSE. Additional settings icons retain the complete upstream license in Assets/Icons/LICENSE.lucide-settings; their pinned revision and SVG/PNG hashes are in Assets/Icons/settings-sources.json. Keep these license files with derivatives.

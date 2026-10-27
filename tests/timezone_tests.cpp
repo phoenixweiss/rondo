@@ -24,7 +24,7 @@ int main(int argc, char **argv) {
       assert(app.timezoneNames[language]["countries"].contains(zone.country));
       assert(app.timezoneNames[language]["cities"].contains(zone.id));
     }
-    app.action("MENU"); for(int i=0;i<3;++i) { app.action("DOWN"); }
+    app.action("MENU");if(app.screen==Screen::LibraryMenu)app.action("A"); for(int i=0;i<3;++i) { app.action("DOWN"); }
     app.action("A");
     for(int i=0;i<3;++i) { app.action("DOWN"); }
     app.action("A");

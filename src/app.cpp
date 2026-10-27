@@ -78,6 +78,7 @@ App::App(Options opts, bool runner, const Game &entry)
   }
   lastActivity=monotonicMs();
   if(!runner)offerStartupResume();
+  if(!runner&&screen==Screen::Library&&store.data.value("library_grouping","unified")=="systems")screen=Screen::Systems;
   volumeFeedback.confirmed = store.data.value("volume", 80);
   wifiDevice=wifiAdapter(options.state,!runner && !options.headless);
   wifi.available=wifiDevice->supported();wifi.phase=wifi.available?"initializing":"unavailable";
@@ -137,12 +138,12 @@ void App::searchText(const std::string &text) {
   }
 }
 void App::searchAction(const std::string &action) {
-  if(action=="B") {SDL_StopTextInput();screen=Screen::Library;return;}
+  if(action=="B") {navigationBack();return;}
   if(action=="SEARCH_DELETE" || action=="X") {eraseGlyph(searchDraft);return;}
   if(action=="Y") {searchRussian=!searchRussian;searchColumn=0;return;}
-  if(action=="SEARCH_SUBMIT" || action=="MENU") {
-    searchQuery=searchFold(searchDraft);selected=0;scroll=0;
-    SDL_StopTextInput();screen=Screen::Library;return;
+  if(action=="SEARCH_SUBMIT") {
+    navigationPush(Screen::SearchResults);section="All";searchQuery=searchFold(searchDraft);selected=0;scroll=0;
+    SDL_StopTextInput();return;
   }
   if(action=="UP")searchRow=std::max(0,searchRow-1);
   if(action=="DOWN")searchRow=std::min(4,searchRow+1);
@@ -165,14 +166,13 @@ void App::searchDraw() {
   auto keys=searchKeys();
   for(int y=0;y<5;++y)for(size_t x=0;x<keys[y].size();++x) {
     int cell=672/int(keys[y].size()),left=24+int(x)*cell;
-    bool focused=y==searchRow && int(x)==searchColumn;
+    bool focused=!navigationActions && y==searchRow && int(x)==searchColumn;
     ui->rect(left,190+y*43,cell-5,38,focused?ui->focus:ui->bg,5);
     auto key=keys[y][x];
     auto label=key=="language"?(searchRussian?"EN":"РУ"):key.size()>2?tr("search.key."+key):key;
     ui->text(label,left+(cell-5-ui->measure(label,21))/2,196+y*43,21);
   }
-  if(ui->keyboardHints)ui->hints({{"Enter",tr("search.apply")},{"Esc",tr("action.cancel")},{"Backspace",tr("wifi.delete")}});
-  else ui->hints({{"A",tr("wifi.choose")},{"B",tr("action.cancel")},{"X",tr("wifi.delete")},{"Y",tr("search.language")}});
+
 }
 std::vector<int> App::visible() const {
   std::vector<int> v;
@@ -191,7 +191,7 @@ std::vector<int> App::visible() const {
   for (size_t i = 0; i < games.size(); i++) {
     auto &g = games[i];
     bool fav = std::find(favorites.begin(), favorites.end(), g.id) != favorites.end();
-    if (g.available && (section == "All" || (section == "Favorites" && fav) || section == g.system) &&
+    if ((g.available || (section=="All"&&!searchQuery.empty())) && (section == "All" || (section == "Favorites" && fav) || section == g.system) &&
         (searchQuery.empty() || (i<searchNames.size() && searchNames[i].find(searchQuery)!=std::string::npos)))
       v.push_back(i);
   }
@@ -246,6 +246,11 @@ void App::openTimezones() {
 }
 std::string App::screenName() const {
   switch (screen) {
+  case Screen::Systems:return "systems";
+  case Screen::LibraryPreferences:return "library_preferences";
+  case Screen::LibraryMenu:return "library_menu";
+  case Screen::ScreenshotSettings:return "screenshot_settings";
+  case Screen::ScreenshotCapture:return "screenshot_capture";
   case Screen::Themes:return "themes";
   case Screen::CoreCatalog:return "core_catalog";
   case Screen::MappingCores:return "mapping_cores";
@@ -264,6 +269,8 @@ std::string App::screenName() const {
   case Screen::WifiNetwork: return "wifi_network";
   case Screen::WifiPassword: return "wifi_password";
   case Screen::Search: return "search";
+  case Screen::SearchResults:return "search_results";
+  case Screen::GameDetails:return "game_details";
   case Screen::Library:
     return "library";
   case Screen::Settings:
@@ -302,6 +309,7 @@ std::string App::screenName() const {
     return "load_confirm";
   case Screen::ExitConfirm:
     return "exit_confirm";
+  case Screen::DiscardConfirm:return "discard_confirm";
   case Screen::CoreSettings: return "core_settings";
   case Screen::PsxCoreSettings: return "psx_core_settings";
   case Screen::InputTest:return "input_test";
@@ -327,6 +335,7 @@ void App::record(const std::string &event) {
                    {"notice", notice}});
 }
 void App::persist(Json next) {
+  bool groupingChanged=next.value("library_grouping","unified")!=store.data.value("library_grouping","unified");
   volumeTick(true); // Serialize other settings with the volume authority.
   // A failed disk write must not roll the live mixer back on a later setting change.
   next["volume"] = previewVolume;
@@ -337,6 +346,7 @@ void App::persist(Json next) {
       // The callback installs the authority-acknowledged revision.
     } else
       store.commit(std::move(next));
+    if(groupingChanged)explicitSystemsRoot=false;
   } catch (const std::exception &e) {
     notice = locale.tr("notice.not_persisted");
     std::cerr << "Preference write: " << e.what() << "\n";
@@ -454,20 +464,28 @@ bool App::psxDualshock() const {
 void App::gameInput(uint16_t held,const std::array<int16_t,4> &axes) {
   if(!core)return;
   core->buttons=0;core->axes={};
-  if(screen!=Screen::Running || core->paused)return;
+  if(screen!=Screen::Running&&screen!=Screen::GameMenu)return;
+  if(screen==Screen::Running&&core->paused)return;
   if(gameInputBlocked) {
     bool neutral=held==0;
     for(auto axis:axes)neutral=neutral && axis==0;
+    screenshotKeys.reset();
     if(neutral)gameInputBlocked=false;
     return;
   }
+  bool shot=false;
+  held=screenshotKeys.sample(held,screenshotChord(store.data),monotonicMs(),shot);
+  if(shot)takeScreenshot();
+  if(screen==Screen::GameMenu)return; // Capture the paused game, never send the chord to it.
   core->buttons=mappedButtons(store.data,game.system,held);
   if(game.system=="PSX")core->axes=axes;
 }
-void App::action(const std::string &a) {
+void App::actionImpl(const std::string &a) {
   if (stop || screen == Screen::SystemProgress || screen==Screen::SavingAutomatic) return;
   if(activity())return;
+  if(screen==Screen::ScreenshotCapture){if(a=="MENU"){screen=Screen::ScreenshotSettings;row=1;}return;}
   if(screen==Screen::InputTest)return; // Sample all held controls without menu/volume/power side effects.
+  if(a=="SCREENSHOT"){takeScreenshot();return;}
   // Gameplay buttons are sampled as a held bitmask, not shell actions. In
   // particular, do not run diagnostic snapshots/journaling for every press.
   if(screen==Screen::Running && a!="MENU" && a!="SLEEP" &&
@@ -481,7 +499,7 @@ void App::action(const std::string &a) {
   try {
     if(screen==Screen::PsxWarning||screen==Screen::PsxFirmwareError) {if(a=="UP")infoScroll=std::max(0,infoScroll-1);if(a=="DOWN")++infoScroll;}
     if (a == "SLEEP") { sleep(); record(a); return; }
-    if(screen==Screen::Wizard&&wizardStep==2&&(a=="VOLUME_UP"||a=="VOLUME_DOWN")) {
+    if(screen==Screen::Wizard&&wizardStep==3&&(a=="VOLUME_UP"||a=="VOLUME_DOWN")) {
       int value=std::clamp(previewVolume+(a=="VOLUME_UP"?5:-5),0,100);wizardDraft["volume"]=value;applyVolume(value);
       volumeFeedback.confirmed=value;volumeFeedback.begin(monotonicMs());volumeFeedback.result(volumeFeedback.sequence,value,true,monotonicMs());return;
     }
@@ -508,6 +526,7 @@ void App::action(const std::string &a) {
       record("info:open");
       return;
     }
+    if(screen==Screen::ScreenshotSettings){screenshotAction(a);return;}
     if(screen==Screen::Wizard||screen==Screen::WizardExit){wizardAction(a);record("setup:"+a);return;}
     if(screen==Screen::Themes||screen==Screen::CoreCatalog||screen==Screen::MappingCores||screen==Screen::Mapping||screen==Screen::MappingReset){preferenceAction(a);record("preferences:"+a);return;}
     if(screen==Screen::SystemInfo){systemInfoAction(a);record("system_info:"+a);return;}
@@ -517,12 +536,10 @@ void App::action(const std::string &a) {
     if (screen==Screen::Wifi || screen==Screen::WifiNetworks || screen==Screen::WifiNetwork || screen==Screen::WifiPassword) {
       wifiAction(a);wizardMaybeReturn();record("wifi:"+a);return;
     }
-    if (screen == Screen::Library) {
-      if(a=="Y") {
-        searchNames.clear();for(const auto &entry:games)searchNames.push_back(searchFold(entry.title));
-        searchDraft=searchQuery;searchRow=searchColumn=0;
-        screen=Screen::Search;SDL_StartTextInput();return;
-      }
+    if(screen==Screen::Systems){systemsAction(a);return;}
+    if(screen==Screen::LibraryPreferences||screen==Screen::LibraryMenu){libraryPreferenceAction(a);return;}
+    if (screen == Screen::Library || screen==Screen::SearchResults) {
+      if(libraryAction(a))return;
       if(a=="B" && !searchQuery.empty()) {searchQuery.clear();selected=0;scroll=0;return;}
       auto v = visible();
       if (!v.empty())
@@ -531,20 +548,6 @@ void App::action(const std::string &a) {
         selected = std::max(0, selected - 1);
       if (a == "DOWN" && !v.empty())
         selected = std::min(int(v.size()) - 1, selected + 1);
-      if (a == "LEFT" || a == "RIGHT") {
-        std::vector<std::string> modes = {"cover", "title", "screenshot"};
-        int i = int(std::find(modes.begin(), modes.end(), artwork) - modes.begin());
-        artwork = modes[(i + (a == "RIGHT" ? 1 : 2)) % 3];
-        auto next = store.data;
-        next["artwork"] = artwork;
-        persist(next);
-      }
-      if (a == "L1" || a == "R1") {
-        int i = int(std::find(sections.begin(), sections.end(), section) - sections.begin());
-        section = sections[(i + sections.size() + (a == "R1" ? 1 : -1)) % sections.size()];
-        selected = 0;
-        scroll = 0;
-      }
       if (a == "X" && !v.empty()) {
         auto next = store.data;
         auto &f = next["favorites"];
@@ -564,25 +567,7 @@ void App::action(const std::string &a) {
         returnToSettings();
       }
       if (a == "A" && !v.empty()) {
-        game = games[v[selected]];
-        if (!game.available || !fs::is_regular_file(game.path)) {
-          notice = locale.tr("recent.unavailable");
-        } else if(fs::is_regular_file(options.coreFor(game.system))&&!coreEnabled(game.system)) {
-          notice=locale.tr("core.disabled");screen=Screen::CoreCatalog;featureScroll=0;row=0;
-          auto entries=installedCores();for(size_t i=0;i<entries.size();++i)if(entries[i].id==coreId(game.system))row=int(i);
-        } else if (!fs::is_regular_file(options.coreFor(game.system))) {
-          screen = Screen::Recovery;
-          notice = locale.tr("error.core_unavailable");
-        } else if(game.system=="PSX"&&psxMode(options,store.data)!="hle"&&!psxBiosAvailable(psxFirmwarePath(options,store.data))) {
-          screen=Screen::PsxFirmwareError;infoScroll=0;
-        } else if (latestResumeSlot()>=0) {
-          screen = Screen::ResumeChoice;
-          row = 0;
-        } else {
-          screen = Screen::Launching;
-          launch = true;
-          resume = false;
-        }
+        prepareGame(games[v[selected]]);
       }
       if (a == "UP" || a == "DOWN" || a == "L1" || a == "R1" || a == "A") {
         auto vv = visible();
@@ -613,8 +598,9 @@ void App::action(const std::string &a) {
         stop = true;
       }
     } else if (screen == Screen::LogClear) {
-      if (a == "B") { screen = Screen::SettingsSection; category = 4; row = 2; }
-      if (a == "A") {
+      if(a=="UP")row=0;if(a=="DOWN")row=1;
+      if (a == "B" || (a=="A"&&row==0)) { screen = Screen::SettingsSection; category = 4; row = 2; }
+      else if (a == "A" && row==1) {
         batteryLog.reset(); // Drain the writer before deleting its files.
         clearDiagnosticLogs(options.state / "Logs", options.headless ? options.state / "ram-logs" : fs::path("/tmp/rondo-diagnostics/Logs"));
         clearDiagnosticLogs(options.state / "Battery");
@@ -628,11 +614,12 @@ void App::action(const std::string &a) {
       }
     } else if (screen == Screen::Settings) {
       if (a == "UP") settingsFocus = std::max(0, settingsFocus - 1);
-      if (a == "DOWN") settingsFocus = std::min(10, settingsFocus + 1);
+      if (a == "DOWN") settingsFocus = std::min(11, settingsFocus + 1);
       row = settingsFocus;
-      if (a == "B") screen = Screen::Library;
-      if (a == "A" && settingsFocus >= 9) {
-        restartRequested = settingsFocus == 9;
+      if(a=="B"){if(!navigation.empty())navigationBack();else screen=store.data.value("library_grouping","unified")=="systems"?Screen::Systems:Screen::Library;return;}
+      if(a=="A"&&settingsFocus==9){sleep();return;}
+      if (a == "A" && settingsFocus >= 10) {
+        restartRequested = settingsFocus == 10;
         screen = Screen::SystemConfirm; row = 0;
         record("system:confirm"); return;
       }
@@ -704,13 +691,13 @@ void App::action(const std::string &a) {
       if(a=="B") {screen=Screen::Library;resume=false;}
       if(a=="A") {screen=Screen::PsxCoreSettings;row=0;settingsFocus=7;}
     } else if (screen == Screen::SettingsSection) {
-      int count = category==3 ? 6 : category==4 ? 4 : category==1 ? 3 : category == 0 ? 4 : category == 5 ? 2 : 1;
+      int count = category==3 ? 6 : category==4 ? 4 : category==1 ? 3 : category == 0 ? 8 : category == 5 ? 2 : 1;
       if (a == "UP") row = std::max(0, row - 1);
       if (a == "DOWN") row = std::min(count - 1, row + 1);
       if (a == "B") { returnToSettings(); return; }
       if (category == 4 && (a == "A" || a == "LEFT" || a == "RIGHT")) {
         if(row==3){if(a=="A")openInputTest(false);return;}
-        else if (row == 2) { if (a == "A") screen = Screen::LogClear; }
+        else if (row == 2) { if (a == "A") {screen = Screen::LogClear;row=0;} }
         else if (row == 0 || store.data.value("debug_enabled", false)) {
           auto next = store.data;
           if (row == 0) next["debug_enabled"] = a == "A" ? !next.value("debug_enabled", false) : a == "RIGHT";
@@ -788,6 +775,8 @@ void App::action(const std::string &a) {
         notice.clear();
       }
       if (a == "A" && category == 5) { screen = row == 0 ? Screen::Wifi : Screen::Bluetooth; row = 0; scroll = 0; wifiPollAt = 0; btPollAt = 0; }
+      if(a=="A"&&category==0&&row>=5){librarySettingsReturn=row;libraryConfigure(Screen::SettingsSection);row=librarySettingsReturn==7?3:librarySettingsReturn-5;return;}
+      if(a=="A"&&category==0&&row==4){screen=Screen::ScreenshotSettings;row=0;return;}
       if(a=="A"&&category==0&&row==1){openThemes();return;}
       if(a=="A"&&category==0&&row==3){startWizard(true);return;}
       if (a == "A" && category == 0 && row == 0) {
@@ -892,7 +881,7 @@ void App::action(const std::string &a) {
     } else if(screen==Screen::StartupResume) {
       if(a=="UP")row=0;
       if(a=="DOWN")row=1;
-      if(a=="B" || (a=="A" && row==1)) {screen=Screen::Library;row=0;}
+      if(a=="B" || (a=="A" && row==1)) {screen=store.data.value("library_grouping","unified")=="systems"?Screen::Systems:Screen::Library;row=0;}
       else if(a=="A" && row==0) {resume=true;screen=Screen::Launching;launch=true;}
     } else if (screen == Screen::ResumeChoice) {
       if (a == "UP")
@@ -915,29 +904,31 @@ void App::action(const std::string &a) {
         core->silence();
       }
     } else if (screen == Screen::GameMenu) {
-      const int chosen = row;
+      const auto chosen=static_cast<GameMenuItem>(row);
       if (a == "UP")
         row = std::max(0, row - 1);
       if (a == "DOWN")
-        row = std::min(4, row + 1);
-      if (a == "B" || (a == "A" && chosen == 0)) {
+        row = std::min(int(GameMenuItem::Count)-1, row + 1);
+      if (a == "B" || (a == "A" && chosen == GameMenuItem::Resume)) {
         screen = Screen::Running;
         core->paused = false;
         notice.clear();
       }
-      if (a == "A" && chosen == 1 && core->canSave()) {
+      if (a == "A" && chosen == GameMenuItem::Save && core->canSave()) {
         screen = Screen::SaveSlots;
         row = slot;
       }
-      if (a == "A" && chosen == 2 && anySlots(*this)) {
+      if (a == "A" && chosen == GameMenuItem::Load && anySlots(*this)) {
         screen = Screen::LoadSlots;
         row = slot;
       }
-      if (a == "A" && chosen == 3) {
+      if (a == "A" && chosen == GameMenuItem::Settings) {
         screen = Screen::GameSettings;
         row = 0;
       }
-      if (a == "A" && chosen == 4) {
+      if(a=="A"&&chosen==GameMenuItem::Screenshot){takeScreenshot();}
+      if(a=="A"&&chosen==GameMenuItem::Info){openGameInfo();}
+      if (a == "A" && chosen == GameMenuItem::Exit) {
         screen = Screen::ExitConfirm;
         autosaveError.clear();
         row = 0;
@@ -961,7 +952,7 @@ void App::action(const std::string &a) {
       if(core->discCount()>1 && row==0&&(a=="A"||a=="LEFT"||a=="RIGHT")) {auto count=core->discCount();core->changeDisc((core->discIndex()+(a=="LEFT"?count-1:1))%count);record("disc:changed");return;}
       if (a == "B") {
         screen = Screen::GameMenu;
-        row = 3;
+        row = int(GameMenuItem::Settings);
       }
       if (game.system!="PSX" && (a == "A" || a == "LEFT" || a == "RIGHT")) {
         scalingLastError.clear();
@@ -1016,6 +1007,10 @@ void App::action(const std::string &a) {
         core->deleteSlot(slot); slotCache.clear(); screen = deleteOrigin; row = slot;
         notice = locale.tr("slot.deleted"); noticeUntil = monotonicMs() + 2000;
       }
+    } else if(screen==Screen::DiscardConfirm) {
+      if(a=="UP")row=0;if(a=="DOWN")row=1;
+      if(a=="B"||(a=="A"&&row==0)){screen=Screen::ExitConfirm;row=2;}
+      else if(a=="A"&&row==1){saveOnExit(true);gameClosed=true;stop=true;}
     } else if (screen == Screen::Overwrite || screen == Screen::LoadConfirm ||
                screen == Screen::ExitConfirm) {
       if (a == "UP")
@@ -1028,7 +1023,7 @@ void App::action(const std::string &a) {
         screen = origin == Screen::Overwrite     ? Screen::SaveSlots
                  : origin == Screen::LoadConfirm ? Screen::LoadSlots
                                                  : Screen::GameMenu;
-        row = origin == Screen::ExitConfirm ? 4 : slot;
+        row = origin == Screen::ExitConfirm ? int(GameMenuItem::Exit) : slot;
       }
       if (confirmed) {
         if (origin == Screen::Overwrite) {
@@ -1044,8 +1039,10 @@ void App::action(const std::string &a) {
           core->paused = false;
           notice = locale.tr("notice.loaded");
           noticeUntil = monotonicMs() + 2000;
+        } else if(row==2) {
+          screen=Screen::DiscardConfirm;row=0;
         } else {
-          saveOnExit(row==2);
+          saveOnExit();
           gameClosed = true;
           stop = true;
         }
@@ -1105,6 +1102,29 @@ std::string App::infoKey() const {
   if(category==3 && row>=2)return row==2?"autosave":row==3?"startup_resume":row==4?"idle_screen":"battery_warning";
   return category == 1 ? (row == 0 ? "brightness" : row == 1 ? "scaling" : "game_background") : category == 2 ? "sound" : row == 0 ? "battery" : "lid";
 }
+void App::prepareGame(const Game &entry) {
+  if(soundTest){SDL_CloseAudioDevice(soundTest);soundTest=0;}
+  game=entry;
+        if (!game.available || !fs::is_regular_file(game.path)) {
+          notice = locale.tr("recent.unavailable");
+        } else if(fs::is_regular_file(options.coreFor(game.system))&&!coreEnabled(game.system)) {
+          notice=locale.tr("core.disabled");screen=Screen::CoreCatalog;featureScroll=0;row=0;
+          auto entries=installedCores();for(size_t i=0;i<entries.size();++i)if(entries[i].id==coreId(game.system))row=int(i);
+        } else if (!fs::is_regular_file(options.coreFor(game.system))) {
+          screen = Screen::Recovery;
+          notice = locale.tr("error.core_unavailable");
+        } else if(game.system=="PSX"&&psxMode(options,store.data)!="hle"&&!psxBiosAvailable(psxFirmwarePath(options,store.data))) {
+          screen=Screen::PsxFirmwareError;infoScroll=0;
+        } else if (latestResumeSlot()>=0) {
+          screen = Screen::ResumeChoice;
+          row = 0;
+        } else {
+          screen = Screen::Launching;
+          launch = true;
+          resume = false;
+        }
+  if(launch&&game.system=="PSX"&&!options.psxTestHle&&psxMode(options,store.data)=="hle"&&!store.data.value("psx_hle_warning_acknowledged",false)){launch=false;screen=Screen::PsxWarning;infoScroll=0;}
+}
 void App::rememberLaunch() {
   auto next=store.data;
   next["recent_games"]=recentAfterLaunch(next.at("recent_games"),game,options.volumes);
@@ -1113,6 +1133,7 @@ void App::rememberLaunch() {
   if (section=="Recent") { selected=0;scroll=0; }
 }
 std::string App::libraryTitle() const {
+  if(screen==Screen::SearchResults)return locale.tr("nav.results");
   if (section == "All") return locale.tr("section.all_title");
   if (section == "Favorites") return locale.tr("section.favorites_title");
   if (section == "Recent") return locale.tr("section.recent_title");
@@ -1209,6 +1230,7 @@ void App::batterySample(const std::string &event) {
 void App::saveOnExit(bool skipAutomatic) {
   if(core)core->stopRumble();else if(motor)motor->stop();
   volumeTick(true);
+  statisticsTick(true);
   if(!core)return;
   if(!skipAutomatic && store.data.value("autosave_enabled",true)) {
     auto origin=screen;
@@ -1298,7 +1320,9 @@ void App::powerTick(uint64_t now) {
   if(now>=powerSampleAt) {powerSampleAt=now+15000;if(device->canSleep() || brightness)batteryWarning(readTelemetry(),now);}
 }
 void App::ticks(unsigned n) {
+  statisticsTick();
   volumeTick();
+  screenshotTick();
   systemInfoTick();
   if(ui)powerTick(monotonicMs());
   wifiTick();
@@ -1354,17 +1378,21 @@ void App::sleep() {
   if (sleeping) return;
   try {wakeScreen();}catch(...){notice=locale.tr("power.screen_error");return;}
   if (!device->canSleep()) { notice=locale.tr("sleep.unsupported");return; }
+  statisticsTick();
   sleeping=true;
+  statisticsTick(true);
   if(motor)motor->stop();
   clockSleep();
   btSleep();
   wifiQueued={};wifiQueuedTask.clear();wifiToggle.reset();
   if(wifiJob.valid()) {wifiDevice->cancelled=true;wifiJob.wait();wifiTick();}
   wifiDevice->cancelled=false;wifiPollAt=0;
+  if(soundTest){SDL_CloseAudioDevice(soundTest);soundTest=0;}
   auto origin=screen; bool wasPaused=core?core->paused:true;
   try {
     while (bootPending()) { ticks(0);SDL_Delay(5); }
     if (core) { core->paused=true;core->buttons=0;core->axes={};core->silence();core->flushSram();core->closeAudio(); }
+    while(screenshotWriter.busy()){screenshotTick();SDL_Delay(1);}
     volumeTick(true); // Audio/emulation are paused; finish the last requested gain.
     batterySample("sleep_before");
     record("sleep:prepared");
@@ -1391,7 +1419,7 @@ void App::sleep() {
     }
     notice=locale.tr("sleep.error");record("sleep:failed");
   }
-  sleeping=false;
+  sleeping=false;statisticsTick();
 }
 const App::SlotView &App::slotView(int index) {
   auto path=store.gameDir(game)/stateName(index);
@@ -1446,6 +1474,7 @@ SDL_Rect App::gameViewport() const {
   return {(720-w)/2,(480-h)/2,w,h};
 }
 void App::draw() {
+  ui->contentFocus=!navigationActions||screen==Screen::GameMenu||screen==Screen::Running;
   ui->bluetoothEnabled=bt.enabled;
   // A game frame without a header must never inherit a previous menu's 100%.
   ui->batteryDisplay = {{"screen", screenName()}, {"header_visible", false},
@@ -1476,38 +1505,30 @@ void App::draw() {
       ui->text(std::to_string(batteryWarningPercent)+"%",630,30,22,500,ui->cream,56);
     }
     ui->volumeOverlay(volumeFeedback, locale, !notice.empty());
+    screenshotDraw();
     ui->present();
     batterySample();
     return;
   }
-  if (screen == Screen::Library) {
+  if(screen==Screen::ScreenshotSettings||screen==Screen::ScreenshotCapture) {
+    screenshotSettingsDraw(zone);
+  } else if(screen==Screen::Systems) {
+    systemsDraw(zone);
+  } else if(screen==Screen::LibraryPreferences||screen==Screen::LibraryMenu) {
+    libraryPreferenceDraw(zone);
+  } else if((screen==Screen::Library||screen==Screen::SearchResults)&&store.data.value("game_view","list")=="tiles") {
+    gameTilesDraw(zone);
+  } else if (screen == Screen::Library||screen==Screen::SearchResults) {
     auto v = visible();
     ui->frame(libraryTitle(), "", zone);
-    int x = 24;
-    for (auto &s : sections) {
-      std::string label = s == "All" ? tr("section.all") : s;
-      int w = s == "Favorites" || s == "Recent" ? 22 : ui->measure(label, 19, s == section ? 700 : 500);
-      if (x + w > 680)
-        break;
-      if (s == "Favorites" || s == "Recent")
-        ui->icon(s == "Favorites" ? "star-filled" : "clock", x, 86, 22);
-      else
-        ui->text(label, x, 85, 19, s == section ? 700 : 500);
-      if (s == section)
-        ui->rect(x, 115, w, 2, ui->accent);
-      x += w + 30;
-    }
-    if(!searchQuery.empty())ui->text(locale.tr("search.filter",{{"query",searchQuery}}),x,85,19,500,ui->secondary,std::max(1,672-x));
+    libraryQuickDraw();
     if (v.empty()) {
       ui->text(tr(!searchQuery.empty()?"search.empty":section == "Favorites" ? "empty.favorites" : section == "Recent" ? "empty.recent" : "empty.library"), 32, 182, 27, 700);
       ui->text(!searchQuery.empty()?tr("search.empty_help"):section == "Favorites"
                    ? locale.tr("empty.favorites_help", {{"button", ui->buttonLabel("X")}})
                    : tr(section == "Recent" ? "empty.recent_help" : "empty.library_help"), 32, 224,
                17, 500, ui->secondary);
-      std::vector<std::pair<std::string,std::string>> hints={{"Y",tr("search.title")},{"MENU",tr("screen.settings")}};
-      if(!searchQuery.empty())hints.push_back({"B",tr("search.clear")});
-      else hints.push_back({"L1/R1",tr("action.section")});
-      ui->hints(hints);
+
     } else {
       selected = std::clamp(selected, 0, int(v.size()) - 1);
       auto &g = games[v[selected]];
@@ -1527,7 +1548,7 @@ void App::draw() {
         int h = i == size_t(selected) && longRow ? 78 : 52;
         if (y + h > 128 && y < 408) {
           bool fav = std::find(favs.begin(), favs.end(), games[v[i]].id) != favs.end();
-          ui->row(games[v[i]].title, y, i == size_t(selected), 452, "", games[v[i]].available, h,
+          ui->row(games[v[i]].title, y, i == size_t(selected) && !navigationActions, 452, "", games[v[i]].available, h,
                   i == size_t(selected) ? (fav ? "star-filled" : "star") : fav ? "star" : "");
         }
         y += h + 2;
@@ -1542,36 +1563,40 @@ void App::draw() {
           previews.push_back({games[v[index]].path.parent_path()/(artwork+".png"),204,204,artwork=="cover"});
       }
       if (!g.available || !ui->artworkImage(previews, 492, 140, 204, 204)) {
-        ui->rect(492, 140, 204, 204, ui->focus, 9);
-        ui->icon("folder", 578, 193, 32);
-        if(!g.available||!ui->artworkPending)ui->text(tr(!g.available ? "recent.unavailable_short" : artwork == "cover"   ? "art.missing_cover"
-                    : artwork == "title" ? "art.missing_title"
-                                         : "art.missing_gameplay"),
-                 504, 244, 17, 500, ui->secondary, 180);
+        if(!g.available||!ui->artworkPending)ui->artworkPlaceholder(492,140,204,204,
+          tr(!g.available?"recent.unavailable_short":artwork=="cover"?"art.missing_cover":artwork=="title"?"art.missing_title":"art.missing_gameplay"),!g.available);
+        else ui->rect(492,140,204,204,ui->focus,9);
       }
-      for (int i = 0; i < 3; i++) {
-        bool on = (artwork == "cover" && i == 0) || (artwork == "title" && i == 1) ||
-                  (artwork == "screenshot" && i == 2);
-        ui->circle(570 + i * 20, 356, 8, on ? ui->cream : ui->secondary, on);
-      }
-      ui->text("‹", 546, 345, 23);
-      ui->text("›", 630, 345, 23);
-      auto label = tr(artwork == "cover"   ? "art.cover"
-                      : artwork == "title" ? "art.title"
-                                           : "art.gameplay");
-      ui->text(label, 594 - ui->measure(label, 18) / 2, 372, 18);
-      auto source = g.system + " · " + g.volume;
-      ui->text(source,594-ui->measure(source,17)/2,399,17,500,ui->secondary,204);
-      std::vector<std::pair<std::string,std::string>> hints;
-      if (g.available) hints.push_back({"A",tr("action.play")});
-      if(searchQuery.empty())hints.push_back({"X",tr("screen.favorites")});
-      hints.push_back({"Y",tr("search.title")});
-      hints.push_back({"MENU",tr("screen.settings")});
-      if(!searchQuery.empty())hints.push_back({"B",tr("search.clear")});
-      ui->hints(hints);
+      gamePositionDraw(g,v.size());
+
     }
   } else if(screen==Screen::SystemInfo) {
     systemInfoDraw();
+  } else if(screen==Screen::GameDetails) {
+    ui->frame(tr("nav.game_info"),"",zone);
+    std::string remaining=game.title;int y=104;
+    for(int line=0;line<3&&!remaining.empty();++line) {
+      auto part=remaining;while(!part.empty()&&ui->measure(part,25,700)>240)part=utf8Prefix(part,part.size()-1);
+      if(part.size()<remaining.size()&&line<2){auto space=part.find_last_of(' ');if(space!=std::string::npos&&space>part.size()/2)part.resize(space);}
+      if(line==2)part=ui->fit(remaining,240,25,700);
+      ui->text(part,24,y,25,700,ui->cream,240);remaining.erase(0,std::min(remaining.size(),part.size()));while(!remaining.empty()&&remaining.front()==' ')remaining.erase(0,1);y+=31;
+    }
+    remaining=systemName(game.system);y=214;
+    for(int line=0;line<2&&!remaining.empty();++line) {
+      auto part=remaining;while(!part.empty()&&ui->measure(part,21,500)>240)part=utf8Prefix(part,part.size()-1);
+      if(part.size()<remaining.size()&&line==0){auto space=part.find_last_of(' ');if(space!=std::string::npos)part.resize(space);}
+      if(line==1)part=ui->fit(remaining,240,21,500);
+      ui->text(part,24,y,21,500,ui->secondary,240);remaining.erase(0,std::min(remaining.size(),part.size()));while(!remaining.empty()&&remaining.front()==' ')remaining.erase(0,1);y+=25;
+    }
+    ui->text(tr("statistics.launches"),24,267,19,400,ui->secondary,240);
+    ui->text(gameInfoStatistics.empty()?"—":std::to_string(gameInfoStatistics.value("launches",0LL)),24,293,25,500,ui->cream,240);
+    ui->text(tr("statistics.time"),24,340,19,400,ui->secondary,240);
+    auto milliseconds=gameInfoStatistics.value("played_ms",-1LL);std::string duration="—";
+    if(milliseconds>=0){auto seconds=milliseconds/1000;duration=std::to_string(seconds/3600)+":"+(seconds/60%60<10?"0":"")+std::to_string(seconds/60%60)+":"+(seconds%60<10?"0":"")+std::to_string(seconds%60);}
+    ui->text(duration,24,366,25,500,ui->cream,240);
+    if(!game.available||!ui->artworkImage({{game.path.parent_path()/"cover.png",400,328,true}},296,84,400,328)) {ui->rect(296,84,400,328,ui->focus,8);ui->icon("image-off",472,212,48);}
+    std::vector<std::pair<std::string,std::string>> hints;
+    if(core||game.available)hints.push_back({"A",tr(core?"action.resume":"action.play")});hints.push_back({"B",tr(core?"screen.game_menu":"screen.library")});if(!core)hints.push_back({"X",tr("nav.favorites")});ui->hints(hints);
   } else if(screen==Screen::Search) {
     searchDraw();
   } else if(screen==Screen::Clock || screen==Screen::ClockEdit) {
@@ -1582,21 +1607,21 @@ void App::draw() {
     wifiDraw();
   } else if (screen == Screen::Settings) {
     const std::vector<std::string> labels = {"section.interface", "section.display", "section.sound",
-      "clock.title", "section.network", "section.power", "section.debug", "section.cores", "sysinfo.title", "power.restart", "power.shutdown"};
-    const std::vector<std::string> icons = {"palette","monitor","volume-2","clock","radio-tower","battery","activity","cpu","info","rotate-cw","power"};
+      "clock.title", "section.network", "section.power", "section.debug", "section.cores", "sysinfo.title", "power.sleep", "power.restart", "power.shutdown"};
+    const std::vector<std::string> icons = {"palette","monitor","volume-2","clock","radio-tower","battery","activity","cpu","info","moon","rotate-cw","power"};
     ui->frame(tr("screen.settings"), "", zone, "settings");
-    constexpr double viewport = 324, content = 11 * 54 + 16;
+    constexpr double viewport = 280, content = 12 * 54 + 16;
     const double top = settingsFocus * 54 + (settingsFocus >= 9 ? 16 : 0);
     if (top < settingsScroll) settingsScroll = top;
     if (top + 54 > settingsScroll + viewport) settingsScroll = top + 54 - viewport;
     settingsScroll = std::clamp(settingsScroll, 0.0, content - viewport);
-    SDL_Rect clip{16, 84, 672, 324};
+    SDL_Rect clip{16, 128, 672, 280};
     SDL_RenderSetClipRect(ui->renderer, &clip);
-    const int divider = 84 + 9 * 54 + 7 - int(settingsScroll);
+    const int divider = 128 + 9 * 54 + 7 - int(settingsScroll);
     ui->line(32,divider,672,divider,ui->separator);
-    for (int i = 0; i < 11; ++i) {
-      int y = 84 + i * 54 + (i >= 9 ? 16 : 0) - int(settingsScroll);
-      if (y + 52 > 84 && y < 408)
+    for (int i = 0; i < 12; ++i) {
+      int y = 128 + i * 54 + (i >= 9 ? 16 : 0) - int(settingsScroll);
+      if (y + 52 > 128 && y < 408)
         ui->row(tr(labels[i]), y, i == settingsFocus, 672, "", true, 52, "chevron-right", icons[i]);
     }
     SDL_RenderSetClipRect(ui->renderer, nullptr);
@@ -1628,8 +1653,8 @@ void App::draw() {
     else ui->hints({{"A",tr("action.open")},{"B",tr("action.back")}});
   } else if(screen==Screen::PsxCoreSettings) {
     ui->frame("Sony PlayStation",tr("section.cores"),zone);
-    ui->row(tr("psx.firmware"),128,row==0,672,tr("psx.mode."+store.data.value("psx_firmware","openbios")));
-    ui->row(tr("psx.controller"),182,row==1,672,tr("psx.controller."+store.data.value("psx_controller","digital")));
+    ui->valueRow(tr("psx.firmware"),128,row==0,672,tr("psx.mode."+store.data.value("psx_firmware","openbios")));
+    ui->valueRow(tr("psx.controller"),182,row==1,672,tr("psx.controller."+store.data.value("psx_controller","digital")));
     if(psxMode(options,store.data)=="bios") {
       auto selected=store.data.value("psx_bios_file","auto");
       ui->row(tr("psx.bios_file"),236,row==2,672,selected=="auto"?tr("psx.file_auto"):selected,true,52,"chevron-right");
@@ -1661,17 +1686,27 @@ void App::draw() {
       "section.power", "section.debug", "section.network"};
     ui->frame(tr(labels.at(category)), tr("screen.settings"), zone);
     if (category == 0) {
+      const int viewport=280;
+      if(row*54<interfaceScroll)interfaceScroll=row*54;
+      if(row*54+52>interfaceScroll+viewport)interfaceScroll=row*54+52-viewport;
+      interfaceScroll=std::clamp(interfaceScroll,0.0,8.0*54-viewport);
+      SDL_Rect clip{16,128,688,viewport};SDL_RenderSetClipRect(ui->renderer,&clip);
+      int offset=int(interfaceScroll);
       std::string name = locale.current;
       for (auto &l : locale.registry["locales"])
         if (l["code"] == locale.current) name = l["native_name"];
-      ui->row(tr("screen.language"),128,row==0,672,name,true,52,"chevron-right");
-      ui->row(tr("theme.title"),182,row==1,672,themeName(store.data.value("theme_id","rondo")),true,52,"chevron-right");
-      ui->binaryRow(tr("boot.label"),236,row==2,bootAcknowledged,locale,bootLogoSupported());
-      ui->row(tr("wizard.title"),290,row==3,672,"",!core,52,"chevron-right");
+      ui->row(tr("screen.language"),128-offset,row==0,672,name,true,52,"chevron-right");
+      ui->row(tr("theme.title"),182-offset,row==1,672,themeName(store.data.value("theme_id","rondo")),true,52,"chevron-right");
+      ui->binaryRow(tr("boot.label"),236-offset,row==2,bootAcknowledged,locale,bootLogoSupported());
+      ui->row(tr("wizard.title"),290-offset,row==3,672,"",!core,52,"chevron-right");
+      ui->row(tr("screenshot.title"),344-offset,row==4,672,"",true,52,"chevron-right");
+      const std::vector<std::string> names{"library_grouping","game_view","system_tiles"};
+      for(int i=0;i<3;++i)ui->row(tr("library."+names[i]),398+i*54-offset,row==5+i,672,libraryValue(names[i],store.data),true,52,"chevron-right");
+      SDL_RenderSetClipRect(ui->renderer,nullptr);ui->scrollbar(8*54,viewport,interfaceScroll,false,128,408);
     } else if (category == 4) {
       bool enabled = store.data.value("debug_enabled", false);
       ui->binaryRow(tr("debug.enabled"),128,row==0,enabled,locale);
-      ui->row(tr("debug.level"),182,row==1,672,tr("debug."+store.data.value("debug_level","events")),enabled);
+      ui->valueRow(tr("debug.level"),182,row==1,672,tr("debug."+store.data.value("debug_level","events")),enabled);
       ui->row(tr("debug.clear"),236,row==2,672,"",true,52,"chevron-right");
       ui->row(tr("input.test"),290,row==3,672,"",true,52,"chevron-right","joystick");
     } else if (category == 3) {
@@ -1686,17 +1721,17 @@ void App::draw() {
         int y=top+i*54-int(powerScroll);
         if(i==4) {
           int minutes=store.data.value(keys[i],5);
-          ui->row(tr(labels[i]),y,row==i,672,minutes?locale.tr("power.minutes",{{"minutes",minutes}}):tr("value.off"));
+          ui->valueRow(tr(labels[i]),y,row==i,672,minutes?locale.tr("power.minutes",{{"minutes",minutes}}):tr("value.off"));
         } else ui->binaryRow(tr(labels[i]),y,row==i,store.data.value(keys[i],true),locale,i!=1 || device->canSleep());
       }
       SDL_RenderSetClipRect(ui->renderer,nullptr);
       ui->rect(16,412,688,20,ui->bg);
       ui->scrollbar(content,viewport,powerScroll,false,128,412);
     } else if (category == 5) {
-      ui->row("Wi-Fi",128,row==0,672,"",true,52,"chevron-right");
-      ui->row("Bluetooth",182,row==1,672,"",true,52,"chevron-right");
+      ui->row("Wi-Fi",128,row==0,672,"",true,52,"chevron-right","wifi");
+      ui->row("Bluetooth",182,row==1,672,"",true,52,"chevron-right","bluetooth");
     } else if (category == 1) {
-      ui->row(tr("setting.brightness"),128,row==0,672,brightness ? std::to_string(*brightness)+"%" : "—",brightness.has_value());
+      ui->valueRow(tr("setting.brightness"),128,row==0,672,brightness ? std::to_string(*brightness)+"%" : "—",brightness.has_value());
       ui->binaryRow(tr("setting.integer_scaling"),182,row==1,store.data.value("integer_scaling",false),locale);
       ui->row(tr("setting.game_background"),236,row==2);
       auto backgroundName=tr("background."+store.data.value("game_background","black"));
@@ -1706,7 +1741,7 @@ void App::draw() {
     } else {
       bool supported = category == 2 || brightness.has_value();
       std::string value = category == 2 ? std::to_string(previewVolume)+"%" : brightness ? std::to_string(*brightness)+"%" : "—";
-      ui->row(tr(category==1?"setting.brightness":"setting.volume"),128,true,672,value,supported);
+      ui->valueRow(tr(category==1?"setting.brightness":"setting.volume"),128,true,672,value,supported);
     }
     const bool opens = (category == 0 && row != 2) || category == 5 || (category == 4 && row >= 2);
     std::vector<std::pair<std::string,std::string>> hints;
@@ -1737,7 +1772,9 @@ void App::draw() {
     ui->frame(tr("debug.clear"),tr("section.debug"),zone);
     std::istringstream lines(tr("debug.confirm"));std::string line;int y=150;
     while(std::getline(lines,line)) { ui->text(line,32,y,23,500,ui->cream,650);y+=42; }
-    ui->hints({{"A",tr("debug.clear")},{"B",tr("action.back")}});
+    ui->row(tr("action.cancel"),258,row==0);
+    ui->row(tr("debug.clear"),312,row==1);
+    ui->hints({{"A",tr("action.select")},{"B",tr("action.back")}});
   } else if (screen == Screen::Language) {
     ui->frame(tr("screen.language"), tr("editor.path_general"), zone);
     auto ls = locale.registry["locales"];
@@ -1781,30 +1818,31 @@ void App::draw() {
                {"B", tr("action.back")},
                {"LEFT/RIGHT",tr("timezone.letter")},{"X",tr("footer.info")}});
   } else if (screen == Screen::GameMenu) {
-    ui->frame(tr("screen.game_menu"), game.title, zone);
+    ui->frame(tr("screen.game_menu"), "", zone);
     std::vector<std::string> labels = {"action.resume", "action.save_state", "action.load_state",
-                                       "action.game_settings", "action.return_library"};
-    const std::vector<std::string> icons = {"play", "save", "folder", "settings", "arrow-left"};
-    for (int i = 0; i < 5; i++)
-      ui->row(tr(labels[i]), 128 + i * 54, row == i, 452, "",
-              !(i == 2 && !anySlots(*this)) && !(i == 1 && !core->canSave()), 52, "", icons[i]);
+                                       "screenshot.take", "action.game_settings", "nav.game_info", "action.exit_game"};
+    const std::vector<std::string> icons = {"play", "save", "folder-symlink", "camera", "settings", "info", "arrow-left"};
+    for (int i = 0; i < 7; i++)
+      ui->row(tr(labels[i]), 84 + i * 46, row == i, 452, "",
+              !(i == 2 && !anySlots(*this)) && !(i == 1 && !core->canSave()), 44, "", icons[i]);
     ui->pixels(core->frame, core->width, core->height, 492, 140, 204, 204);
-    ui->text(tr("game.paused"), 492, 365, 19);
-    ui->text(game.system,492,396,18,400,ui->secondary);
-    ui->hints({{"A", tr("action.select")}, {"B", tr("action.resume")}});
+    ui->text(game.title,492,350,19,500,ui->cream,204);
+    ui->text(tr("game.paused"), 492, 378, 19);
+    ui->text(game.system,492,404,18,400,ui->secondary);
+    ui->hints({{"A", tr("action.select")}, {"B", tr("action.resume")},{"Y",tr("nav.game_info")}});
   } else if (screen == Screen::GameSettings) {
     ui->frame(tr("screen.game_settings"), tr("scope.game"), zone);
     const auto &options = store.data.at("game_options");
     bool inherited = !options.contains(game.id) || !options.at(game.id).contains("integer_scaling");
     auto effective = tr(store.integerScaling(game.id)?"value.on":"value.off");
     auto value = inherited ? locale.tr("value.global_state",{{"value",effective}}) : effective;
-    if(game.system!="PSX")ui->row(tr("setting.integer_scaling"),128,row==0,672,value);
+    if(game.system!="PSX")ui->valueRow(tr("setting.integer_scaling"),128,row==0,672,value);
     if(core->discCount()>1)ui->row(tr("setting.disc"),128,row==0,672,std::to_string(core->discIndex()+1)+" / "+std::to_string(core->discCount()));
     if(game.system=="PSX") {
       int controllerRow=core->discCount()>1?1:0;
       bool inherited=!options.contains(game.id)||!options.at(game.id).contains("psx_controller");
       auto mode=tr(psxDualshock()?"psx.controller.dualshock":"psx.controller.digital");
-      ui->row(tr("psx.controller"),128+controllerRow*54,row==controllerRow,672,inherited?locale.tr("value.global_state",{{"value",mode}}):mode);
+      ui->valueRow(tr("psx.controller"),128+controllerRow*54,row==controllerRow,672,inherited?locale.tr("value.global_state",{{"value",mode}}):mode);
     }
     ui->hints({{"LEFT/RIGHT", tr("footer.value")}, {"B", tr("action.back")}, {"X", tr("footer.info")}});
   } else if (screen == Screen::SaveSlots || screen == Screen::LoadSlots) {
@@ -1814,7 +1852,7 @@ void App::draw() {
       const auto &view=slotView(i);
       auto label=view.present?(view.utc>0?slotDate(view.utc):tr("slot.saved")):tr("slot.empty");
       ui->row(label,128+i*54,row==i,452,"",screen==Screen::SaveSlots || view.compatible,52,"",
-              screen==Screen::SaveSlots?"save":"folder");
+              screen==Screen::SaveSlots?"save":"folder-symlink");
     }
     const auto &view=slotView(row);
     if (!view.pixels.empty()) ui->pixels(view.pixels,view.width,view.height,492,140,204,204);
@@ -1834,6 +1872,11 @@ void App::draw() {
     ui->row(tr("action.resume"),160,row==0);
     ui->row(tr("startup.library"),214,row==1);
     ui->hints({{"A",tr("action.select")},{"B",tr("startup.library")}});
+  } else if(screen==Screen::DiscardConfirm) {
+    ui->frame(tr("autosave.discard_confirm"),game.title,zone);
+    ui->row(tr("action.cancel"),182,row==0);
+    ui->row(tr("autosave.skip"),236,row==1);
+    ui->hints({{"A",tr("action.select")},{"B",tr("action.back")}});
   } else if (screen == Screen::ResumeChoice || screen == Screen::Overwrite || screen == Screen::DeleteSlot ||
              screen == Screen::LoadConfirm || screen == Screen::ExitConfirm) {
     std::string title = tr(screen == Screen::DeleteSlot ? "slot.delete_confirm" : screen == Screen::ResumeChoice  ? "resume.title"
@@ -1896,7 +1939,9 @@ void App::draw() {
     infoScroll = ui->info(tr("info." + key + ".title"), body, infoScroll, sections);
     ui->hints({{"B", tr("footer.close")}});
   }
+  navigationDraw();
   ui->volumeOverlay(volumeFeedback, locale, screen == Screen::Library && !notice.empty() && !infoOpen);
+  screenshotDraw();
   ui->present();
   batterySample();
 }

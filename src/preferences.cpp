@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 PAVEL TKACHEV
 #include "preferences.hpp"
+#include "screenshots.hpp"
 #include "libretro.h"
 #include <algorithm>
 namespace rondo {
@@ -43,6 +44,14 @@ uint16_t mappedButtons(const Json &data,const std::string &system,uint16_t held)
   return result;
 }
 void validatePreferences(const Json &data) {
+  if(data.contains("screenshot_sound")&&!data["screenshot_sound"].is_boolean())throw std::runtime_error("Invalid screenshot sound setting");
+  if(data.contains("screenshot_shortcut")) {
+    const auto &v=data["screenshot_shortcut"];
+    if(v!="sticks"&&v!="triggers"&&v!="select_r1"&&v!="custom"&&v!="off")throw std::runtime_error("Invalid screenshot shortcut");
+  }
+  if(data.contains("screenshot_custom")&&(!data["screenshot_custom"].is_number_integer()||data["screenshot_custom"].get<int64_t>()>65535||data["screenshot_custom"].get<int64_t>()<0||!validScreenshotChord(data["screenshot_custom"].get<int>())))throw std::runtime_error("Invalid screenshot combination");
+  for(const auto &entry:std::map<std::string,std::set<std::string>>{{"library_grouping",{"unified","systems"}},{"game_view",{"list","tiles"}},{"system_tiles",{"grid","large","rail"}}})
+    if(data.contains(entry.first)&&(!data[entry.first].is_string()||!entry.second.count(data[entry.first].get<std::string>())))throw std::runtime_error("Invalid library preference");
   if(data.contains("theme_id")&&!data["theme_id"].is_string())throw std::runtime_error("Invalid theme");
   if(data.contains("enabled_cores")) {if(!data["enabled_cores"].is_object())throw std::runtime_error("Invalid core selection");for(const auto &v:data["enabled_cores"].items())if(!v.value().is_boolean())throw std::runtime_error("Invalid core switch");}
   if(data.contains("input_mapping")) {
@@ -55,7 +64,7 @@ void validatePreferences(const Json &data) {
     }
   }
   if(data.contains("wizard")) {
-    const auto &w=data["wizard"];if(!w.is_object()||w.value("schema",0)!=1||!w.contains("step")||!w["step"].is_number_integer()||w["step"].get<int>()<0||w["step"].get<int>()>7||!w.contains("completed")||!w["completed"].is_boolean()||!w.contains("deferred")||!w["deferred"].is_boolean())throw std::runtime_error("Invalid setup progress");
+    const auto &w=data["wizard"];if(!w.is_object()||(w.value("schema",0)!=1&&w.value("schema",0)!=2)||!w.contains("step")||!w["step"].is_number_integer()||w["step"].get<int>()<0||w["step"].get<int>()>(w.value("schema",0)==2?8:7)||!w.contains("completed")||!w["completed"].is_boolean()||!w.contains("deferred")||!w["deferred"].is_boolean())throw std::runtime_error("Invalid setup progress");
   }
 }
 } // namespace rondo

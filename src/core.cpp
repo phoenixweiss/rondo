@@ -246,10 +246,26 @@ Json Core::videoGeometry() const {
   }
   return result;
 }
+bool Core::playScreenshotClick() {
+  if(!audio || volume<=0)return false;
+  // A short original two-pulse shutter sound, mixed into the existing device.
+  // No extra device open, file access, blocking delay or change to core timing.
+  screenshotClick=makeScreenshotClick(sampleRate,volume);screenshotClickOffset=0;
+  if(paused) {
+    bool ok=SDL_QueueAudio(audio,screenshotClick.data(),screenshotClick.size()*sizeof(int16_t))==0;
+    screenshotClick.clear();return ok;
+  }
+  return true;
+}
 size_t Core::audioBatch(const int16_t *data, size_t n) {
   auto &c = *active;
   c.audioFrames += n;
   auto mixed = mixVolume(data, n, c.volume);
+  if(!c.screenshotClick.empty()) {
+    for(size_t i=0;i<mixed.size()&&c.screenshotClickOffset<c.screenshotClick.size();++i)
+      mixed[i]=int16_t(std::clamp(int(mixed[i])+int(c.screenshotClick[c.screenshotClickOffset++]),-32768,32767));
+    if(c.screenshotClickOffset==c.screenshotClick.size()){c.screenshotClick.clear();c.screenshotClickOffset=0;}
+  }
   for (auto sample : mixed)
     c.audioPeak = std::max(c.audioPeak, std::abs(int(sample)));
   if (c.audio && SDL_GetQueuedAudioSize(c.audio) < size_t(c.sampleRate * .12 * 4))
@@ -312,6 +328,7 @@ void Core::openAudio() {
   SDL_PauseAudioDevice(audio,0);
 }
 void Core::silence() {
+  screenshotClick.clear();screenshotClickOffset=0;
   stopRumble();
   if (audio)
     SDL_ClearQueuedAudio(audio);
@@ -361,6 +378,7 @@ void Core::deleteSlot(int slot) {
   // Remove the overwrite backup first; a failure keeps the active slot intact.
   fs::remove(path.string() + ".previous");
   fs::remove(path);
+  syncDirectory(saveRoot);
   if (fs::exists(path)) throw std::runtime_error("Save deletion readback mismatch");
 }
 void Core::loadState(int slot) {

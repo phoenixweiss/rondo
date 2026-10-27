@@ -11,9 +11,9 @@ H700_SYSTEM_LIBS ?= -ldl -lpthread -lstdc++fs
 
 BASE = src/preferences.cpp src/model.cpp src/platform.cpp src/psx.cpp src/state.cpp src/rumble.cpp
 UI = $(BASE) src/artwork.cpp src/ui.cpp
-APP = $(UI) src/core.cpp src/app.cpp src/preferences_ui.cpp src/wizard_ui.cpp src/input_test_ui.cpp src/clock.cpp src/clock_ui.cpp src/wifi.cpp src/wifi_ui.cpp src/battery_log.cpp src/bluetooth.cpp src/bluetooth_ui.cpp src/system_info.cpp src/system_info_ui.cpp
-NATIVE_TESTS = preferences artwork input rumble state psx system-info md snes gba gb bluetooth battery-log model core device volume-ui timezone battery wifi clock
-H700_TESTS = preferences model artwork input rumble state psx system-info md snes gba gb bluetooth battery-log h700-device device timezone battery wifi h700-wifi clock h700-clock
+APP = $(UI) src/library_ui.cpp src/navigation.cpp src/game_statistics.cpp src/screenshots.cpp src/screenshot_ui.cpp src/core.cpp src/app.cpp src/preferences_ui.cpp src/wizard_ui.cpp src/input_test_ui.cpp src/clock.cpp src/clock_ui.cpp src/wifi.cpp src/wifi_ui.cpp src/battery_log.cpp src/bluetooth.cpp src/bluetooth_ui.cpp src/system_info.cpp src/system_info_ui.cpp
+NATIVE_TESTS = statistics library screenshot preferences artwork input rumble state psx system-info md snes gba gb bluetooth battery-log model core device volume-ui timezone battery wifi clock
+H700_TESTS = statistics library screenshot preferences model artwork input rumble state psx system-info md snes gba gb bluetooth battery-log h700-device device timezone battery wifi h700-wifi clock h700-clock
 
 all: $(BUILD)/rondo
 native-programs: all $(addprefix $(BUILD)/,$(addsuffix -tests,$(NATIVE_TESTS)))
@@ -80,9 +80,18 @@ $(eval $(call program,psx-benchmark,tests/psx_performance.cpp $(BASE) src/core.c
 
 $(eval $(call program,state-benchmark,$(APP) tests/state_performance.cpp,$$(LDLIBS)))
 
--include $(sort $(OBJECTS:.o=.d))
 .DELETE_ON_ERROR:
 .PHONY: all native-programs h700-programs test FORCE
 FORCE:
 
 $(eval $(call program,preferences-tests,tests/preferences_tests.cpp $(APP),$$(LDLIBS)))
+
+$(eval $(call program,screenshot-tests,tests/screenshot_tests.cpp $(APP),$$(LDLIBS)))
+$(BUILD)/screenshot-tests: $(BUILD)/rumble-fixture.so
+
+$(eval $(call program,library-tests,tests/library_tests.cpp $(APP),$$(LDLIBS)))
+
+$(eval $(call program,statistics-tests,tests/statistics_tests.cpp $(BASE) src/game_statistics.cpp,$$(LDLIBS)))
+
+# Include dependencies only after every program has registered its objects.
+-include $(sort $(OBJECTS:.o=.d))

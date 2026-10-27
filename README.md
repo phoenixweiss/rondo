@@ -20,6 +20,10 @@ The package baseline is BaseOS 1.3.0. Rondo has also been tested on RG34XXSP wit
 
 See [themes, core switches and button mapping](docs/preferences.md) and the [setup wizard](docs/setup.md) for available settings.
 
+Capture a game frame with L3 + R3 or the game-menu action; see [screenshots](docs/screenshots.md) for shortcuts and file locations.
+
+See [library layouts](docs/library.md) for system grouping, game tiles and navigation.
+
 ## Components
 
 - Library catalog and persistent preferences, with recovery after a failed write.
@@ -82,7 +86,7 @@ python3 -m venv .venv
 .venv/bin/python tools/check.py --work build/native-check
 ```
 
-The default build produces build/rondo. All five cores are built separately from source, with verified SHA-256 downloads and pinned revisions in docs/dependencies/core-source.json, gb-core-source.json, gba-core-source.json, snes-core-source.json and md-core-source.json. The check command builds the application and runs source, model, UI rendering, NES/GB/GBC/GBA/SNES/MD save/resume and device-policy tests with dummy video/audio drivers and an original test cartridge. The build/native-check directory must be new; omit --work to create a temporary directory automatically. Logs, renders and summary.json are saved there. Tests do not access an SD card or validate physical controls, brightness or suspend.
+The default build produces build/rondo. All six cores are built separately from source, with verified SHA-256 downloads and pinned revisions in docs/dependencies/core-source.json, gb-core-source.json, gba-core-source.json, snes-core-source.json, md-core-source.json and psx-core-source.json. The check command builds the application and runs source, model, UI rendering, NES/GB/GBC/GBA/SNES/MD/PSX save/resume and device-policy tests with dummy video/audio drivers and an original test cartridge. The build/native-check directory must be new; omit --work to create a temporary directory automatically. Logs, renders and summary.json are saved there. Tests do not access an SD card or validate physical controls, brightness or suspend.
 
 GitHub Actions runs these checks on Ubuntu and macOS for pushes to dev/main and pull requests. Workflow permissions are read-only; external actions are pinned to full commit hashes.
 
@@ -94,7 +98,9 @@ PYTHON=.venv/bin/python sh tools/demo.sh
 
 This command opens a window and plays the test cartridge sound. The demo library and state live under build/demo; set RONDO_DEMO_DIR to choose another location.
 
-Menus use arrows, Enter/Z to confirm, Esc/X to go back, C for favorites/info, V for search, Tab for settings, Q/E for sections, Tab for the in-game menu and =/- for volume. In NES/GB/GBC/GBA/SNES play, Z/X are A/B, Enter is Start and Right Shift is Select; Q/E are L/R for GBA and SNES; S/A are X/Y for SNES.
+Menus use arrows, Enter/Z to confirm, Esc/X to go back, C for favorites/info, V for game info, W/R for List/Tiles, F1 for the library action row, Tab for settings, Q/E for pages, Tab for the in-game menu and =/- for volume. In NES/GB/GBC/GBA/SNES play, Z/X are A/B, Enter is Start and Right Shift is Select; Q/E are L/R for GBA and SNES; S/A are X/Y for SNES.
+
+Interface screens can be captured with L3 + R3 (F12 on a keyboard); see [screenshots](docs/screenshots.md).
 
 Commercial ROMs, proprietary BIOS images and user saves are not included in the repository.
 

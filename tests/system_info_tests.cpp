@@ -32,7 +32,7 @@ int main(int argc,char **argv){
 #endif
  assert(process.start(command,monotonicMs()));finish(process);assert(process.error.empty());assert(process.result.contains("cards"));
  Options o;o.assets=argv[1];o.state=work/"state";o.output=work/"renders";o.headless=true;
- App a(o);auto original=a.store.data;a.action("MENU");a.settingsFocus=8;a.row=8;a.action("A");assert(a.screen==Screen::SystemInfo);assert(a.systemInfoRows().size()==4);
+ App a(o);auto original=a.store.data;a.action("MENU");if(a.screen==Screen::LibraryMenu)a.action("A");a.settingsFocus=8;a.row=8;a.action("A");assert(a.screen==Screen::SystemInfo);assert(a.systemInfoRows().size()==4);
  a.systemInfoData=data;a.systemInfoError.clear();a.systemInfoPage="sensors";auto readings=a.systemInfoRows();assert(readings[2].value=="3300.0 mAh");
  for(const auto *language:{"en","ru"}){a.locale.select(o.assets,language);
   a.systemInfoPage="root";a.systemInfoRow=0;a.systemInfoStack.clear();a.capture(std::string("root-")+language);a.action("A");assert(a.systemInfoPage=="device");

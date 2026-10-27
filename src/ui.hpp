@@ -27,7 +27,8 @@ class UI {
 public:
   std::unique_ptr<ArtworkCache> artworkCache;
   bool artworkPending=false;
-  bool artworkImage(const std::vector<ArtworkRequest> &,int,int,int,int);
+  bool contentFocus=true;
+  bool artworkImage(const std::vector<ArtworkRequest> &,int,int,int,int,bool schedule=true);
   SDL_Surface *surface = nullptr;
   SDL_Renderer *renderer = nullptr;
   Json tokens, themes;
@@ -55,6 +56,7 @@ public:
   void controllerEvent(const SDL_Event &);
   const Json &controllerDiagnostics();
   std::map<SDL_JoystickID,std::pair<std::string,uint64_t>> axisRepeats;
+  std::map<SDL_JoystickID,uint8_t> controllerTriggers;
   void refreshControllers();
   uint16_t controllerButtons(bool leftToDpad = true) const;
   std::array<int16_t,4> controllerAxes() const;
@@ -76,10 +78,11 @@ public:
   void text(std::string, int, int, int = 23, int = 500, SDL_Color = {}, int = 0);
   void rect(int, int, int, int, SDL_Color, int radius = 0);
   void line(int, int, int, int, SDL_Color);
-  void icon(const std::string &, int, int, int = 22);
+  void icon(const std::string &, int, int, int = 22,int height=0,SDL_Color color={});
   void frame(const std::string &, const std::string &, const std::string &timezone, const std::string &titleIcon = "");
   void row(const std::string &, int, bool, int = 672, const std::string &value = "",
-           bool enabled = true, int h = 52, const std::string &endIcon = "", const std::string &startIcon = "");
+           bool enabled = true, int h = 52, const std::string &endIcon = "", const std::string &startIcon = "", bool editableValue = false);
+  void valueRow(const std::string &,int,bool,int,const std::string &,bool enabled=true);
   void circle(int, int, int, SDL_Color, bool filled = false);
   void keycap(int x, int y, int width, bool round, SDL_Color, int height = 32, bool filled = false);
   void keyArrows(int x, int y, int width, bool vertical, SDL_Color);
@@ -89,6 +92,7 @@ public:
   int info(const std::string &, const std::string &, int scroll, const Json &sections = Json());
   void binaryRow(const std::string &, int, bool, std::optional<bool>, const Locale &, bool supported = true);
   bool image(const fs::path &, int, int, int, int, bool smooth);
+  void artworkPlaceholder(int,int,int,int,const std::string &,bool unavailable);
   void pixels(const std::vector<uint32_t> &, int, int, int, int, int, int, bool fitRawAspect = true);
   void scrollbar(double, double, double, bool library, int top = -1, int bottom = -1);
   void volumeOverlay(VolumeFeedback &, const Locale &, bool systemNotice = false);
