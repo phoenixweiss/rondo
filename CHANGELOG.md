@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## [0.13.0] - 2026-10-30
+## [0.13.1] - 2026-10-30
 
 ### Added
 
@@ -20,6 +20,7 @@
 - Keep directional game navigation within lists and cover tiles in all collections and search results. Select switches focus to and from the action panel without losing the current position.
 - Export PSX screenshots with correct display proportions while retaining native frame detail.
 - Keep system notifications visible above library navigation.
+- Finish H700 builds on Linux when Docker creates root-owned build reports.
 
 ## [0.12.0] - 2026-10-27
 
