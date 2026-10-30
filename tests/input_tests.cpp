@@ -7,20 +7,23 @@
 using namespace rondo;
 int main(int argc,char **argv){
   assert(argc==3);Options o;o.assets=argv[1];o.state=fs::path(argv[2])/"state";o.output=argv[2];o.headless=true;
-  App a(o);auto before=a.store.data;std::atomic<int> pulses{0};
-  a.motor=std::make_shared<Rumble>([&](bool on){if(on)++pulses;return true;});
+  std::atomic<int> pulses{0};std::atomic<bool> motorOn{false};App a(o);auto before=a.store.data;
+  a.motor=std::make_shared<Rumble>([&](bool on){motorOn=on;if(on)++pulses;return true;});
   a.screen=Screen::SettingsSection;a.category=4;a.row=3;a.action("A");assert(a.screen==Screen::InputTest);
   a.testInput(0,{},{});assert(a.testInputArmed);
   for(auto action:{"A","B","X","Y","UP","DOWN","VOLUME_UP","VOLUME_DOWN","SLEEP"})a.action(action);
   assert(a.screen==Screen::InputTest&&a.store.data==before&&!a.infoOpen);
   const uint16_t shoulders=(1<<RETRO_DEVICE_ID_JOYPAD_L)|(1<<RETRO_DEVICE_ID_JOYPAD_R)|(1<<RETRO_DEVICE_ID_JOYPAD_L2)|(1<<RETRO_DEVICE_ID_JOYPAD_R2);
   a.testInput(shoulders,{},{});
-  for(int i=0;i<100&&pulses==0;++i)SDL_Delay(5);
+  for(int i=0;i<400&&pulses==0;++i)SDL_Delay(5);
   assert(pulses==1);
   for(int i=0;i<100;++i)a.testInput(shoulders,{},{});
-  SDL_Delay(300);assert(pulses==1); // No repeating vibration while held.
+  // Wait for the watchdog acknowledgement, not a scheduling-dependent sleep.
+  // A second On can be coalesced while the worker has not yet applied Off.
+  for(int i=0;i<400&&motorOn;++i)SDL_Delay(5);
+  assert(!motorOn&&pulses==1); // No repeating vibration while held.
   a.testInput(0,{},{});a.testInput(shoulders,{},{});
-  for(int i=0;i<100&&pulses<2;++i)SDL_Delay(5);assert(pulses==2);
+  for(int i=0;i<400&&pulses<2;++i)SDL_Delay(5);assert(pulses==2);
   const uint16_t exit=(1<<RETRO_DEVICE_ID_JOYPAD_START)|(1<<RETRO_DEVICE_ID_JOYPAD_SELECT);
   a.testInput(exit,{},{});assert(a.screen==Screen::SettingsSection&&a.row==3&&a.category==4);
   a.openInputTest(true);a.testInput(exit,{},{});assert(a.screen==Screen::InputTest); // Entry-held chord is ignored.
