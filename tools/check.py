@@ -35,14 +35,17 @@ def run(name, command, timeout=120):
 
 
 run("source", [sys.executable, str(ROOT / "tools/check_source.py")])
+run("build-cache", [sys.executable, str(ROOT / "tests/build_cache_tests.py")])
+run("ci-reuse", [sys.executable, str(ROOT / "tests/ci_reuse_tests.py")])
 run("ci-scope", [sys.executable, str(ROOT / "tests/ci_scope_tests.py")])
 run("build-graph", [sys.executable, str(ROOT / "tests/build_graph_tests.py")])
 run("runtime-build-tools", [sys.executable, str(ROOT / "tests/runtime_build_tests.py")])
 run("release-tools", [sys.executable, str(ROOT / "tests/release_tests.py")])
+run("backup-faults", [sys.executable, str(ROOT / "tests/backup_fault_tests.py")])
 run("storage-sync", [sys.executable, str(ROOT / "tests/storage_sync_tests.py")])
 run("system-power", [sys.executable, str(ROOT / "tests/system_power_tests.py")])
 run("installer", [sys.executable, str(ROOT / "tests/installer_tests.py")])
-run("build", ["make", "-j4", "all", "build/statistics-tests", "build/battery-log-tests", "build/model-tests", "build/core-tests", "build/state-tests", "build/rumble-tests", "build/input-tests", "build/artwork-tests", "build/preferences-tests", "build/screenshot-tests", "build/library-tests",
+run("build", ["make", "-j4", "all", "build/progress-tests", "build/backup-tests", "build/backup-ui-tests", "build/statistics-tests", "build/battery-log-tests", "build/model-tests", "build/core-tests", "build/state-tests", "build/rumble-tests", "build/input-tests", "build/artwork-tests", "build/preferences-tests", "build/screenshot-tests", "build/library-tests",
               "build/device-tests", "build/system-info-tests", "build/psx-tests", "build/md-tests", "build/snes-tests", "build/gba-tests", "build/gb-tests", "build/bluetooth-tests", "build/volume-ui-tests", "build/timezone-tests", "build/battery-tests", "build/wifi-tests", "build/clock-tests"], timeout=300)
 run("system-info", [str(ROOT / "build/system-info-tests"), str(ROOT / "assets"), str(work / "system-info"), str(ROOT / "build/rondo")])
 run("library", [str(ROOT / "build/library-tests"), str(ROOT / "assets"), str(work / "library")])
@@ -51,6 +54,9 @@ run("preferences", [str(ROOT / "build/preferences-tests"), str(ROOT / "assets"),
 run("artwork", [str(ROOT / "build/artwork-tests"), str(ROOT / "assets"), str(work / "artwork")])
 run("rumble", [str(ROOT / "build/rumble-tests"), str(work / "rumble")])
 run("input", [str(ROOT / "build/input-tests"), str(ROOT / "assets"), str(work / "input")])
+run("progress", [str(ROOT / "build/progress-tests"), str(ROOT / "assets"), str(work / "progress")])
+run("backup", [str(ROOT / "build/backup-tests"), str(work / "backup")])
+run("backup-ui", [str(ROOT / "build/backup-ui-tests"), str(ROOT / "assets"), str(work / "backup-ui")])
 run("statistics", [str(ROOT / "build/statistics-tests"), str(work / "statistics")])
 run("state", [str(ROOT / "build/state-tests"), str(work / "state-container")])
 run("psx", [str(ROOT / "build/psx-tests"), str(ROOT / "assets"), str(work / "psx"), str(core), str(core.with_name("pcsx_rearmed_libretro."+extension)), str(ROOT / "runtime/test-fixtures/psx")])

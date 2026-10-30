@@ -1,77 +1,127 @@
-# Roadmap
+# Roadmap to the first stable release
 
-Rondo is early-stage, maintainer-led software. These are priorities, not delivery dates or a promise that every planned emulator or device will be supported.
+[0.12.0](https://github.com/phoenixweiss/rondo/releases/tag/v0.12.0) is a public
+early-development preview. The next product milestone is stable 1.0. This is a
+bounded scope and an order of work, not a delivery date or a promise to implement
+every backlog feature before 1.0. Actual deliveries belong in [CHANGELOG](../CHANGELOG.md).
 
-## Current baseline
+## Stable scope
 
-The first preview, [0.0.1](https://github.com/phoenixweiss/rondo/releases/tag/v0.0.1), is published. Its package, installation and basic NES workflow have been checked, including testing on RG34XXSP.
+- Anbernic RG34XXSP, with BaseOS 1.5.2 as the current development/test base.
+- NES, GB/GBC, GBA, SNES, Mega Drive and CHD-only PlayStation. Record specific
+  core/game limitations rather than promising every game runs at full speed.
+- Both TF1 and TF2 are required before 1.0. Safe single-card use remains supported.
+- Browser file transfer, network sync and online updates follow 1.0.
+- Bluetooth is experimental until controller input is verified. Unsupported
+  wake-on-lid-open stays unavailable. PSP is outside the project scope.
+- Other devices, Android and a separate website do not block the stable release.
 
-The [core feature review](feature-review.md) compares NextUI, MinUI and muOS with the current source, records partial support and gives stable capability IDs F01–F24. The review distinguishes open work, local implementations and released features.
+## What is already available
 
-## Agreed next steps
+The released baseline includes list/tile game views, optional system grouping,
+search, favorites and recents, artwork caching, game information and local playtime,
+PNG screenshots, save-slot deletion/previews, automatic saves/continuation, per-core
+button mappings and input testing, the rumble adapter, themes and first-run setup.
+Wi-Fi, manual/network time, diagnostics, volume/brightness and normal Power/lid
+sleep are implemented. Remaining device checks and defects do not mean these
+features need to be implemented again. See the current [capability review](feature-review.md).
 
-1. Follow up the accepted PSX CHD-only integration: platform-specific settings, rumble and broader game/BIOS performance checks, retaining regressions for all existing cores.
-2. Design a console-first library list with full system names before replacing the accepted handheld layout.
-3. Keep slight interface/game stutter in the optimization backlog. Compare disabled, normal and detailed diagnostic logging under matched conditions; logging is a hypothesis, not a demonstrated cause.
-4. Browser file transfer, network backup/save synchronization, online updates and artwork retrieval remain deferred; the website follows core functionality.
+## Ordered milestones
 
-## First: core functionality and everyday use
+### 1. A shorter, verifiable development and release cycle
 
-- Time-zone picker repair (F24) passed native and ARM64 checks and device testing on RG34XXSP, including persistence after restart. Its delivery is recorded in the changelog.
-- Collect reproducible device issues, unexpected behavior and missing features. Keep observed defects separate from feature ideas and track the checks still needed.
-- Wi-Fi controls, network discovery, masked password entry, known-network reconnect/forget and connection errors are implemented for H700 with native tests. Device testing accepted connection, reboot/sleep recovery and the revised menu/status display; exhaustive failures and signal calibration remain separate checks. See [Wi-Fi settings](wifi.md). Keep credentials out of diagnostics.
-- Add Bluetooth controls, discovery, pairing, connection management and device removal; verify supported profiles and devices individually.
-- Show Wi-Fi and Bluetooth status icons only while the corresponding radio is actually enabled. Distinguish enabled without a connection, connecting and connected states; verify updates after sleep and restart.
-- Battery percentage and its visibility toggle (F02) passed device testing on RG34XXSP. Verify charging/unknown states and low-level highlight separately; native checks passed.
-- Wake-on-open remains in the backlog after an unsuccessful exact-kernel helper experiment. The helper is not loaded and the option is unavailable on H700. Device testing accepted restored sleep-on-close and Power wake; establish the actual hall wake contract and power use before another experiment.
-- Investigate vibration support on RG34XXSP, distinguish system feedback from core rumble, and add supported behavior with persistent controls and an off option. Check motor shutdown during sleep, exit and errors.
-- Refine library headings, feedback, information screens and settings while preserving the accepted save-slot dates and previews.
-- Verify library and gameplay behavior across Power/lid sleep, repeated wake cycles, sound, brightness, input, SRAM, save slots and resume. Add diagnostics and regression coverage as each feature changes.
-- Keep installation, rollback, configuration and compatibility documentation aligned with tested behavior. A successful build is separate from physical device acceptance.
-- Add F04–F05/F07: configurable idle timers, safe shutdown/autosave and continuation, and verified user backup/restore and migration. F06 network/manual clock controls passed bounded device verification; retain broader RTC and error regression work.
+Measure queueing, dependency setup, compilation and checks separately. Remove
+identical native runs caused only by main/dev pushes; reuse validated dependency
+and object caches without accepting stale inputs. Separate candidate packaging,
+reproducibility checks and publication. Review the cadence of independent full
+rebuilds explicitly; retain source/license audits, exact-ref checks and downloaded
+artifact verification. Existing release gates remain in force until changed.
 
-This list grows with device testing and user feedback; it is not a complete inventory of planned functionality.
+Complete when a representative before/after comparison shows less duplicate work,
+cache invalidation is tested, and finished runs retain compact evidence and only
+the needed packages. Routine development must not require compiling unchanged cores.
 
-## Next: library and gameplay essentials
+### 2. Data safety, recovery and normal power operations
 
-- F08–F09: recent games, safe game switching, search, collections and large-library navigation.
-- Design a console-first library list for handhelds, inspired by NextUI, with
-  full system names and navigation into each system's games. Agree the design
-  before replacing the current layout.
-- F10–F13: control remapping, hotkeys/turbo, fast-forward, measured rewind, user screenshots and scoped core options.
-- F14–F16: BIOS/format/disc support as systems are integrated, external controllers/audio routing and image/performance options.
-- F17–F18: local playtime tracking, user data transfer and conflict-aware save sync after networking and backup are ready.
+Identify FAT inconsistencies across host/card and console workflows; separate
+host-side trash changes from game/state writes. Verify saves, logging, shutdown,
+restart, suspend and interrupted/no-space writes. Add versioned user export/restore
+for settings, SRAM/RTC, states and statistics, validated before replacing data.
+Define safe progress relinking after game moves or renames without relying on titles.
 
-## Next: game systems and library support
+Complete when controlled normal-use cycles preserve data, failures leave a usable
+last valid copy, and backup/restore is exercised on a clean copy. Include the final
+library status placement and the Settings Sleep action in this hardware regression.
+Forced power loss on FAT cannot be advertised as universally lossless.
 
-- NES, GB/GBC, GBA, SNES, Mega Drive and PSX have been tested on RG34XXSP, including saves and continuation. Keep regression coverage across all cores and expand game-specific performance and BIOS checks.
-- Investigate two-card library behavior, duplicate handling, missing cards and state-storage placement.
-- Investigate wider H700 hardware support separately before promising compatibility. PSP is outside the project scope.
+### 3. Measured performance and audio fixes
 
-## Optional research
+Profile heavy PSX, GBA and SNES scenes and a 1000+ game library. Measure frame timing,
+audio underruns, input/volume latency, CPU/RAM/storage, and cold/warm artwork caches.
+Compare diagnostic levels and relevant BIOS/core modes under matched conditions;
+optimize demonstrated bottlenecks rather than assuming logging or firmware is the cause.
 
-F19–F23 cover RetroAchievements, cheats, measured CPU/power profiles, battery history, supported color/LED controls, and artwork/tools. They need separate core, hardware, licensing or service checks and do not block all other work.
+Complete when comparable device measurements show the improvement, ordinary input
+and volume changes do not stall emulation, and fixes retain saves/sleep/input across
+all existing cores. Record concrete unsupported game modes where needed.
 
-## Later: website and community
+### 4. Controls and everyday device behavior
 
-The Vue website follows the agreed core functionality and device work. Revisit its start after reviewing that progress; additional-device investigations need not all be finished first.
+Validate existing mappings/reset, PSX controller modes/sticks, menu transitions and
+actual rumble in compatible games. Fix the 8BitDo Micro D input path and reconnect/
+sleep behavior without blocking UI or gameplay. If it is not ready at RC, Bluetooth
+remains clearly experimental and outside the stable support claim; pairing alone
+is insufficient. Additional profiles and Bluetooth audio are separate work.
 
-- A separate website build under website/, with English and Russian content, actual screenshots, installation and compatibility information, and links to canonical releases.
-- A considered explanation of the Rondo name.
-- Independent website versioning, CI and deployment.
-- Revisit the contribution process when the architecture and maintenance capacity are more mature.
+Complete a device matrix covering representative games, SRAM/states/continuation,
+Power/lid sleep, screenshots, sound/brightness, English/Russian UI, Wi-Fi failures,
+clock recovery and battery/charging status. Existing features need regression,
+not another wholesale interface redesign.
 
-The public dev branch receives small, verified changes. README capabilities describe the checked-out code. Releases and website deployments have separate verification and versioning.
+### 5. Two-card library support
 
-Versioned delivery is recorded in [CHANGELOG](../CHANGELOG.md), using [the release contract](release.md). The future website should distinguish this backlog from implemented and released capabilities.
+Agree the TF1/TF2 data contract and UX first: game/copy identity, locations for
+progress/configuration/BIOS/cache, duplicate versions and when to show the source
+card. Implement safe migration, missing/returning TF2, read-only/full storage and
+consistent search/favorites/recents/statistics. Do not silently merge progress or
+promise that removing a working card during play is a supported hot-swap operation.
 
-### Distant platform ideas
+Complete one hardware pass covering TF1 alone, both cards, duplicates, migration,
+missing media and an update without losing progress. Manual card-based game import
+remains available; network file transfer is not a dependency.
 
-Explore Android tablets and Android TV later, using the original Rondo layout
-as a possible large-screen direction. Touch, remote and gamepad interaction need
-separate design and implementation; these platforms are not currently supported.
+### 6. Installation, beta/RC and stable 1.0
 
+Provide one clear clean-install/update path from 0.12.0, backup/recovery instructions,
+English/Russian setup material, real screenshots and usable diagnostics. Align
+package baseline metadata with the declared BaseOS contract. Select and test the
+advertised BaseOS matrix before 1.0 instead of testing every historical OS routinely.
+Retain component licenses and clarify the technical test-cartridge artwork notice.
+Any optional user demo games need verified redistribution rights and explicit credits;
+their absence does not block 1.0. A graphical installer is not required.
 
-### Controller configuration
+Freeze features for RC. Exercise clean installation and upgrade with TF2 in two
+complete passes. Fix blocking boot/data/power/control/library defects before release;
+document actual core/game and experimental-feature limits. Then follow the
+[release contract](release.md): Bumpster, CI, draft, asset verification, authorized
+publication and public download readback. A green build alone is not the stable gate.
 
-Add per-core control mapping with persistent settings. Prefer a schematic of the original controller, live button highlighting and guided remapping, inspired by OpenEmu. If a readable diagram is impractical at 720×480, use a clear action/button list with live input indication, similar to NextUI's input tester. Keep built-in-console input diagnostics as a related but separate tool; include reset-to-default, unbound/duplicate handling and protection for menu/confirmation navigation.
+## After 1.0
+
+- Browser transfer of folders/ZIP, then SMB and separately researched USB exchange;
+  conflict-aware backup/sync, online updates and artwork acquisition.
+- Screenshot gallery, fast-forward/turbo/hotkeys, collections/game switching,
+  broader core-option overrides and measured rewind.
+- PICO-8 after runtime/content-license work; profiles/PIN, localized game metadata,
+  achievements/cheats, CPU/display/LED options and restrained blurred backgrounds.
+- Battery-gauge/offline-charging research, wake-on-open and additional controllers/
+  rumble profiles. New data-safety or power faults override the ordinary queue.
+- A separate Vue website in English/Russian, based on real features, screenshots,
+  installation, credits and release history, with its own version/CI/deployment.
+- Additional H700 devices and Android tablet/TV interaction as separate projects.
+
+## Working rhythm
+
+Use complete, meaningful batches: quiet native checks, one BaseOS preflight and
+one combined hardware test. Do not make every cosmetic edit a separate SD update.
+Add new ideas to the later backlog rather than silently enlarging the stable gate.

@@ -19,8 +19,12 @@ void App::btSleep() {
   try {btDevice->stopScan();}catch(...) {}
   btPollAt=0;
 }
-void App::btResume() {
-  if(!btDevice || !btDevice->supported() || !store.data.value("bluetooth_enabled",false))return;
+void App::btResume(bool applyDisabled) {
+  if(!btDevice || !btDevice->supported())return;
+  if(!store.data.value("bluetooth_enabled",false)) {
+    if(applyDisabled){auto device=btDevice;btRun("restore_off",[device]{return device->enable(false);});}
+    return;
+  }
   auto device=btDevice;auto address=store.data.value("bluetooth_device","");
   btRun("resume",[device,address]{
     auto state=device->enable(true);

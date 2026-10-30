@@ -69,7 +69,7 @@ int main(int argc,char **argv){
   s.pixels={0xff012345,0xffabcdef};s.payload.resize(0x440000);for(size_t i=0;i<s.payload.size();++i)s.payload[i]=uint8_t(i);
   writeState(path,s);assert(readState(path).payload==s.payload&&readState(path).pixels==s.pixels);
   assert(readState(path,StateRead::Metadata).payload.empty()&&readState(path,StateRead::Metadata).pixels.empty());
-  auto original=readBytes(path);auto bad=[&](std::vector<uint8_t> bytes){atomicWrite(path,bytes);bool rejected=false;try{readState(path);}catch(...){rejected=true;}assert(rejected);};
+  auto original=readBytes(path);assert(decodeState(original).payload==s.payload);auto bad=[&](std::vector<uint8_t> bytes){atomicWrite(path,bytes);bool rejected=false;try{readState(path);}catch(...){rejected=true;}assert(rejected);};
   for(auto offset:{size_t(0),size_t(8),size_t(16),size_t(20),size_t(90),original.size()-1}){auto bytes=original;bytes[offset]^=0xff;bad(std::move(bytes));}
   for(auto length:{size_t(0),size_t(7),size_t(83),original.size()-1})bad({original.begin(),original.begin()+length});
   auto bytes=original;bytes.push_back(0);bad(bytes);
@@ -81,6 +81,18 @@ int main(int argc,char **argv){
   // Failed writes must leave the prior active generation readable.
   auto target=path.parent_path()/"blocked";fs::create_directory(target);std::ofstream(target/"keep")<<"keep";
   bool failed=false;try{writeState(target,s);}catch(...){failed=true;}assert(failed&&readState(path).payload==s.payload);
+  auto recover=path.parent_path()/"recover.state";
+  writeState(recover,s);atomicWrite(recover.string()+".previous",readBytes(recover));
+  fs::remove(recover);
+  auto recovered=readRecoverableState(recover);assert(recovered.recovered&&recovered.payload==s.payload);
+  atomicWrite(recover,{'b','a','d'});
+  assert(readRecoverableState(recover,StateRead::Preview).recovered);
+  auto damaged=readBytes(recover.string()+".previous");damaged.back()^=1;
+  atomicWrite(recover,damaged);assert(readRecoverableState(recover).recovered);
+  // A preview read remains independent of the heavy core payload.
+  assert(!readRecoverableState(recover,StateRead::Preview).recovered);
+  atomicWrite(recover.string()+".previous",{'b','a','d'});
+  failed=false;try{readRecoverableState(recover);}catch(...){failed=true;}assert(failed);
   interruptedWrites(path.parent_path()/"interrupted-writes");
   std::cout<<"PASS: bounded state container, endian-safe preview, corruption/truncation/oversize rejection and atomic failure.\n";
 }

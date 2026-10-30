@@ -160,5 +160,7 @@ const std::string address="AA:BB:CC:DD:EE:FF";
   app.action("B");app.row=0;app.action("LEFT");wait(app);assert(!app.bt.enabled && !fake->on);
   app.action("B");assert(app.screen==Screen::SettingsSection && app.category==5 && app.row==1);
   Store restart(options.state);assert(!restart.data.value("bluetooth_enabled",true));
+  fake->on=true;app.btResume();assert(fake->on&&!app.btJob.valid());
+  app.btResume(true);wait(app);assert(!fake->on&&!app.bt.enabled);
   std::cout<<"PASS: BlueZ parser, validated argv targets, readback failures, bounded discovery model, EN/RU UI, preference rollback, pairing/trust/connect/disconnect/forget, scrolling and reconnect after sleep; no host Bluetooth accessed.\n";
 }

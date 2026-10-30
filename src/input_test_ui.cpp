@@ -6,6 +6,14 @@ namespace rondo {
 // Shared by the interactive event loop and physical-input integration checks.
 void App::sampleInput() {
   auto &a=*this;
+  if(a.restoreInputFence) {
+    int count=0;const auto *keys=SDL_GetKeyboardState(&count);bool held=false;
+    for(int i=0;i<count;++i)held|=keys[i]!=0;
+    held|=a.ui->controllerButtons(false)!=0;
+    for(const auto *key:{"A","B","X","Y","UP","DOWN","LEFT","RIGHT","MENU","START","SELECT","L1","R1","L2","R2","L3","R3"})held|=a.ui->handheldKeys->pressed(key);
+    if(!held)a.restoreInputFence=false;
+    return;
+  }
   bool recording=a.screen==Screen::ScreenshotCapture;
   bool testing=a.screen==Screen::InputTest||recording;
   bool gameFrame=a.core&&(a.screen==Screen::Running||a.screen==Screen::GameMenu);

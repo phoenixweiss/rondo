@@ -11,6 +11,23 @@ int main(int argc,char **argv){
  auto saved=GameStatistics::read(path,"stable-id");assert(saved["played_ms"]==2500&&saved["historical_time_unknown"]==true);
  {GameStatistics stats(path,"stable-id",200000);stats.tick(200000,true);for(int i=1;i<1000;++i)stats.tick(200000+i,true);assert(stats.writesStarted==1);assert(stats.flush(201000));}
  saved=GameStatistics::read(path,"stable-id");assert(saved["launches"]==2&&saved["played_ms"]==3500);
+ auto previous=readBytes(path.string()+".previous");
+ atomicWrite(path,{'b','a','d'});
+ auto recovered=GameStatistics::read(path,"stable-id");assert(!recovered.empty());
+ {GameStatistics stats(path,"stable-id",202000);assert(stats.flush(202000));}
+ assert(readBytes(path.string()+".previous")==previous);
+ fs::remove(path);assert(GameStatistics::read(path,"stable-id")==Json::parse(previous));
+ atomicWrite(path,previous);
+ auto future=Json::parse(previous);future["schema"]=2;auto encoded=future.dump();atomicWrite(path,{encoded.begin(),encoded.end()});
+ bool futureRejected=false;try{GameStatistics stats(path,"stable-id",0);}catch(...){futureRejected=true;}assert(futureRejected);
+ assert(readJson(path)["schema"]==2);atomicWrite(path,previous);
+ atomicWrite(path,{'[',']'});assert(!GameStatistics::read(path,"stable-id").empty());atomicWrite(path,previous);
+ auto blockedBackup=root/"backup-failure/statistics.json";
+ {GameStatistics stats(blockedBackup,"backup-failure",0);assert(stats.flush(0));}
+ auto activeBefore=readBytes(blockedBackup);fs::create_directory(blockedBackup.string()+".previous");
+ {GameStatistics stats(blockedBackup,"backup-failure",0);assert(!stats.flush(0));assert(readBytes(blockedBackup)==activeBefore);
+  fs::remove(blockedBackup.string()+".previous");assert(stats.flush(0));}
+ assert(readBytes(blockedBackup.string()+".previous")==activeBefore);
  auto hash=hashFile(path);bool rejected=false;try{GameStatistics stats(path,"wrong-id",0);}catch(...){rejected=true;}assert(rejected&&hashFile(path)==hash);
  auto blocked=root/"blocked";atomicWrite(blocked,{1});{GameStatistics stats(blocked/"statistics.json","retry",0);stats.tick(0,true);assert(!stats.flush(1000));assert(!stats.error.empty());fs::remove(blocked);assert(stats.flush(1000));}
  assert(GameStatistics::read(blocked/"statistics.json","retry")["launches"]==1);

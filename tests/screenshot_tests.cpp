@@ -10,7 +10,7 @@ using namespace rondo;
 static void finish(App &a){for(int i=0;i<5000&&a.screenshotWriter.busy();++i){a.screenshotTick();SDL_Delay(1);}assert(!a.screenshotWriter.busy());}
 static std::vector<fs::path> images(const fs::path &root){std::vector<fs::path> out;if(fs::exists(root))for(const auto &p:fs::recursive_directory_iterator(root))if(p.path().extension()==".png")out.push_back(p.path());return out;}
 int main(int argc,char **argv) {
-  assert(argc==4);SDL_setenv("SDL_VIDEODRIVER","dummy",1);SDL_setenv("SDL_AUDIODRIVER","dummy",1);
+  assert(argc==4||argc==5);SDL_setenv("SDL_VIDEODRIVER","dummy",1);SDL_setenv("SDL_AUDIODRIVER","dummy",1);
   fs::path work=argv[2];fs::create_directories(work);auto root=work/"state";
   {Store old(root);auto legacy=old.data;legacy.erase("screenshot_shortcut");legacy.erase("screenshot_custom");old.commit(legacy);}
   Options o;o.assets=argv[1];o.state=root;o.core=argv[3];o.headless=true;o.output=work/"captures";
@@ -117,5 +117,30 @@ int main(int argc,char **argv) {
   other.system="GB";assert(capture(other).parent_path()==folders/"GB/Battle City");assert(readBytes(folders/"Battle City-legacy/keep.txt")==std::vector<uint8_t>({7}));
   first.title="../Bad / Name";auto safe=capture(first);assert(safe.lexically_relative(folders).string().find("../")==std::string::npos);
   a.options.state=root;a.screenshotMessageUntil=0;
+  // PSX uses display geometry, preserving every native source pixel by only
+  // expanding an axis. High-resolution 512/640-wide modes retain their detail.
+  a.core=std::make_unique<Core>(o.core,game,work/"aspect-core",true);a.game=game;
+  auto oldGame=a.game;int oldWidth=a.core->width,oldHeight=a.core->height;auto oldFrame=a.core->frame;auto oldAspect=a.core->aspectRatio;
+  a.game.system="PSX";a.screen=Screen::Running;a.store.data["screenshot_sound"]=false;
+  for(const auto &size:std::vector<std::pair<int,int>>{{368,480},{256,240},{320,240},{512,240},{640,240},{640,480},{384,288}}) {
+    a.core->width=size.first;a.core->height=size.second;a.core->aspectRatio=4.0/3;
+    a.core->frame.assign(size_t(size.first)*size.second,0xff123456);a.core->frame.front()=0xffff0000;a.core->frame.back()=0xff00ff00;auto unchangedFrame=a.core->frame;
+    auto beforeShots=images(root/"Screenshots");a.takeScreenshot();finish(a);auto afterShots=images(root/"Screenshots");fs::path created;
+    for(const auto &p:afterShots)if(std::find(beforeShots.begin(),beforeShots.end(),p)==beforeShots.end())created=p;assert(!created.empty());
+    pixels=stbi_load(created.c_str(),&w,&h,&n,4);assert(pixels&&w>=size.first&&h>=size.second&&std::abs(double(w)/h-4.0/3)<0.005);
+    assert(pixels[0]==255&&pixels[1]==0&&pixels[2]==0);auto last=(size_t(w)*h-1)*4;assert(pixels[last]==0&&pixels[last+1]==255&&pixels[last+2]==0);stbi_image_free(pixels);assert(a.core->frame==unchangedFrame);
+    if(size.first==368&&size.second==480)assert(w==640&&h==480);
+    if(size.first==512&&size.second==240)assert(w==512&&h==384);
+    if(size.first==640&&size.second==240)assert(w==640&&h==480);
+  }
+  a.game=oldGame;a.core->width=oldWidth;a.core->height=oldHeight;a.core->frame=std::move(oldFrame);a.core->aspectRatio=oldAspect;
+  // Optional private raw PSX capture: exercise the actual export pipeline without
+  // adding game artwork or user screenshots to the repository.
+  if(argc==5) {
+    pixels=stbi_load(argv[4],&w,&h,&n,4);assert(pixels);std::vector<uint32_t> input(size_t(w)*h);
+    for(size_t i=0;i<input.size();++i)input[i]=0xff000000u|(uint32_t(pixels[4*i])<<16)|(uint32_t(pixels[4*i+1])<<8)|pixels[4*i+2];stbi_image_free(pixels);
+    Game psx{"private-psx-capture","TF1","PSX","Display aspect check",{}};ScreenshotWriter exportWriter;assert(exportWriter.submit(work/"corrected-psx",psx,input,w,h,"test",4.0/3));
+    std::optional<fs::path> file;for(int i=0;i<5000&&!file;++i){file=exportWriter.poll();if(!file)SDL_Delay(1);}assert(file);fs::copy_file(*file,work/"psx-corrected.png");
+  }
   std::cout<<"PASS: raw PNG colors/dimensions, unique paths, no repeat/input leak, menu pause, presets/custom/persistence, rejected writes, EN/RU renders, asynchronous errors.\n";
 }

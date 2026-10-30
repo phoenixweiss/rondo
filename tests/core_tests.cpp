@@ -31,6 +31,18 @@ int main(int argc, char **argv) {
     assert(c.stateHash() != hash);
     c.loadState(0);
     assert(c.stateHash() == hash);
+    c.save(2);const auto recoveryHash=c.stateHash();
+    for(int i=0;i<20;++i)c.tick();c.save(2);
+    const auto recoveryBytes=readBytes(state/"slot-2.state.previous");
+    auto broken=readBytes(state/"slot-2.state");broken.back()^=1;
+    atomicWrite(state/"slot-2.state",broken);c.loadState(2);
+    assert(c.stateRecovered&&c.stateHash()==recoveryHash);
+    c.save(2);assert(readBytes(state/"slot-2.state.previous")==recoveryBytes);
+    fs::remove(state/"slot-2.state");assert(c.compatible(2));c.loadState(2);assert(c.stateRecovered);
+    auto foreign=readState(state/"slot-2.state.previous");foreign.meta["rom"]="foreign";
+    writeState(state/"slot-2.state",foreign);assert(!c.compatible(2));
+    bool foreignRejected=false;try{c.loadState(2);}catch(...){foreignRejected=true;}assert(foreignRejected);
+    c.deleteSlot(2);
     c.save(1);c.save(1);assert(fs::exists(state/"slot-1.state.previous"));
     c.deleteSlot(1);assert(!fs::exists(state/"slot-1.state")&&!fs::exists(state/"slot-1.state.previous"));
     c.deleteSlot(1); // Repeating an acknowledged deletion remains harmless.
@@ -69,6 +81,17 @@ int main(int argc, char **argv) {
     c.flushSram();
     assert(readBytes(state / "sram.bin")[0] == persisted);
   }
+  const auto validMemory=readBytes(state/"sram.bin");
+  atomicWrite(state/"sram.bin.previous",validMemory);
+  for(bool missing:{false,true}) {
+    if(missing)fs::remove(state/"sram.bin");else atomicWrite(state/"sram.bin",{1});
+    {Core c(argv[1],g,state,true);assert(c.memoryRecovered==std::vector<std::string>{"sram.bin"});c.flushSram();}
+    assert(readBytes(state/"sram.bin")==validMemory&&readBytes(state/"sram.bin.previous")==validMemory);
+  }
+  atomicWrite(state/"sram.bin",{1});atomicWrite(state/"sram.bin.previous",{2});
+  bool refused=false;try{Core c(argv[1],g,state,true);}catch(...){refused=true;}assert(refused);
+  assert(readBytes(state/"sram.bin")==std::vector<uint8_t>{1});
+  atomicWrite(state/"sram.bin",validMemory);atomicWrite(state/"sram.bin.previous",validMemory);
   std::cout << "Real FCEUmm: video/audio callbacks, state roundtrip, wrong-ROM "
                "rejection and SRAM restart passed.\n";
 }

@@ -5,6 +5,7 @@ import json
 import shutil
 import subprocess
 import sys
+import time
 import urllib.request
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -40,12 +41,22 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--work", type=Path, required=True, help="New disposable build directory")
     parser.add_argument("--cache", type=Path, default=ROOT / "build/h700-cache")
+    parser.add_argument("--compiled-cache", type=Path, default=ROOT / "build/h700-dependencies")
+    parser.add_argument("--fresh", action="store_true", help="Build all dependencies independently, without compiled caches")
     args = parser.parse_args()
+    started = time.monotonic()
     work, cache = args.work.resolve(), args.cache.resolve()
     if work == ROOT or ROOT in work.parents and work.relative_to(ROOT).parts[0] != "build":
         parser.error("Work must be outside the source tree or below build/")
     if cache == ROOT or ROOT in cache.parents and cache.relative_to(ROOT).parts[0] != "build":
         parser.error("Cache must be outside the source tree or below build/")
+    compiled_cache = args.compiled_cache.resolve()
+    if compiled_cache == ROOT or ROOT in compiled_cache.parents and compiled_cache.relative_to(ROOT).parts[0] != "build":
+        parser.error("Compiled cache must be outside the source tree or below build/")
+    if compiled_cache == work or work in compiled_cache.parents or compiled_cache in work.parents:
+        parser.error("Compiled cache and work must be separate directories")
+    if not args.fresh:
+        compiled_cache.mkdir(parents=True, exist_ok=True)
     work.mkdir(parents=True, exist_ok=False)
     cache.mkdir(parents=True, exist_ok=True)
     source = work / "source"
@@ -79,6 +90,8 @@ def main():
     command = ["docker", "run", "--rm", "--network", "none", "--platform", lock["platform"],
                "-v", str(source) + ":/src:ro", "-v", str(work) + ":/work",
                "--entrypoint", "/bin/bash", lock["toolchain_image"], "/src/runtime/build-all.sh"]
+    if not args.fresh:
+        command[2:2] = ["-v", str(compiled_cache) + ":/compiled-cache", "-e", "RONDO_DEPENDENCY_CACHE=1"]
     print("Building from a frozen source snapshot in " + str(work), flush=True)
     with (work / "build.log").open("w") as log:
         subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=1800)
@@ -86,6 +99,9 @@ def main():
     package = work / "output" / result["package"]
     if sha(package) != result["sha256"]:
         raise ValueError("Package readback mismatch")
+    timing = json.loads((work / "cache-result.json").read_text())
+    timing["seconds"] = round(time.monotonic() - started, 3)
+    (work / "cache-result.json").write_text(json.dumps(timing, sort_keys=True) + "\n")
     print(json.dumps({"package": str(package), "sha256": result["sha256"]}, indent=2))
 
 

@@ -2,6 +2,7 @@
 // Copyright (c) 2026 PAVEL TKACHEV
 #include "model.hpp"
 #include "preferences.hpp"
+#include "backup.hpp"
 #include "psx.hpp"
 #include <limits>
 #include <algorithm>
@@ -28,7 +29,14 @@ std::vector<uint8_t> readBytes(const fs::path &p) {
   std::ifstream f(p, std::ios::binary);
   if (!f)
     throw std::runtime_error("Cannot read " + p.string());
-  return {std::istreambuf_iterator<char>(f), {}};
+  std::vector<uint8_t> bytes;
+  char block[65536];
+  while (f) {
+    f.read(block, sizeof(block));
+    bytes.insert(bytes.end(), block, block + f.gcount());
+  }
+  if (f.bad()) throw std::runtime_error("Read failed: " + p.string());
+  return bytes;
 }
 std::string hashBytes(const std::vector<uint8_t> &b) { return picosha2::hash256_hex_string(b); }
 std::string hashFile(const fs::path &p) {
@@ -263,6 +271,13 @@ static void validateConfig(const Json &candidate, const Json &defaults) {
     if (candidate.contains(key) && candidate[key].type() != defaults[key].type() &&
         !(candidate[key].is_number() && defaults[key].is_number()))
       throw std::runtime_error("Invalid configuration field");
+  for (const auto *key : {"volume", "brightness"})
+    if (candidate.contains(key) && (!candidate.at(key).is_number_integer() ||
+        candidate.at(key) < 0 || candidate.at(key) > 100))
+      throw std::runtime_error("Invalid configuration percentage");
+  if (candidate.contains("revision") && (!candidate.at("revision").is_number_integer() ||
+      candidate.at("revision") < 0 || candidate.at("revision") >= std::numeric_limits<long long>::max()))
+    throw std::runtime_error("Invalid configuration revision");
   if(candidate.contains("psx_bios_file")&&!psxBiosFilename(candidate.at("psx_bios_file").get<std::string>()))
     throw std::runtime_error("Invalid PSX BIOS filename");
   if(candidate.contains("psx_controller")&&candidate["psx_controller"]!="digital"&&candidate["psx_controller"]!="dualshock")throw std::runtime_error("Invalid PSX controller");
@@ -291,6 +306,7 @@ static void validateConfig(const Json &candidate, const Json &defaults) {
     }
 }
 Store::Store(fs::path p) : root(std::move(p)) {
+  if(recoverPendingRestore(root))warning="Recovered interrupted restore";
   fresh=!fs::exists(root/"config.json")&&!fs::exists(root/"config.previous.json");
   data = {{"schema", 1},
           {"revision", 0},
@@ -330,33 +346,34 @@ Store::Store(fs::path p) : root(std::move(p)) {
           {"library_grouping","unified"}, {"game_view","list"}, {"system_tiles","grid"},
           {"theme_id", "rondo"}, {"enabled_cores",Json::object()}, {"input_mapping",Json::object()},
           {"game_options", Json::object()}};
-  auto file = root / "config.json";
-  if (fs::exists(file)) {
+  // Read the previous generation even if the active directory entry is absent.
+  // Build a complete candidate before changing the in-memory authority.
+  if (!fresh) for (const auto *name : {"config.json", "config.previous.json"}) {
     try {
-      auto d = readJson(file);
-      if (d.is_object() && d.value("schema", 0) != 1)
+      auto candidate = readJson(root / name);
+      if (std::string(name) == "config.json" && candidate.is_object() && candidate.value("schema", 0) != 1)
         readOnly = true;
-      validateConfig(d, data);
-      data.update(d);
-      if(data.contains("wizard")&&data["wizard"].value("schema",1)==1){auto &w=data["wizard"];int step=w.value("step",0);w["schema"]=2;w["step"]=step?step+1:0;}
-    } catch (const std::exception &e) {
-      warning = e.what();
-      try {
-        auto d = readJson(root / "config.previous.json");
-        validateConfig(d, data);
-        if (d.value("schema", 0) == 1) {
-          data.update(d);
-      if(data.contains("wizard")&&data["wizard"].value("schema",1)==1){auto &w=data["wizard"];int step=w.value("step",0);w["schema"]=2;w["step"]=step?step+1:0;}
-          warning = "Recovered previous configuration";
-        }
-      } catch (...) {
+      validateConfig(candidate, data);
+      auto next = data;
+      next.update(candidate);
+      if (next.contains("wizard") && next["wizard"].value("schema", 1) == 1) {
+        auto &wizard = next["wizard"];
+        int step = wizard.value("step", 0);
+        wizard["schema"] = 2;
+        wizard["step"] = step ? step + 1 : 0;
       }
+      data = std::move(next);
+      if (std::string(name) != "config.json") warning = "Recovered previous configuration";
+      break;
+    } catch (const std::exception &error) {
+      if (warning.empty()) warning = error.what();
     }
   }
   data["recent_games"] = cleanRecents(data.value("recent_games",Json::array()));
   if (data["artwork"] != "cover" && data["artwork"] != "title" && data["artwork"] != "screenshot")
     data["artwork"] = "cover";
 }
+void Store::validateDocument(const Json &document) const { validateConfig(document,data); }
 void Store::commit(Json next) {
   validatePreferences(next);
   if(next.contains("rumble_enabled")&&!next.at("rumble_enabled").is_boolean())
@@ -367,7 +384,8 @@ void Store::commit(Json next) {
     throw std::runtime_error("Configuration schema requires a newer Rondo");
   // Preserve unknown keys; one authority writes the versioned document.
   next["schema"] = 1;
-  next["revision"] = data.value("revision", 0) + 1;
+  next["revision"] = data.value("revision", 0LL) + 1;
+  validateConfig(next, data);
   if (fs::exists(root / "config.json")) {
     auto previous = readBytes(root / "config.json");
     bool valid = false;
@@ -388,7 +406,9 @@ void Store::commit(Json next) {
     // Rename may already have happened: resolve actual durable state before
     // another attempt.
     try {
-      data = readJson(root / "config.json");
+      auto actual = readJson(root / "config.json");
+      validateConfig(actual, data);
+      data.update(actual);
     } catch (...) {
     }
     throw;

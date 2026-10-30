@@ -20,12 +20,12 @@ int main(int argc,char **argv) {
   a.selected=4;auto id=a.games[a.visible()[a.selected]].id;auto favorites=a.store.data["favorites"];
   a.action("R2");assert(a.store.data["game_view"]=="tiles"&&a.games[a.visible()[a.selected]].id==id);
   a.action("R2");assert(a.store.data["game_view"]=="list"&&a.selected==4&&a.store.data["favorites"]==favorites);
-  a.store.data["game_view"]="tiles";a.selected=8;a.navigationActions=false;a.action("UP");assert(a.navigationActions&&a.selected==8);a.action("DOWN");assert(!a.navigationActions&&a.selected==8);
+  a.store.data["game_view"]="tiles";a.selected=8;a.navigationActions=false;a.action("UP");assert(!a.navigationActions&&a.selected==4);a.action("DOWN");assert(!a.navigationActions&&a.selected==8);
   a.store.data["game_view"]="list";a.scroll=432;a.action("UP");assert(!a.navigationActions&&a.selected==7);a.selected=4;a.scroll=0;
   // Scrolling back through a long list must not escape at the viewport edge.
   a.selected=24;a.draw();double deepScroll=a.scroll;assert(deepScroll>0);
   for(int i=23;i>=0;--i){a.action("UP");a.draw();assert(a.selected==i&&!a.navigationActions);}
-  assert(a.scroll==0);a.action("UP");assert(a.navigationActions);a.action("DOWN");assert(a.selected==0&&!a.navigationActions);a.selected=4;
+  assert(a.scroll==0);a.action("UP");assert(a.selected==0&&!a.navigationActions);a.action("DOWN");assert(a.selected==1&&!a.navigationActions);a.selected=4;
   a.selected=24;a.draw();auto position=a.navigationFrame();a.navigationFocus=1;
   for(int i=0;i<10;++i){a.action("SELECT");assert(a.navigationActions&&a.selected==position.selected&&a.scroll==position.scroll);a.action("SELECT");assert(!a.navigationActions&&a.selected==position.selected&&a.scroll==position.scroll);}
   a.action("SELECT");a.action("RIGHT");int panelFocus=a.navigationFocus;a.action("SELECT");a.action("SELECT");assert(a.navigationFocus==panelFocus);a.action("SELECT");a.selected=4;a.scroll=0;
@@ -34,6 +34,35 @@ int main(int argc,char **argv) {
     a.selected=999;a.scroll=0;a.draw();auto last=a.navigationFrame();assert(last.scroll>50000);
     a.action("SELECT");assert(a.navigationActions&&a.selected==999&&a.scroll==last.scroll);a.action("SELECT");assert(!a.navigationActions&&a.selected==999&&a.scroll==last.scroll);
     a.games=std::move(catalog);a.navigationRestore(viewBefore);
+  }
+  // All game collections share arrow navigation, including empty results and
+  // partial tile rows. Only Select moves focus to/from the action panel.
+  {auto state=a.navigationFrame();auto cfg=a.store.data;auto names=a.searchNames;
+    a.searchNames.clear();for(const auto &g:a.games)a.searchNames.push_back(searchFold(g.title));
+    a.store.data["favorites"]=Json::array();a.store.data["recent_games"]=Json::array();
+    for(const auto &g:a.games){a.store.data["favorites"].push_back(g.id);a.store.data["recent_games"].push_back({{"id",g.id}});}
+    for(auto collection:{"All","NES","Favorites","Recent","Search"})for(auto view:{"list","tiles"}) {
+      bool tiles=std::string(view)=="tiles";a.store.data["game_view"]=view;
+      a.screen=std::string(collection)=="Search"?Screen::SearchResults:Screen::Library;
+      a.section=std::string(collection)=="Search"?"All":collection;
+      a.searchQuery=std::string(collection)=="Search"?"library test":"";
+      a.navigationActions=false;a.selected=0;a.scroll=0;a.draw();
+      int count=int(a.visible().size());assert(count>=9);
+      auto move=[&](const char *key,int delta){int expected=std::clamp(a.selected+delta,0,count-1);a.action(key);a.draw();assert(a.selected==expected&&!a.navigationActions);};
+      move("UP",tiles?-4:-1);move("LEFT",tiles?-1:0);
+      for(int i=0;i<count;++i)move("DOWN",tiles?4:1);
+      assert(a.selected==count-1);move("DOWN",tiles?4:1);move("RIGHT",tiles?1:0);
+      auto end=a.navigationFrame();a.action("SELECT");assert(a.navigationActions);a.action("SELECT");assert(!a.navigationActions&&a.selected==end.selected&&a.scroll==end.scroll);
+      for(int i=0;i<count;++i)move("UP",tiles?-4:-1);
+      assert(a.selected==0&&a.scroll==0);move("UP",tiles?-4:-1);
+      a.selected=4;move("LEFT",tiles?-1:0);move("RIGHT",tiles?1:0);
+      a.selected=0;a.action("R1");assert(a.selected==(tiles?4:5)&&!a.navigationActions);a.action("L1");assert(a.selected==0&&!a.navigationActions);
+      a.action("SELECT");auto position=a.selected;auto focus=a.navigationFocus;a.action("RIGHT");assert(a.navigationActions&&a.selected==position&&a.navigationFocus>=focus);a.action("DOWN");assert(!a.navigationActions&&a.selected==position);
+      a.searchQuery="no matching game";a.selected=0;a.scroll=0;assert(a.visible().empty());
+      for(auto key:{"UP","DOWN","LEFT","RIGHT"}){a.action(key);a.draw();assert(a.selected==0&&!a.navigationActions);}
+      a.action("SELECT");assert(a.navigationActions);a.action("SELECT");assert(!a.navigationActions);
+    }
+    a.store.data=cfg;a.searchNames=names;a.navigationRestore(state);
   }
   // Replacing a footer must produce the same pixels as a clean render.
   auto footer=[&](){std::vector<uint8_t> out;for(int y=436;y<480;++y){auto *p=static_cast<uint8_t *>(a.ui->surface->pixels)+y*a.ui->surface->pitch;out.insert(out.end(),p,p+720*4);}return out;};
@@ -89,9 +118,9 @@ int main(int argc,char **argv) {
   a.action("B");assert(a.screen==Screen::Search&&a.searchDraft=="Library test 4");a.action("B");assert(a.screen==origin.route&&a.selected==origin.selected&&a.section=="NES");
   a.navigationActions=true;a.navigationFocus=0;auto nav=a.navigationItems();
   for(const auto &item:nav)assert(fs::is_regular_file(o.assets/"IconsPNG"/(item.icon+".png")));
-  a.navigation.clear();a.navigationActions=false;a.screen=Screen::Settings;a.settingsFocus=9;a.row=9;
+  a.navigation.clear();a.navigationActions=false;a.screen=Screen::Settings;a.settingsFocus=10;a.row=10;
   auto sleep=std::make_unique<MenuSleep>();auto *sleepDevice=sleep.get();a.device=std::move(sleep);
-  a.action("A");assert(sleepDevice->count==1&&a.screen==Screen::Settings&&a.settingsFocus==9&&!a.stop);
+  a.action("A");assert(sleepDevice->count==1&&a.screen==Screen::Settings&&a.settingsFocus==10&&!a.stop);
   // A missing ROM has its own symbol, centred with its text as one group.
   a.ui->setTheme("rondo");auto savedGames=a.games;auto savedHistory=a.store.data["recent_games"];
   auto missing=savedGames.front();missing.available=false;a.games={missing};a.section="Recent";a.store.data["recent_games"]=Json::array({{{"id",missing.id}}});a.screen=Screen::Library;a.selected=0;a.scroll=0;a.navigation.clear();a.navigationActions=false;
@@ -146,6 +175,18 @@ int main(int argc,char **argv) {
     }
     a.games=std::move(catalog);a.searchNames=std::move(names);a.store.data=cfg;a.navigationRestore(state);
   }
+  // Startup/wake notices must remain fully visible above navigation. Repainting
+  // the same opaque notice must not reveal text previously hidden by that panel.
+  a.ui->setTheme("rondo");a.navigation.clear();a.navigationActions=false;a.screenshotMessageUntil=0;a.section="All";a.searchQuery.clear();a.selected=0;
+  for(const auto *lang:{"en","ru"})for(const auto *layout:{"grid","large","rail","list","tiles"}) {
+    a.locale.select(o.assets,lang);a.screen=std::string(layout)=="list"||std::string(layout)=="tiles"?Screen::Library:Screen::Systems;
+    a.store.data["system_tiles"]=layout;a.store.data["game_view"]=layout;a.systemFocus=0;
+    a.notice=a.locale.tr("notice.config_recovered");a.draw();
+    auto region=[&]{std::vector<Uint32> result;for(int y=84;y<118;++y){auto *p=reinterpret_cast<Uint32 *>(static_cast<Uint8 *>(a.ui->surface->pixels)+y*a.ui->surface->pitch);result.insert(result.end(),p+200,p+520);}return result;};
+    auto displayed=region();a.ui->notice(a.notice,"settings",a.screen==Screen::Library);a.ui->present();assert(displayed==region());
+    a.capture(std::string("notice-over-navigation-")+lang+"-"+layout);
+  }
+  a.notice.clear();a.store.data=before;
   // Old wizard progress resumes the same logical step after the new step is inserted.
   auto legacy=before;legacy["wizard"]={{"schema",1},{"step",3},{"completed",false},{"deferred",false}};Store old(work/"legacy");old.commit(legacy);Store migrated(work/"legacy");assert(migrated.data["wizard"]["schema"]==2&&migrated.data["wizard"]["step"]==4);
   for(auto key:{"library_grouping","game_view","system_tiles"}){auto bad=before;bad[key]="unknown";bool rejected=false;try{a.store.commit(bad);}catch(...){rejected=true;}assert(rejected);}

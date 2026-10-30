@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: native-${{ github.workflow }}-${{ github.ref }}
@@ -22,6 +23,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       runtime: ${{ steps.scope.outputs.runtime }}
+      reuse_run: ${{ steps.reuse.outputs.run }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -30,6 +32,11 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.11'
+      - name: Find checks for the same commit
+        id: reuse
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python tools/ci_reuse.py
       - name: Select check scope
         id: scope
         run: python tools/ci_scope.py
@@ -37,12 +44,14 @@ jobs:
         run: |
           python tools/check_source.py
           python tests/ci_scope_tests.py
+          python tests/ci_reuse_tests.py
+          python tests/build_cache_tests.py
           python tests/release_tests.py
           python tests/runtime_build_tests.py
           python tests/installer_tests.py
   native:
     needs: source
-    if: ${{ !cancelled() && (needs.source.result != 'success' || needs.source.outputs.runtime == 'true') }}
+    if: ${{ !cancelled() && (needs.source.result != 'success' || (needs.source.outputs.runtime == 'true' && needs.source.outputs.reuse_run == '')) }}
     strategy:
       fail-fast: false
       matrix:
@@ -70,6 +79,14 @@ jobs:
           .venv/bin/python -m pip install -r tools/requirements.txt
       - name: Check source inputs
         run: .venv/bin/python tools/check_source.py
+      - name: Identify compiled core inputs
+        id: core-key
+        run: |
+          echo "key=$(.venv/bin/python -c 'import sys; sys.path.insert(0, "tools"); from build_core import cache_key; print(cache_key())')" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: build/native-core-cache
+          key: native-cores-${{ runner.os }}-${{ runner.arch }}-${{ steps.core-key.outputs.key }}
       - name: Build the pinned core
         run: .venv/bin/python tools/build_core.py
       - name: Run quiet native checks
@@ -78,3 +95,19 @@ jobs:
         if: failure()
         run: |
           find build/ci-check -maxdepth 1 -name '*.log' -type f -exec tail -n 60 {} \;
+  reused-native:
+    needs: source
+    if: ${{ needs.source.result == 'success' && needs.source.outputs.runtime == 'true' && needs.source.outputs.reuse_run != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Wait for the exact dev commit to pass
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REUSE_RUN: ${{ needs.source.outputs.reuse_run }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          test "$(gh run view "$REUSE_RUN" --json headSha --jq .headSha)" = "$EXPECTED_SHA"
+          gh run watch "$REUSE_RUN" --exit-status --interval 30
+          test "$(gh run view "$REUSE_RUN" --json jobs --jq '[.jobs[] | select(.name == "native (ubuntu-24.04)" or .name == "native (macos-15)") | .conclusion] | length == 2 and all(. == "success")')" = true

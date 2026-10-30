@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 cp -R /package/System/Rondo /baseos/tmp/app
-cp /programs/statistics-tests /programs/library-tests /programs/screenshot-tests /baseos/tmp/
+cp /programs/progress-tests /programs/backup-tests /programs/backup-ui-tests /programs/statistics-tests /programs/library-tests /programs/screenshot-tests /baseos/tmp/
 cp /programs/preferences-tests /programs/model-tests /programs/artwork-tests /programs/rumble-tests /programs/rumble-fixture.so /programs/input-tests /programs/state-tests /programs/psx-tests /programs/system-info-tests /programs/md-tests /programs/snes-tests /programs/gba-tests /programs/gb-tests /programs/bluetooth-tests /programs/battery-log-tests /programs/clock-tests /programs/h700-clock-tests /programs/battery-tests /programs/timezone-tests /programs/device-tests /programs/h700-device-tests /programs/wifi-tests /programs/h700-wifi-tests /baseos/tmp/
 mkdir -p /baseos/sys/power /baseos/sys/class/graphics/fb0 /baseos/sys/class/power_supply/axp2202-battery
 printf mem > /baseos/sys/power/state
@@ -56,6 +56,9 @@ chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/rumble-tests /tmp/rumble --synthe
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/input-tests /tmp/app/assets /tmp/input-test
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/library-tests /tmp/app/assets /tmp/library-test
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/screenshot-tests /tmp/app/assets /tmp/screenshot-test /tmp/rumble-fixture.so
+chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/progress-tests /tmp/app/assets /tmp/progress
+chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/backup-tests /tmp/backup
+chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/backup-ui-tests /tmp/app/assets /tmp/backup-ui
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/statistics-tests /tmp/statistics
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/state-tests /tmp/state-container
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/battery-log-tests /tmp/battery-log-state

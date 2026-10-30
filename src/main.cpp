@@ -333,7 +333,7 @@ static Json supervise(App &a, const Json &runnerScript) {
         if (type == "ready") {
           if (!runnerReady) {
             runnerReady=true;
-            try { a.rememberLaunch(); }
+            try { a.rememberLaunch(reply.value("progress_fingerprint",std::string())); }
             catch (const std::exception &e) {
               historyWarning=a.locale.tr("recent.write_failed");
               std::cerr << "Recent history: " << e.what() << "\n";
@@ -402,11 +402,12 @@ static Json supervise(App &a, const Json &runnerScript) {
   a.record(failure.empty() ? "runner_released" : "runner_failure");
   return result;
 }
-int main(int argc, char **argv) {
+static int runRondo(int argc, char **argv,bool afterRestore=false) {
   signal(SIGPIPE, SIG_IGN);
   int fd = -1;
   try {
     Options opts;
+    opts.shellReload=afterRestore;
     opts.executable = fs::absolute(argv[0]);
     opts.assets = opts.executable.parent_path().parent_path() / "assets";
     opts.output = fs::temp_directory_path() / "rondo-preview";
@@ -504,6 +505,7 @@ int main(int argc, char **argv) {
       game = {entry.at("id"), entry.at("volume"), entry.at("system"), entry.at("title"),
               entry.at("path").get<std::string>()};
     App app(opts, runner, game);
+    app.restoreInputFence=afterRestore;
     if (runner) app.applyVolume(entry.value("runtime_volume", app.previewVolume));
     if (!initialFeedback.is_null())
       app.volumeFeedback.restore(initialFeedback);
@@ -553,7 +555,7 @@ int main(int argc, char **argv) {
         app.record(latest==3?"resumed_auto":"resumed_slot:"+std::to_string(latest));
       }
       app.ticks(1);
-      message(fd, {{"type", "ready"}});
+      message(fd, {{"type", "ready"},{"progress_fingerprint",progressFingerprint(app.game,app.core->romHash)}});
       app.startStatistics();
     }
     auto after = [&](const Json &c) {
@@ -641,4 +643,12 @@ int main(int argc, char **argv) {
     std::cerr << "Rondo: " << e.what() << "\n";
     return 1;
   }
+}
+
+// A settings restore restarts only the shell, after all old writers/SDL objects
+// have been destroyed. Headless scripts run once and expose the restart status.
+int main(int argc,char **argv) {
+  bool scripted=false;for(int i=1;i<argc;++i)if(std::string(argv[i])=="--headless"||std::string(argv[i])=="--script")scripted=true;
+  int result;bool afterRestore=false;do{result=runRondo(argc,argv,afterRestore);afterRestore=result==66;}while(result==66&&!scripted);
+  return result;
 }

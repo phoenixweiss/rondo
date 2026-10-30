@@ -21,6 +21,8 @@ public:
   void tick(uint64_t now,bool running);
   bool flush(uint64_t now,bool running=false);
   const Json &snapshot() const {return data;}
+  static void validateDocument(const Json &,const std::string &);
+  static Json readExact(const fs::path &,const std::string &);
   static Json read(const fs::path &,const std::string &);
 };
 }

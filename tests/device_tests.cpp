@@ -75,7 +75,7 @@ int main(int argc,char **argv) {
   }
   {
     for(const auto *language:{"en","ru"}) {
-      for(int target:{10,11}) {
+      for(int target:{11,12}) {
         o.state=root/(std::string("system-power-")+language+std::to_string(target));App a(o);
         a.locale.select(o.assets,language);a.settingsFocus=0;a.screen=Screen::Settings;
         a.capture(std::string("settings-icons-top-")+language);
@@ -90,7 +90,7 @@ int main(int argc,char **argv) {
         a.action("A");assert(a.screen==Screen::Settings && a.row==target && !a.stop);
         a.action("A");a.action("DOWN");a.action("B");assert(!a.stop && a.row==target);
         a.action("A");a.action("DOWN");a.action("A");
-        assert(a.stop && a.systemExitCode==(target==11?64:65) && a.store.data==before);
+        assert(a.stop && a.systemExitCode==(target==12?64:65) && a.store.data==before);
         assert(a.screen==Screen::SystemProgress);
         a.capture(std::string("power-progress-")+language+std::to_string(target));
         a.action("B");a.action("A");a.action("VOLUME_UP");a.action("SLEEP");
@@ -367,6 +367,17 @@ int main(int argc,char **argv) {
     writeState(dir/"slot-0.state",future);
     a.core->save(1);auto recent=readState(dir/"slot-1.state",StateRead::Metadata).meta;
     assert(recent["utc"]<future.meta["utc"] && saveSequence(recent)>0 && a.latestResumeSlot()==1);
+    // Recovery-only manual saves remain visible/selectable before launching.
+    auto previousOnly=readBytes(dir/"slot-1.state");
+    atomicWrite(dir/"slot-1.state.previous",previousOnly);fs::remove(dir/"slot-1.state");
+    assert(a.slotView(1).compatible && a.usableSlot(1) && a.latestResumeSlot()==1);
+    auto runningCore=std::move(a.core);
+    assert(a.usableSlot(1) && a.latestResumeSlot()==1);
+    a.core=std::move(runningCore);a.infoOpen=false;a.row=1;a.notice.clear();
+    a.capture("slots-previous-generation");
+    atomicWrite(dir/"slot-1.state",{'b','a','d'});
+    assert(a.slotView(1).compatible && a.usableSlot(1));
+    atomicWrite(dir/"slot-1.state",previousOnly);
     a.core->save(0);assert(a.latestResumeSlot()==0 && saveSequence(readState(dir/"slot-0.state",StateRead::Metadata).meta)>saveSequence(recent));
     // Deletion is confirmed, targets only one slot and preserves SRAM / neighbors.
     a.screen=Screen::LoadSlots;a.row=2;a.notice.clear();a.infoOpen=false;

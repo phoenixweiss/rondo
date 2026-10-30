@@ -1,15 +1,23 @@
 #!/bin/bash
-# Fresh, offline compilation inside the pinned SDK. No card/rootfs is mounted.
+# Offline compilation inside the pinned SDK. No card/rootfs is mounted.
 set -euo pipefail
 export LC_ALL=C TZ=UTC
 export SOURCE_DATE_EPOCH
 SOURCE_DATE_EPOCH=$(python3 -c 'import json; print(json.load(open("/src/runtime/build-lock.json"))["source_date_epoch"])')
 umask 022
+python3 /src/runtime/dependency_cache.py restore
 python3 /src/runtime/inputs.py
-python3 /src/runtime/build_openbios.py > /work/openbios-build.log 2>&1
-/bin/bash /src/runtime/build-libraries.sh
+if [ ! -f /work/.dependencies-restored ]; then
+  python3 /src/runtime/build_openbios.py > /work/openbios-build.log 2>&1
+  /bin/bash /src/runtime/build-libraries.sh
+  /bin/bash /src/runtime/build-cores.sh
+  /bin/bash /src/runtime/build-lid-module.sh
+  python3 /src/runtime/dependency_cache.py save
+else
+  export PATH=/opt/aarch64-nextui-linux-gnu/bin:$PATH
+  python3 /src/runtime/lid_module.py verify /src/runtime/lid-wake /work/lid-module
+fi
 /bin/bash /src/runtime/build-programs.sh
-/bin/bash /src/runtime/build-lid-module.sh
 prefix=/opt/aarch64-nextui-linux-gnu/bin/aarch64-nextui-linux-gnu
 mkdir /work/evidence
 for name in rondo fceumm_libretro.so gambatte_libretro.so gpsp_libretro.so mednafen_supafaust_libretro.so picodrive_libretro.so pcsx_rearmed_libretro.so; do

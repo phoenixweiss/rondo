@@ -576,7 +576,24 @@ void UI::keycap(int x, int y, int width, bool round, SDL_Color c, int height, bo
 }
 void UI::binaryRow(const std::string &label, int y, bool selected, std::optional<bool> value,
                    const Locale &locale, bool supported) {
-  valueRow(label,y,selected,672,supported&&value?locale.tr(*value?"value.on":"value.off"):"—",supported&&value.has_value());
+  const bool known=supported&&value.has_value();
+  selected=selected&&contentFocus;
+  if(!known){row(label,y,selected,672,"—",false);return;}
+  const auto off=locale.tr("value.off"),on=locale.tr("value.on");
+  constexpr int size=19,height=36,inset=2,right=680;
+  const int half=std::max(70,std::max(measure(off,size,500),measure(on,size,500))+20);
+  const int width=2*half+2*inset,x=right-width,top=y+(52-height)/2;
+  row("",y,selected,672);
+  text(label,32,y+12,23,selected?700:500,cream,std::max(0,x-32-16));
+  rect(x,top,width,height,separator,6);
+  rect(x+1,top+1,width-2,height-2,bg,5);
+  rect(x+inset+(*value?half:0),top+inset,half,height-2*inset,cream,4);
+  const int textY=top+(height-TTF_FontHeight(font(size,500)))/2;
+  for(int i=0;i<2;++i){
+    const auto &name=i?on:off;
+    text(name,x+inset+i*half+(half-measure(name,size,500))/2,textY,size,500,
+         *value==bool(i)?bg:secondary);
+  }
 }
 void UI::keyArrows(int x, int y, int width, bool vertical, SDL_Color c) {
   auto key="keyarrows:"+std::to_string(width)+":"+std::to_string(vertical)+":"+

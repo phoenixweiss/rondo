@@ -77,6 +77,11 @@ def validate_tag(root, tag):
 
 
 def bundle(root, first, second, output, tag=None):
+    if first.resolve() == second.resolve():
+        raise ValueError("Independent builds require separate directories")
+    for build in [first, second]:
+        if json.loads((build / 'cache-result.json').read_text()).get('cache') != 'bypassed':
+            raise ValueError("Independent release builds require --fresh")
     a = json.loads((first / "output/build-result.json").read_text())
     b = json.loads((second / "output/build-result.json").read_text())
     if a != b:

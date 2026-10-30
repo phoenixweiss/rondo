@@ -115,6 +115,37 @@ int main(int argc,char **argv) {
       assert(a.core->frame==pixels);
     }
   }
+  // Boolean settings keep their acknowledged value and never open an editor.
+  o.setup=false;o.state=fs::path(argv[2])/"binary-controls";
+  {App a(o);struct Setting {Screen screen;int category,row;const char *key;};
+    const std::vector<Setting> settings{
+      {Screen::CoreSettings,0,1,"left_stick_dpad"},{Screen::CoreSettings,0,2,"rumble_enabled"},
+      {Screen::SettingsSection,1,1,"integer_scaling"},{Screen::SettingsSection,3,0,"show_battery_percent"},
+      {Screen::SettingsSection,3,2,"autosave_enabled"},{Screen::SettingsSection,3,3,"startup_resume"},
+      {Screen::SettingsSection,3,5,"battery_warning"},{Screen::SettingsSection,4,0,"debug_enabled"},
+      {Screen::ScreenshotSettings,0,2,"screenshot_sound"}};
+    for(const auto &s:settings){a.navigation.clear();a.navigationActions=false;a.screen=s.screen;a.category=s.category;a.row=s.row;
+      bool expected=a.store.data.value(s.key,false);
+      for(auto key:{"LEFT","LEFT","RIGHT","RIGHT","A","A"}){expected=std::string(key)=="A"?!expected:std::string(key)=="RIGHT";a.action(key);assert(a.store.data.value(s.key,!expected)==expected&&a.screen==s.screen);}
+      a.action("LEFT");assert(!a.store.data.value(s.key,true));auto before=a.store.data;
+      a.requestSettings=[](const Json &){return false;};a.action("RIGHT");assert(a.store.data==before&&a.screen==s.screen&&!a.notice.empty());a.requestSettings={};
+    }
+    for(auto lang:{"en","ru"})for(const auto &theme:a.ui->themes["themes"]){
+      const auto id=theme["id"].get<std::string>();a.locale.select(o.assets,lang);a.ui->setTheme(id);a.notice.clear();
+      a.screen=Screen::CoreSettings;a.row=1;a.capture("binary-cores-"+id+"-"+lang);
+      a.screen=Screen::SettingsSection;a.category=3;a.row=2;a.powerScroll=0;a.capture("binary-power-"+id+"-"+lang);
+      a.category=4;a.row=0;a.capture("binary-debug-"+id+"-"+lang);
+      a.screen=Screen::ScreenshotSettings;a.row=2;a.capture("binary-screenshot-"+id+"-"+lang);
+      // Check the selected segment surface independently of row focus.
+      auto segmentPixel=[&](bool focused,std::optional<bool> value,bool supported){
+        a.ui->rect(0,0,720,480,a.ui->bg);a.ui->binaryRow(a.locale.tr("setting.rumble"),128,focused,value,a.locale,supported);SDL_RenderPresent(a.ui->renderer);
+        auto *p=static_cast<uint8_t *>(a.ui->surface->pixels)+140*a.ui->surface->pitch+540*4;return *reinterpret_cast<uint32_t *>(p);
+      };
+      auto off=segmentPixel(false,false,true);assert(off==segmentPixel(true,false,true));
+      auto on=segmentPixel(false,true,true);assert(on==segmentPixel(true,true,true)&&on!=off);
+      assert(segmentPixel(false,std::nullopt,true)==segmentPixel(false,false,false));
+    }
+  }
   for(const auto &invalid:std::vector<Json>{Json{{"enabled_cores",Json{{"fceumm","yes"}}}},Json{{"input_mapping",Json{{"fceumm",Json{{"8",16}}}}}},Json{{"wizard",Json{{"schema",1},{"step",8},{"completed",false},{"deferred",false}}}}}) {bool rejected=false;try{validatePreferences(invalid);}catch(...){rejected=true;}assert(rejected);}
   std::cout<<"PASS: theme preview/apply/cancel/failure, seven palettes, shared core selection, mapping/reset/persistence, setup skip/defer/restart/service return/rejected write, fresh defaults and explicit sound.\n";
 }

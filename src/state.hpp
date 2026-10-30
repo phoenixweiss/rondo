@@ -6,12 +6,15 @@ namespace rondo {
 // Metadata reads never deserialize, allocate or hash the core payload.
 enum class StateRead { Metadata, Preview, Full };
 struct StateFile {
+  bool recovered = false;
   Json meta = Json::object();
   std::vector<uint8_t> payload;
   std::vector<uint32_t> pixels;
 };
 std::string stateName(int slot); // 0..2 manual, 3 automatic
 StateFile readState(const fs::path &, StateRead = StateRead::Full);
+StateFile decodeState(const std::vector<uint8_t> &, StateRead = StateRead::Full);
+StateFile readRecoverableState(const fs::path &, StateRead = StateRead::Full);
 std::vector<uint8_t> encodeState(const StateFile &);
 void writeState(const fs::path &, const StateFile &);
 }

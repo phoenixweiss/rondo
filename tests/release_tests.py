@@ -1,12 +1,13 @@
 """Exercise release refusal paths in disposable Git repositories only."""
 from pathlib import Path
 import subprocess
+import json
 import sys
 import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'tools'))
-from release import notes, prepare_changelog, validate_tag, version
+from release import notes, prepare_changelog, validate_tag, version, bundle
 
 
 class ReleaseTests(unittest.TestCase):
@@ -34,6 +35,16 @@ class ReleaseTests(unittest.TestCase):
         (self.root / 'VERSION').write_text('0.0.1\r\n')
         self.commit()
         self.git('update-ref', 'refs/remotes/origin/main', 'HEAD')
+
+    def test_release_bundle_refuses_shared_or_cached_builds(self):
+        first, second = self.root / 'first', self.root / 'second'
+        first.mkdir(); second.mkdir()
+        with self.assertRaisesRegex(ValueError, 'separate'):
+            bundle(self.root, first, first, self.root / 'output')
+        for value in ['hit', 'miss']:
+            (first / 'cache-result.json').write_text(json.dumps({'cache': value}))
+            with self.assertRaisesRegex(ValueError, '--fresh'):
+                bundle(self.root, first, second, self.root / 'output')
 
     def test_first_release_closes_changelog_and_accepts_crlf_version(self):
         self.candidate()

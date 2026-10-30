@@ -2,6 +2,7 @@
 // Copyright (c) 2026 PAVEL TKACHEV
 #include "state.hpp"
 #include <fstream>
+#include <streambuf>
 #include <algorithm>
 #include <stdexcept>
 namespace rondo {
@@ -11,7 +12,7 @@ constexpr size_t headerSize=84, maxMeta=16384, maxPayload=32*1024*1024;
 void fail(){throw std::runtime_error("Invalid state container");}
 void put32(std::vector<uint8_t> &out,uint32_t n){for(int i=0;i<4;++i)out.push_back(uint8_t(n>>(i*8)));}
 uint32_t get32(const uint8_t *p){return uint32_t(p[0])|(uint32_t(p[1])<<8)|(uint32_t(p[2])<<16)|(uint32_t(p[3])<<24);}
-std::vector<uint8_t> take(std::ifstream &in,size_t n){std::vector<uint8_t>b(n);if(n&&!in.read(reinterpret_cast<char *>(b.data()),n))fail();return b;}
+std::vector<uint8_t> take(std::istream &in,size_t n){std::vector<uint8_t>b(n);if(n&&!in.read(reinterpret_cast<char *>(b.data()),n))fail();return b;}
 std::vector<uint8_t> pixelBytes(const std::vector<uint32_t> &pixels){std::vector<uint8_t>b;b.reserve(pixels.size()*4);for(auto p:pixels)put32(b,p);return b;}
 }
 std::string stateName(int slot){if(slot<0||slot>3)fail();return slot==3?"autosave.state":"slot-"+std::to_string(slot)+".state";}
@@ -29,11 +30,11 @@ std::vector<uint8_t> encodeState(const StateFile &s){
   out.insert(out.end(),digest.begin(),digest.end());out.insert(out.end(),json.begin(),json.end());
   out.insert(out.end(),preview.begin(),preview.end());out.insert(out.end(),s.payload.begin(),s.payload.end());return out;
 }
-StateFile readState(const fs::path &path,StateRead mode){
-  std::ifstream in(path,std::ios::binary);if(!in)fail();auto header=take(in,headerSize);
+static StateFile parseState(std::istream &in,uint64_t fileSize,StateRead mode){
+  auto header=take(in,headerSize);
   if(!std::equal(std::begin(magic),std::end(magic),header.begin()))fail();
   auto m=get32(header.data()+8),p=get32(header.data()+12),n=get32(header.data()+16);
-  if(!m||m>maxMeta||p>192*144*4||!n||n>maxPayload||fs::file_size(path)!=headerSize+uint64_t(m)+p+n)fail();
+  if(!m||m>maxMeta||p>192*144*4||!n||n>maxPayload||fileSize!=headerSize+uint64_t(m)+p+n)fail();
   auto json=take(in,m);if(hashBytes(json)!=std::string(header.begin()+20,header.end()))fail();
   StateFile state;state.meta=Json::parse(json);
   auto &j=state.meta;
@@ -48,6 +49,27 @@ StateFile readState(const fs::path &path,StateRead mode){
   if(mode==StateRead::Preview)return state;
   state.payload=take(in,n);if(hashBytes(state.payload)!=j.at("sha256"))throw std::runtime_error("State checksum mismatch");
   return state;
+}
+StateFile readState(const fs::path &path,StateRead mode) {
+  std::ifstream in(path,std::ios::binary);if(!in)fail();
+  return parseState(in,fs::file_size(path),mode);
+}
+StateFile decodeState(const std::vector<uint8_t> &bytes,StateRead mode) {
+  struct Buffer : std::streambuf {
+    explicit Buffer(const std::vector<uint8_t> &data) {
+      if(data.empty()){setg(nullptr,nullptr,nullptr);return;}
+      auto *begin=reinterpret_cast<char *>(const_cast<uint8_t *>(data.data()));setg(begin,begin,begin+data.size());
+    }
+  } buffer(bytes);
+  std::istream in(&buffer);return parseState(in,bytes.size(),mode);
+}
+StateFile readRecoverableState(const fs::path &path, StateRead mode) {
+  try { return readState(path, mode); }
+  catch (...) {
+    auto previous = readState(path.string() + ".previous", mode);
+    previous.recovered = true;
+    return previous;
+  }
 }
 void writeState(const fs::path &path,const StateFile &state){
   auto bytes=encodeState(state);atomicWrite(path,bytes);

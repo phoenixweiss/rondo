@@ -9,11 +9,11 @@ LDLIBS += -ldl
 endif
 H700_SYSTEM_LIBS ?= -ldl -lpthread -lstdc++fs
 
-BASE = src/preferences.cpp src/model.cpp src/platform.cpp src/psx.cpp src/state.cpp src/rumble.cpp
+BASE = src/preferences.cpp src/model.cpp src/platform.cpp src/psx.cpp src/state.cpp src/rumble.cpp src/restore.cpp
 UI = $(BASE) src/artwork.cpp src/ui.cpp
-APP = $(UI) src/library_ui.cpp src/navigation.cpp src/game_statistics.cpp src/screenshots.cpp src/screenshot_ui.cpp src/core.cpp src/app.cpp src/preferences_ui.cpp src/wizard_ui.cpp src/input_test_ui.cpp src/clock.cpp src/clock_ui.cpp src/wifi.cpp src/wifi_ui.cpp src/battery_log.cpp src/bluetooth.cpp src/bluetooth_ui.cpp src/system_info.cpp src/system_info_ui.cpp
-NATIVE_TESTS = statistics library screenshot preferences artwork input rumble state psx system-info md snes gba gb bluetooth battery-log model core device volume-ui timezone battery wifi clock
-H700_TESTS = statistics library screenshot preferences model artwork input rumble state psx system-info md snes gba gb bluetooth battery-log h700-device device timezone battery wifi h700-wifi clock h700-clock
+APP = $(UI) src/backup.cpp src/backup_ui.cpp src/progress.cpp src/progress_ui.cpp src/library_ui.cpp src/navigation.cpp src/game_statistics.cpp src/screenshots.cpp src/screenshot_ui.cpp src/core.cpp src/app.cpp src/preferences_ui.cpp src/wizard_ui.cpp src/input_test_ui.cpp src/clock.cpp src/clock_ui.cpp src/wifi.cpp src/wifi_ui.cpp src/battery_log.cpp src/bluetooth.cpp src/bluetooth_ui.cpp src/system_info.cpp src/system_info_ui.cpp
+NATIVE_TESTS = progress backup backup-ui statistics library screenshot preferences artwork input rumble state psx system-info md snes gba gb bluetooth battery-log model core device volume-ui timezone battery wifi clock
+H700_TESTS = progress backup backup-ui statistics library screenshot preferences model artwork input rumble state psx system-info md snes gba gb bluetooth battery-log h700-device device timezone battery wifi h700-wifi clock h700-clock
 
 all: $(BUILD)/rondo
 native-programs: all $(addprefix $(BUILD)/,$(addsuffix -tests,$(NATIVE_TESTS)))
@@ -44,6 +44,9 @@ $(BUILD)/$(1): $(addprefix $(BUILD)/obj/,$(2:.cpp=.o)) $(BUILD)/.link-config Mak
 	$$(CXX) $$(CXXFLAGS) $(addprefix $(BUILD)/obj/,$(2:.cpp=.o)) $$(LDFLAGS) $(3) -o $$@
 OBJECTS += $(addprefix $(BUILD)/obj/,$(2:.cpp=.o))
 endef
+$(eval $(call program,backup-tests,tests/backup_tests.cpp $(BASE) src/backup.cpp src/progress.cpp src/game_statistics.cpp,$$(LDLIBS)))
+$(eval $(call program,backup-ui-tests,tests/backup_ui_tests.cpp $(APP),$$(LDLIBS)))
+$(eval $(call program,progress-tests,tests/progress_tests.cpp $(APP),$$(LDLIBS)))
 $(eval $(call program,battery-log-tests,tests/battery_log_tests.cpp $(BASE) src/battery_log.cpp,$$(LDLIBS)))
 $(eval $(call program,input-tests,tests/input_tests.cpp $(APP),$$(LDLIBS)))
 $(eval $(call program,psx-tests,tests/psx_tests.cpp $(APP),$$(LDLIBS)))

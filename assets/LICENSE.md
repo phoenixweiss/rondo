@@ -2,7 +2,7 @@
 
 Copyright (c) 2026 PAVEL TKACHEV
 
-Original Rondo identity artwork (wordmark and symbol), boot artwork and original UI artwork are available under the MIT License in the repository root. Redistribution and modification in builds and forks are permitted under that license. Original synthetic cartridge artwork is also MIT. The file-unavailable UI icon is original Rondo artwork under MIT.
+Original Rondo identity artwork (wordmark and symbol), boot artwork and original UI artwork are available under the MIT License in the repository root. Redistribution and modification in builds and forks are permitted under that license. Original synthetic cartridge artwork is also MIT. The file-unavailable and trash UI icons are original Rondo artwork under MIT.
 
 This copyright permission does not grant trademark rights or permission to imply that a modified build is the official Rondo release or is endorsed by its maintainer. No registered trademark status or name clearance is claimed here. This paragraph describes the distinction between copyright and branding; it adds no restriction to the MIT copyright grant.
 

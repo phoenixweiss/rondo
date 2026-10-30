@@ -29,6 +29,35 @@ shutdown/restart finishes application teardown before the launcher calls
 `sync` and the native BaseOS power wrapper. Forced power loss can interrupt
 these steps. A successful file readback alone does not establish FAT health.
 
+## Previous generations
+
+Settings load the previous configuration when the active file is missing or
+invalid. A settings change is fully validated before either generation is
+replaced. Unsupported configuration versions remain read-only.
+
+Manual and automatic state loading can recover the previous copy when the
+active container is missing, truncated or fails its checksum. Slot previews and
+resume selection also recognize a previous-only slot. A valid container for a
+different ROM or core is rejected; recovery does not bypass that identity check.
+A successful fallback displays a recovery notice. Deleting a slot removes both
+generations. Metadata/preview reads still avoid reading the core payload.
+
+SRAM and RTC retain one previous successfully loaded/written generation whenever
+the memory changes. Missing or wrong-size active files can recover that copy;
+if neither has the exact size expected by the core, launch fails without replacing
+them. Recovery displays a notice. These remain raw emulator memory files: size
+validation cannot detect arbitrary same-size bit corruption or identify a ROM
+from the memory bytes alone. State containers have separate ROM/core identities
+and checksums.
+
+Statistics retain one validated previous document and can recover a missing or
+malformed active file. Wrong game identities and unsupported schemas are refused.
+Backup failures stop replacement of the active document or game memory. No
+extra write is made on an ordinary button event; unchanged memory is still skipped
+and statistics checkpoints remain asynchronous and throttled.
+
+User-created copies and transactional restoration are described in [backups](backups.md).
+
 ## Checks
 
 `state-tests` exercises short writes, process interruption and failed settings

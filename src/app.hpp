@@ -11,6 +11,8 @@
 #include "system_info.hpp"
 #include "screenshots.hpp"
 #include "game_statistics.hpp"
+#include "backup.hpp"
+#include "progress.hpp"
 #include <functional>
 #include <future>
 namespace rondo {
@@ -25,6 +27,8 @@ enum class Screen {
   SettingsSection,
   InputTest,
   SystemInfo,
+  ProgressBusy, ProgressSources, ProgressConfirm, ProgressDone,
+  Backups, BackupDetails, BackupGames, BackupDelete, BackupConfirm, BackupBusy, BackupRestart,
   LogClear,
   SystemConfirm,
   SystemProgress,
@@ -75,7 +79,7 @@ struct NavigationFrame {
 };
 struct Options {
   fs::path assets, state, core, gbCore, gbaCore, snesCore, mdCore, psxCore, psxBios, executable, script, output;
-  bool psxTestHle=false;
+  bool psxTestHle=false, shellReload=false;
   fs::path coreFor(const std::string &system) const {
     if(system=="NES")return core;
     if(system=="GB" || system=="GBC") {
@@ -265,6 +269,31 @@ public:
   double settingsScroll = 0;
   void returnToSettings();
   struct SystemInfoRow { std::string label,value,source,state,page; };
+  std::future<Json> backupJob;
+  std::shared_ptr<BackupProgress> backupProgress;
+  std::vector<fs::path> backupList;
+  fs::path backupSelected;
+  Json backupSummary=Json::object(), backupGameList=Json::array();
+  std::map<std::string,Json> backupMetadata;
+  double backupScroll=0;
+  bool backupDeleting=false, backupRestoring=false, restoreInputFence=false;
+  std::string backupError;
+  std::future<Json> progressJob;
+  std::shared_ptr<BackupProgress> progressStatus;
+  Json progressSources=Json::array(),progressSelected=Json::object();
+  bool progressAutomatic=false,progressCopying=false;
+  std::string progressError,progressFingerprintValue,progressLegacyRom,progressLegacyCore;
+  int progressFocus=0;double progressScroll=0;
+  void progressOpen(bool automatic=false);
+  void progressCopy();
+  void progressTick();
+  void progressAction(const std::string &);
+  void progressDraw(const std::string &);
+  void backupOpen();
+  void backupStart(bool,bool deleting=false);
+  void backupTick();
+  void backupAction(const std::string &);
+  void backupDraw(const std::string &);
   SystemInfoProcess systemInfoJob;
   Json systemInfoData=Json::object();
   std::string systemInfoPage="root",systemInfoError;
@@ -278,7 +307,7 @@ public:
   void systemInfoAction(const std::string &);
   void systemInfoDraw();
   std::string libraryTitle() const;
-  void rememberLaunch();
+  void rememberLaunch(const std::string &fingerprint={});
   SDL_Color gameBackground() const;
   int previewVolume = 80;
   void applyVolume(int);
@@ -297,7 +326,7 @@ public:
   void statisticsTick(bool flush=false);
   void startStatistics();
   void openGameInfo();
-  void prepareGame(const Game &);
+  void prepareGame(const Game &,bool checkProgress=true);
 
   Game game;
   bool stop = false, launch = false, resume = false;
@@ -374,7 +403,7 @@ public:
   void btAction(const std::string &);
   void btDraw();
   void btSleep();
-  void btResume();
+  void btResume(bool applyDisabled=false);
 
   std::string searchQuery, searchDraft;
   std::vector<std::string> searchNames;

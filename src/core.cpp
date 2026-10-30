@@ -76,10 +76,23 @@ Core::Core(const fs::path &path, const Game &game, const fs::path &saves, bool s
       throw std::runtime_error("Invalid core frame rate");
     for(auto memory:{std::pair<unsigned,const char *>{RETRO_MEMORY_SAVE_RAM,"sram.bin"},
                      {RETRO_MEMORY_RTC,"rtc.bin"}}) {
-      if(!fs::exists(saveRoot/memory.second))continue;
-      auto bytes=readBytes(saveRoot/memory.second);auto size=memorySize(memory.first);
-      if(size && bytes.size()==size && memoryData(memory.first)) {memcpy(memoryData(memory.first),bytes.data(),size);persistedMemory[memory.first]=std::move(bytes);}
-      else if(size)throw std::runtime_error("Incompatible persistent memory size");
+      const auto path = saveRoot / memory.second;
+      const auto previous = fs::path(path.string() + ".previous");
+      if (!fs::exists(path) && !fs::exists(previous)) continue;
+      auto size = memorySize(memory.first);
+      if (!size) continue;
+      auto readMemory = [&](const fs::path &file) {
+        if (fs::file_size(file) != size) throw std::runtime_error("Incompatible persistent memory size");
+        auto bytes = readBytes(file);
+        if (bytes.size() != size) throw std::runtime_error("Incomplete persistent memory read");
+        return bytes;
+      };
+      std::vector<uint8_t> bytes;
+      try { bytes = readMemory(path); }
+      catch (...) { bytes = readMemory(previous); memoryRecovered.push_back(memory.second); }
+      if (!memoryData(memory.first)) throw std::runtime_error("Persistent core memory inaccessible");
+      memcpy(memoryData(memory.first), bytes.data(), size);
+      persistedMemory[memory.first] = std::move(bytes);
     }
     audioEnabled = !silent;
     openAudio();
@@ -365,7 +378,7 @@ void Core::saveTo(const fs::path &p, bool flush) {
     for(int y=0;y<h;++y)for(int x=0;x<w;++x)state.pixels[y*w+x]=frame[(size_t(y)*height/h)*width+size_t(x)*width/w];
   }
   if(fs::exists(p)) {
-    bool valid=false;try {readState(p);valid=true;}catch(...){}
+    bool valid=false;try {auto old=readState(p);valid=old.meta.at("core")==identity&&old.meta.at("rom")==romHash;}catch(...){}
     // Never swallow a backup write failure or replace a valid backup with corruption.
     if(valid)atomicWrite(p.string()+".previous",readBytes(p));
   }
@@ -384,20 +397,19 @@ void Core::deleteSlot(int slot) {
 void Core::loadState(int slot) {
   loadFrom(saveRoot/stateName(slot));
 }
-void Core::loadAutomatic() {
-  for(const auto *name:{"autosave.state","autosave.state.previous"})try {loadFrom(saveRoot/name);return;}catch(...){}
-  throw std::runtime_error("Automatic state unavailable");
-}
+void Core::loadAutomatic() { loadFrom(saveRoot / stateName(3)); }
 fs::path Core::automaticPath() const {
-  for(const auto *name:{"autosave.state","autosave.state.previous"})
-    if(compatibleFile(saveRoot/name))return saveRoot/name;
-  throw std::runtime_error("Automatic state unavailable");
+  const auto path = saveRoot / stateName(3);
+  auto state = readRecoverableState(path, StateRead::Metadata);
+  if (state.meta.at("core") != identity || state.meta.at("rom") != romHash)
+    throw std::runtime_error("Automatic state belongs to another ROM or core");
+  return state.recovered ? fs::path(path.string() + ".previous") : path;
 }
 bool Core::compatibleAutomatic() const {
   try {automaticPath();return true;}catch(...){return false;}
 }
 void Core::loadFrom(const fs::path &path) {
-  auto state = readState(path);
+  auto state = readRecoverableState(path);
   const auto &j=state.meta;
   if (j.at("core") != identity || j.at("rom") != romHash)
     throw std::runtime_error("State belongs to another ROM or core");
@@ -405,6 +417,7 @@ void Core::loadFrom(const fs::path &path) {
   if(psx&&j.contains("disc")&&j["disc"].get<unsigned>()!=discIndex())changeDisc(j["disc"].get<unsigned>());
   if (!unserialize(b.data(), b.size()))
     throw std::runtime_error("Core rejected state");
+  stateRecovered = state.recovered;
   silence();
 }
 bool Core::compatible(int slot) const {
@@ -412,7 +425,7 @@ bool Core::compatible(int slot) const {
 }
 bool Core::compatibleFile(const fs::path &path) const {
   try {
-    auto j = readState(path,StateRead::Metadata).meta;
+    auto j = readRecoverableState(path,StateRead::Metadata).meta;
     return j.at("core") == identity && j.at("rom") == romHash;
   } catch (...) {
     return false;
@@ -428,7 +441,13 @@ void Core::flushSram() {
     auto path=saveRoot/memory.second;
     auto &previous=persistedMemory[memory.first];std::error_code error;
     if(previous.size()==n&&std::equal(previous.begin(),previous.end(),p)&&fs::is_regular_file(path,error)&&fs::file_size(path,error)==n&&!error)continue;
-    std::vector<uint8_t> bytes(p,p+n);atomicWrite(path,bytes);previous=std::move(bytes);
+    std::vector<uint8_t> bytes(p,p+n);
+    // Preserve the last successfully loaded/written bytes, not a possibly
+    // truncated on-disk file. A failed backup must stop active replacement.
+    if (!previous.empty() && previous != bytes)
+      atomicWrite(path.string()+".previous",previous);
+    atomicWrite(path,bytes);
+    previous=std::move(bytes);
   }
 }
 std::string Core::stateHash() {

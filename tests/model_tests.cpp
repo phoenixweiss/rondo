@@ -28,6 +28,21 @@ int main(int argc, char **argv) {
     validRecovery["locale"] = "ru";
     recovered.commit(validRecovery);
     assert(readJson(root / "state/config.previous.json")["artwork"] == "title");
+    fs::remove(root/"state/config.json");
+    Store absentActive(root/"state");
+    assert(!absentActive.fresh && !absentActive.warning.empty());
+    assert(absentActive.data["artwork"]=="title");
+    auto recoveryBytes=readBytes(root/"state/config.previous.json");
+    absentActive.commit(absentActive.data);
+    assert(readBytes(root/"state/config.previous.json")==recoveryBytes);
+    const auto stable=readBytes(root/"state/config.json");
+    for (auto bad: {Json("loud"),Json(-1),Json(101),Json(33.5)}) {
+      auto invalid=absentActive.data;invalid["volume"]=bad;
+      bool failed=false;try {absentActive.commit(invalid);}catch(...){failed=true;}
+      assert(failed && readBytes(root/"state/config.json")==stable);
+      assert(readBytes(root/"state/config.previous.json")==recoveryBytes);
+      assert(absentActive.data["volume"]==80);
+    }
     std::string future = "{\"schema\":2,\"locale\":\"ru\"}";
     atomicWrite(root / "future/config.json", {future.begin(), future.end()});
     Store newer(root / "future");

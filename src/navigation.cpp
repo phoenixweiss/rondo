@@ -138,6 +138,7 @@ bool App::navigationAction(const std::string &a) {
   bool library=screen==Screen::Systems||gamesRoute(screen);
   if(a=="MENU"&&(library||screen==Screen::Search)){navigationSettings();return true;}
   if(screen==Screen::GameDetails) {
+    if(a=="Y"&&!core&&game.available){progressOpen();return true;}
     if(a=="B"){navigationBack();return true;}
     if(a=="A"&&(core||game.available)) {
       bool pausedInfo=bool(core);auto entry=game;navigationBack();
@@ -184,13 +185,19 @@ bool App::navigationAction(const std::string &a) {
     }
     return a=="LEFT"||a=="RIGHT"||a=="UP"||a=="DOWN"||a=="A";
   }
-  if(a=="UP") {
-    bool top=screen==Screen::Search?searchRow==0:screen==Screen::Systems?systemFocus<(store.data.value("system_tiles","grid")=="grid"?3:store.data.value("system_tiles","grid")=="large"?2:1):(store.data.value("game_view","list")=="tiles"||selected==0);
+  // Game arrows stay in content; Select explicitly toggles the action panel.
+  if(a=="UP"&&!gamesRoute(screen)) {
+    bool top=screen==Screen::Search?searchRow==0:screen==Screen::Systems&&systemFocus<(store.data.value("system_tiles","grid")=="grid"?3:store.data.value("system_tiles","grid")=="large"?2:1);
     if(top){navigationActions=true;navigationFocus=0;systemsQuick=gamesQuick=true;return true;}
   }
   return false;
 }
 void App::action(const std::string &a) {
+  if(restoreInputFence)return;
+  if(screen==Screen::ProgressBusy)return;
+  if(screen==Screen::ProgressSources||screen==Screen::ProgressConfirm||screen==Screen::ProgressDone){progressAction(a);return;}
+  if(screen==Screen::BackupBusy)return;
+  if(screen==Screen::BackupRestart){backupAction(a);return;}
   if(stop||screen==Screen::SystemProgress||screen==Screen::SavingAutomatic)return;
   if(screen==Screen::Running&&a!="MENU"){actionImpl(a);return;}
   struct StatisticsGuard {App &app;~StatisticsGuard(){app.statisticsTick();}} statisticsGuard{*this};
@@ -200,7 +207,7 @@ void App::action(const std::string &a) {
   try {if(navigationAction(a))return;}catch(const std::exception &error){notice=locale.tr("error.operation");std::cerr<<"Navigation: "<<error.what()<<"\n";return;}
   actionImpl(a);
   if(navigationRevision!=revision||screen==before.route)return;
-  if(gamesRoute(before.route)&&(screen==Screen::ResumeChoice||screen==Screen::Launching||screen==Screen::Recovery||screen==Screen::PsxFirmwareError||screen==Screen::CoreCatalog)) {gameOrigin=before;gameOriginDepth=navigation.size();}
+  if(gamesRoute(before.route)&&(screen==Screen::ResumeChoice||screen==Screen::Launching||screen==Screen::Recovery||screen==Screen::ProgressBusy||screen==Screen::PsxFirmwareError||screen==Screen::CoreCatalog)) {gameOrigin=before;gameOriginDepth=navigation.size();}
   if(screen==Screen::Running){navigation.clear();navigationActions=false;gameInputBlocked=true;++navigationRevision;return;}
   if(a=="B"&&!navigation.empty()){navigationBack();return;}
   // An existing handler may apply/cancel a service editor and select its parent.
@@ -211,6 +218,8 @@ void App::action(const std::string &a) {
   navigation.push_back(before);navigationActions=false;systemsQuick=gamesQuick=false;++navigationRevision;
 }
 void App::navigationDraw() {
+  if(screen==Screen::ProgressBusy||screen==Screen::ProgressSources||screen==Screen::ProgressConfirm||screen==Screen::ProgressDone)return;
+  if(screen==Screen::BackupBusy||screen==Screen::BackupRestart)return;
   if(infoOpen||(screen==Screen::SystemInfo&&systemInfoSource)||screen==Screen::GameDetails||screen==Screen::Running||screen==Screen::GameMenu||screen==Screen::InputTest||screen==Screen::ScreenshotCapture||screen==Screen::SystemProgress||screen==Screen::SavingAutomatic)return;
   auto items=navigationItems();if(items.empty())return;
   ui->rect(20,76,680,46,ui->bg);

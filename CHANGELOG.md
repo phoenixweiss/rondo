@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## [0.13.0] - 2026-10-30
+
+### Added
+
+- Progress backups in Settings: create a copy, inspect its games and delete unwanted copies with confirmation. Restore settings, game memory, save slots and statistics after file, version and core checks, with recovery for interrupted restoration.
+- Relocate progress after moving or renaming a ROM. Match by verified game content, preserve the source files and refuse to overwrite existing destination progress.
+
+### Changed
+
+- Show explicit Off/On switches for boolean settings, including screenshot sound, with equal positions, centred labels and a selection independent of row focus.
+- Speed up development builds with verified dependency caches and reuse native CI for identical trusted branch commits. Keep independent full builds for releases.
+
+### Fixed
+
+- Recover previous valid settings, save states, game memory and statistics after damaged or incomplete writes; offer recoverable save slots and continuation.
+- Keep directional game navigation within lists and cover tiles in all collections and search results. Select switches focus to and from the action panel without losing the current position.
+- Export PSX screenshots with correct display proportions while retaining native frame detail.
+- Keep system notifications visible above library navigation.
+
 ## [0.12.0] - 2026-10-27
 
 ### Added

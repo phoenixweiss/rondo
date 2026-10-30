@@ -10,12 +10,14 @@ static std::string combination(uint16_t mask) {
 }
 static const std::vector<std::string> shortcuts{"sticks","triggers","select_r1","custom","off"};
 void App::takeScreenshot() {
+  if(screen==Screen::ProgressBusy||screen==Screen::ProgressDone)return;
+  if(screen==Screen::BackupBusy||screen==Screen::BackupRestart)return;
   if(stop||sleeping||screenBlank||screen==Screen::InputTest||screen==Screen::ScreenshotCapture||screen==Screen::SystemProgress||screen==Screen::SavingAutomatic)return;
   try {
     if(!screenshotWriter.busy()) {
       auto timestamp=screenshotTimestamp(zones,store.data.value("timezone","Etc/UTC"),time(nullptr));
       if(core&&(screen==Screen::Running||screen==Screen::GameMenu)) {
-        if(screenshotWriter.submit(options.state/"Screenshots",game,core->frame,core->width,core->height,timestamp))return;
+        if(screenshotWriter.submit(options.state/"Screenshots",game,core->frame,core->width,core->height,timestamp,game.system=="PSX"?core->aspectRatio:0))return;
       }else {
         // Render the current interface without the previous screenshot toast.
         auto feedback=screenshotMessageUntil;screenshotMessageUntil=0;
@@ -88,7 +90,7 @@ void App::screenshotSettingsDraw(const std::string &zone) {
   auto label=mode=="off"?locale.tr("screenshot.menu_only"):combination(screenshotChord(store.data));
   ui->valueRow(locale.tr("screenshot.shortcut"),128,row==0,672,label);
   ui->row(locale.tr("screenshot.custom"),182,row==1,672,"",true,52,"chevron-right");
-  ui->valueRow(locale.tr("screenshot.sound"),236,row==2,672,locale.tr(store.data.value("screenshot_sound",true)?"value.on":"value.off"));
+  ui->binaryRow(locale.tr("screenshot.sound"),236,row==2,store.data.value("screenshot_sound",true),locale);
   ui->text(locale.tr(ui->keyboardHints?"screenshot.interface_keyboard":"screenshot.interface_pad"),32,302,22,400,ui->cream,656);
   ui->text(locale.tr("screenshot.folder"),32,346,22,400,ui->secondary,656);
   ui->hints({{"LEFT/RIGHT",locale.tr("footer.value")},{"A",locale.tr("action.select")},{"B",locale.tr("action.back")}});

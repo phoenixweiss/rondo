@@ -54,6 +54,8 @@ public:
   void psxController(bool dualshock);
   double fps = 60, sampleRate = 48000, aspectRatio = 4.0/3.0;
   std::string identity, romHash;
+  bool stateRecovered = false;
+  std::vector<std::string> memoryRecovered;
   uint64_t frames = 0, audioFrames = 0;
   size_t videoPitch=0;
   unsigned geometryWidth=0,geometryHeight=0,geometryChanges=0;
