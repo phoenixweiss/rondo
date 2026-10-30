@@ -5,6 +5,7 @@ import json
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import urllib.request
 
@@ -35,6 +36,22 @@ def snapshot(destination):
     for path in destination.rglob("*"):
         if path.is_symlink():
             raise ValueError("Symlink in source snapshot: " + str(path))
+
+
+
+def record_build_timing(work, seconds):
+    target = work / "cache-result.json"
+    timing = json.loads(target.read_text())
+    timing["seconds"] = round(seconds, 3)
+    # Docker owns the existing file on Linux; the host owns its parent directory.
+    # Replace the entry atomically instead of opening the container's inode for write.
+    with tempfile.NamedTemporaryFile(mode="w", dir=work, prefix=".cache-result-", delete=False) as stream:
+        temporary = Path(stream.name)
+        stream.write(json.dumps(timing, sort_keys=True) + "\n")
+    try:
+        temporary.replace(target)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def main():
@@ -99,9 +116,7 @@ def main():
     package = work / "output" / result["package"]
     if sha(package) != result["sha256"]:
         raise ValueError("Package readback mismatch")
-    timing = json.loads((work / "cache-result.json").read_text())
-    timing["seconds"] = round(time.monotonic() - started, 3)
-    (work / "cache-result.json").write_text(json.dumps(timing, sort_keys=True) + "\n")
+    record_build_timing(work, time.monotonic() - started)
     print(json.dumps({"package": str(package), "sha256": result["sha256"]}, indent=2))
 
 

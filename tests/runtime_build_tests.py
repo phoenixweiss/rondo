@@ -30,6 +30,24 @@ class RuntimeBuildTests(unittest.TestCase):
             archive.addfile(member, io.BytesIO(b"test"))
         return path
 
+    def test_host_can_replace_read_only_container_timing(self):
+        import importlib.util
+        import json
+        path = Path(__file__).resolve().parent.parent / "tools/build_h700_runtime.py"
+        spec = importlib.util.spec_from_file_location("h700_build_timing", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        target = self.root / "cache-result.json"
+        target.write_text(json.dumps({"cache": "bypassed", "components": {"cores": "bypassed"}}))
+        target.chmod(0o444)
+        try:
+            module.record_build_timing(self.root, 1.23456)
+            self.assertEqual(json.loads(target.read_text()), {
+                "cache": "bypassed", "components": {"cores": "bypassed"}, "seconds": 1.235})
+            self.assertEqual(list(self.root.glob(".cache-result-*")), [])
+        finally:
+            target.chmod(0o600)
+
     def test_native_and_packaged_scaling_sequences_agree(self):
         import json
         root = Path(__file__).resolve().parent.parent
