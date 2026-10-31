@@ -45,12 +45,13 @@ run("backup-faults", [sys.executable, str(ROOT / "tests/backup_fault_tests.py")]
 run("storage-sync", [sys.executable, str(ROOT / "tests/storage_sync_tests.py")])
 run("system-power", [sys.executable, str(ROOT / "tests/system_power_tests.py")])
 run("installer", [sys.executable, str(ROOT / "tests/installer_tests.py")])
-run("build", ["make", "-j4", "all", "build/progress-tests", "build/backup-tests", "build/backup-ui-tests", "build/statistics-tests", "build/battery-log-tests", "build/model-tests", "build/core-tests", "build/state-tests", "build/rumble-tests", "build/input-tests", "build/artwork-tests", "build/preferences-tests", "build/screenshot-tests", "build/library-tests",
+run("build", ["make", "-j4", "all", "build/game-frame-tests", "build/progress-tests", "build/backup-tests", "build/backup-ui-tests", "build/statistics-tests", "build/battery-log-tests", "build/model-tests", "build/core-tests", "build/state-tests", "build/rumble-tests", "build/input-tests", "build/artwork-tests", "build/preferences-tests", "build/screenshot-tests", "build/library-tests",
               "build/device-tests", "build/system-info-tests", "build/psx-tests", "build/md-tests", "build/snes-tests", "build/gba-tests", "build/gb-tests", "build/bluetooth-tests", "build/volume-ui-tests", "build/timezone-tests", "build/battery-tests", "build/wifi-tests", "build/clock-tests"], timeout=300)
 run("system-info", [str(ROOT / "build/system-info-tests"), str(ROOT / "assets"), str(work / "system-info"), str(ROOT / "build/rondo")])
 run("library", [str(ROOT / "build/library-tests"), str(ROOT / "assets"), str(work / "library")])
 run("screenshots", [str(ROOT / "build/screenshot-tests"), str(ROOT / "assets"), str(work / "screenshots"), str(ROOT / "build/rumble-fixture.so")])
 run("preferences", [str(ROOT / "build/preferences-tests"), str(ROOT / "assets"), str(work / "preferences"), str(core)])
+run("game-frame", [str(ROOT / "build/game-frame-tests"), str(ROOT / "assets"), str(work / "game-frame")])
 run("artwork", [str(ROOT / "build/artwork-tests"), str(ROOT / "assets"), str(work / "artwork")])
 run("rumble", [str(ROOT / "build/rumble-tests"), str(work / "rumble")])
 run("input", [str(ROOT / "build/input-tests"), str(ROOT / "assets"), str(work / "input")])

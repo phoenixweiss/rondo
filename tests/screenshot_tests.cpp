@@ -88,10 +88,23 @@ int main(int argc,char **argv) {
   auto sample=[&](int l,int r){SDL_JoystickSetVirtualButton(joystick,7,l);SDL_JoystickSetVirtualButton(joystick,8,r);SDL_GameControllerUpdate();a.sampleInput();};
   a.screen=Screen::Running;a.core->paused=false;a.gameInputBlocked=true;
   sample(0,0);assert(!a.gameInputBlocked);
+  auto verifyMenuCapture=[&] {
+    auto all=images(root/"Screenshots/Interface");assert(!all.empty());
+    auto latest=*std::max_element(all.begin(),all.end());
+    auto *png=stbi_load(latest.c_str(),&w,&h,&n,4);assert(png&&w==720&&h==480);
+    // The menu header and rows must be present, not just the game frame.
+    assert(png[0]!=255||png[1]!=0||png[2]!=0);
+    stbi_image_free(png);
+  };
   auto count=images(root/"Screenshots").size();sample(1,0);sample(1,1);finish(a);assert(images(root/"Screenshots").size()==count+1&&a.core->buttons==0);
   for(int i=0;i<10;++i)sample(1,1);finish(a);assert(images(root/"Screenshots").size()==count+1);
   sample(0,0);a.action("MENU");assert(a.screen==Screen::GameMenu&&a.core->paused);
   sample(1,1);finish(a);assert(images(root/"Screenshots").size()==count+2&&a.screen==Screen::GameMenu&&a.core->paused&&a.core->buttons==0);
+  verifyMenuCapture();
+  // The explicit menu action still exports the game, not the interface.
+  auto gameBefore=images(root/"Screenshots/NES").size();
+  a.row=int(GameMenuItem::Screenshot);a.action("A");finish(a);
+  assert(images(root/"Screenshots/NES").size()==gameBefore+1);
   sample(0,0);a.core.reset();a.options.state=root/"interface-test";a.screen=Screen::Library;a.section="All";a.games.clear();a.navigation.clear();a.navigationActions=false;
   auto unchanged=a.store.data;a.screenshotMessageUntil=0;
   sample(1,1);finish(a);auto uiFiles=images(a.options.state/"Screenshots");assert(uiFiles.size()==1&&uiFiles[0].parent_path().filename()=="Interface");
@@ -133,6 +146,13 @@ int main(int argc,char **argv) {
     if(size.first==512&&size.second==240)assert(w==512&&h==384);
     if(size.first==640&&size.second==240)assert(w==640&&h==480);
   }
+  a.core->width=368;a.core->height=480;a.core->aspectRatio=4.0/3;
+  a.core->frame.assign(368*480,0xffff0000);a.screen=Screen::GameMenu;a.core->paused=true;
+  a.notice.clear();a.screenshotMessageUntil=0;a.draw();
+  auto at=[&](int x,int y){return *reinterpret_cast<uint32_t *>(static_cast<uint8_t *>(a.ui->surface->pixels)+y*a.ui->surface->pitch+x*4)&0xffffffu;};
+  assert(at(594,242)==0xff0000u);assert(at(495,242)==0xff0000u);
+  assert(at(594,141)!=0xff0000u&&at(594,343)!=0xff0000u);
+  a.capture("psx-pause-preview-4-3");
   a.game=oldGame;a.core->width=oldWidth;a.core->height=oldHeight;a.core->frame=std::move(oldFrame);a.core->aspectRatio=oldAspect;
   // Optional private raw PSX capture: exercise the actual export pipeline without
   // adding game artwork or user screenshots to the repository.

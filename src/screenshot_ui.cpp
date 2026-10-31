@@ -9,14 +9,14 @@ static std::string combination(uint16_t mask) {
   std::string text;for(int i=0;i<16;++i)if(mask&(1u<<i)){if(!text.empty())text+=" + ";text+=physicalButton(i);}return text;
 }
 static const std::vector<std::string> shortcuts{"sticks","triggers","select_r1","custom","off"};
-void App::takeScreenshot() {
+void App::takeScreenshot(bool gameFrameOnly) {
   if(screen==Screen::ProgressBusy||screen==Screen::ProgressDone)return;
   if(screen==Screen::BackupBusy||screen==Screen::BackupRestart)return;
   if(stop||sleeping||screenBlank||screen==Screen::InputTest||screen==Screen::ScreenshotCapture||screen==Screen::SystemProgress||screen==Screen::SavingAutomatic)return;
   try {
     if(!screenshotWriter.busy()) {
       auto timestamp=screenshotTimestamp(zones,store.data.value("timezone","Etc/UTC"),time(nullptr));
-      if(core&&(screen==Screen::Running||screen==Screen::GameMenu)) {
+      if(core&&(screen==Screen::Running||gameFrameOnly)) {
         if(screenshotWriter.submit(options.state/"Screenshots",game,core->frame,core->width,core->height,timestamp,game.system=="PSX"?core->aspectRatio:0))return;
       }else {
         // Render the current interface without the previous screenshot toast.

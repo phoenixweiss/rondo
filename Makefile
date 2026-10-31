@@ -12,8 +12,8 @@ H700_SYSTEM_LIBS ?= -ldl -lpthread -lstdc++fs
 BASE = src/preferences.cpp src/model.cpp src/platform.cpp src/psx.cpp src/state.cpp src/rumble.cpp src/restore.cpp
 UI = $(BASE) src/artwork.cpp src/ui.cpp
 APP = $(UI) src/backup.cpp src/backup_ui.cpp src/progress.cpp src/progress_ui.cpp src/library_ui.cpp src/navigation.cpp src/game_statistics.cpp src/screenshots.cpp src/screenshot_ui.cpp src/core.cpp src/app.cpp src/preferences_ui.cpp src/wizard_ui.cpp src/input_test_ui.cpp src/clock.cpp src/clock_ui.cpp src/wifi.cpp src/wifi_ui.cpp src/battery_log.cpp src/bluetooth.cpp src/bluetooth_ui.cpp src/system_info.cpp src/system_info_ui.cpp
-NATIVE_TESTS = progress backup backup-ui statistics library screenshot preferences artwork input rumble state psx system-info md snes gba gb bluetooth battery-log model core device volume-ui timezone battery wifi clock
-H700_TESTS = progress backup backup-ui statistics library screenshot preferences model artwork input rumble state psx system-info md snes gba gb bluetooth battery-log h700-device device timezone battery wifi h700-wifi clock h700-clock
+NATIVE_TESTS = game-frame progress backup backup-ui statistics library screenshot preferences artwork input rumble state psx system-info md snes gba gb bluetooth battery-log model core device volume-ui timezone battery wifi clock
+H700_TESTS = game-frame progress backup backup-ui statistics library screenshot preferences model artwork input rumble state psx system-info md snes gba gb bluetooth battery-log h700-device device timezone battery wifi h700-wifi clock h700-clock
 
 all: $(BUILD)/rondo
 native-programs: all $(addprefix $(BUILD)/,$(addsuffix -tests,$(NATIVE_TESTS)))
@@ -72,6 +72,7 @@ $(eval $(call program,h700-wifi-tests,tests/h700_wifi_tests.cpp $(BASE) src/wifi
 $(eval $(call program,h700-clock-tests,tests/h700_clock_tests.cpp $(BASE) src/clock.cpp,$$(H700_SYSTEM_LIBS) -Wl$$(comma)--wrap=adjtimex$$(comma)--wrap=clock_settime$$(comma)--wrap=clock_gettime$$(comma)--wrap=ioctl))
 
 
+$(eval $(call program,game-frame-tests,tests/game_frame_tests.cpp $(UI),$$(LDLIBS)))
 $(eval $(call program,artwork-tests,tests/artwork_tests.cpp $(UI),$$(LDLIBS)))
 $(eval $(call program,artwork-benchmark,tests/artwork_performance.cpp $(UI),$$(LDLIBS)))
 $(eval $(call program,state-tests,tests/state_tests.cpp $(BASE),$$(LDLIBS)))

@@ -212,7 +212,7 @@ public:
   uint64_t screenshotMessageUntil=0;
   bool screenshotRecordingArmed=false;
   uint16_t screenshotRecording=0;
-  void takeScreenshot();
+  void takeScreenshot(bool gameFrameOnly=false);
   void screenshotTick();
   void playScreenshotSound();
   void screenshotDraw();
@@ -243,7 +243,7 @@ public:
   bool diagnosticRunner = false;
   Json frameDiagnostic=Json::object();
   uint64_t frameWindow=0,frameCount=0,frameSlow=0;
-  double frameInput=0,frameUpdate=0,frameDraw=0,frameMaximum=0;
+  double frameInput=0,frameUpdate=0,frameDraw=0,framePresent=0,frameMaximum=0;
   void observeFrame(double inputMs,double updateMs,double drawMs);
   void configureDiagnostics();
   void batterySample(const std::string &event = "");

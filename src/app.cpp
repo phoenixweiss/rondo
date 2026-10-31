@@ -484,7 +484,7 @@ void App::gameInput(uint16_t held,const std::array<int16_t,4> &axes) {
   bool shot=false;
   held=screenshotKeys.sample(held,screenshotChord(store.data),monotonicMs(),shot);
   if(shot)takeScreenshot();
-  if(screen==Screen::GameMenu)return; // Capture the paused game, never send the chord to it.
+  if(screen==Screen::GameMenu)return; // Never send menu screenshot buttons to the paused game.
   core->buttons=mappedButtons(store.data,game.system,held);
   if(game.system=="PSX")core->axes=axes;
 }
@@ -938,7 +938,7 @@ void App::actionImpl(const std::string &a) {
         screen = Screen::GameSettings;
         row = 0;
       }
-      if(a=="A"&&chosen==GameMenuItem::Screenshot){takeScreenshot();}
+      if(a=="A"&&chosen==GameMenuItem::Screenshot){takeScreenshot(true);}
       if(a=="A"&&chosen==GameMenuItem::Info){openGameInfo();}
       if (a == "A" && chosen == GameMenuItem::Exit) {
         screen = Screen::ExitConfirm;
@@ -1222,14 +1222,15 @@ void App::observeFrame(double inputMs,double updateMs,double drawMs) {
   if(!store.data.value("debug_enabled",false) || store.data.value("debug_level","events")!="detailed")return;
   const auto now=monotonicMs();
   if(!frameWindow)frameWindow=now;
-  ++frameCount;frameInput+=inputMs;frameUpdate+=updateMs;frameDraw+=drawMs;
+  ++frameCount;frameInput+=inputMs;frameUpdate+=updateMs;frameDraw+=drawMs;framePresent+=ui?ui->presentationMs:0;
   auto total=inputMs+updateMs+drawMs;frameMaximum=std::max(frameMaximum,total);frameSlow+=total>16.667;
   if(now-frameWindow<2000)return;
   frameDiagnostic={{"frames",frameCount},{"window_ms",now-frameWindow},
     {"fps",1000.0*frameCount/double(now-frameWindow)},{"input_ms",frameInput/frameCount},
     {"update_ms",frameUpdate/frameCount},{"draw_ms",frameDraw/frameCount},
+    {"present_ms",framePresent/frameCount},{"render_path",ui?ui->renderPath():"none"},
     {"max_work_ms",frameMaximum},{"over_16ms",frameSlow}};
-  frameWindow=now;frameCount=frameSlow=0;frameInput=frameUpdate=frameDraw=frameMaximum=0;
+  frameWindow=now;frameCount=frameSlow=0;frameInput=frameUpdate=frameDraw=framePresent=frameMaximum=0;
 }
 void App::batterySample(const std::string &event) {
   if (!batteryLog || (!ui && event.empty())) return;
@@ -1517,9 +1518,14 @@ SDL_Rect App::gameViewport() const {
     // Oversized frames have no positive integer scale; keep the fitted view.
     if(scale>0){w=core->width*scale;h=core->height*scale;}
   }
+  if(game.system!="PSX") {
+    double scale=std::min(double(w)/core->width,double(h)/core->height);
+    w=int(core->width*scale);h=int(core->height*scale);
+  }
   return {(720-w)/2,(480-h)/2,w,h};
 }
 void App::draw() {
+  ui->beginFrame();
   ui->contentFocus=!navigationActions||screen==Screen::GameMenu||screen==Screen::Running;
   ui->bluetoothEnabled=bt.enabled;
   // A game frame without a header must never inherit a previous menu's 100%.
@@ -1541,9 +1547,10 @@ void App::draw() {
   auto tr = [this](auto key) { return locale.tr(key); };
   auto zone = store.data.value("timezone", "Etc/UTC");
   if (screen == Screen::Running) {
-    ui->rect(0, 0, 720, 480, gameBackground());
     auto viewport=gameViewport();
-    ui->pixels(core->frame,core->width,core->height,viewport.x,viewport.y,viewport.w,viewport.h,game.system!="PSX");
+    ui->gamePixels(core->frame,core->width,core->height,viewport,gameBackground(),
+      !notice.empty() || (batteryWarningPercent>=0 && monotonicMs()<batteryNoticeUntil && store.data.value("battery_warning",true)) ||
+      volumeFeedback.visible(monotonicMs()) || monotonicMs()<screenshotMessageUntil);
     if (!notice.empty()) ui->notice(notice,"folder");
     if(batteryWarningPercent>=0 && monotonicMs()<batteryNoticeUntil && store.data.value("battery_warning",true)) {
       ui->rect(584,24,112,40,ui->focus,8);
@@ -1875,7 +1882,11 @@ void App::draw() {
     for (int i = 0; i < 7; i++)
       ui->row(tr(labels[i]), 84 + i * 46, row == i, 452, "",
               !(i == 2 && !anySlots(*this)) && !(i == 1 && !core->canSave()), 44, "", icons[i]);
-    ui->pixels(core->frame, core->width, core->height, 492, 140, 204, 204);
+    auto viewport=gameViewport();
+    double scale=std::min(204.0/viewport.w,204.0/viewport.h);
+    int previewWidth=int(viewport.w*scale),previewHeight=int(viewport.h*scale);
+    ui->pixels(core->frame,core->width,core->height,492+(204-previewWidth)/2,
+               140+(204-previewHeight)/2,previewWidth,previewHeight,false);
     ui->text(game.title,492,350,19,500,ui->cream,204);
     ui->text(tr("game.paused"), 492, 378, 19);
     ui->text(game.system,492,404,18,400,ui->secondary);

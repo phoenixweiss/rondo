@@ -2,7 +2,7 @@
 set -euo pipefail
 cp -R /package/System/Rondo /baseos/tmp/app
 cp /programs/progress-tests /programs/backup-tests /programs/backup-ui-tests /programs/statistics-tests /programs/library-tests /programs/screenshot-tests /baseos/tmp/
-cp /programs/preferences-tests /programs/model-tests /programs/artwork-tests /programs/rumble-tests /programs/rumble-fixture.so /programs/input-tests /programs/state-tests /programs/psx-tests /programs/system-info-tests /programs/md-tests /programs/snes-tests /programs/gba-tests /programs/gb-tests /programs/bluetooth-tests /programs/battery-log-tests /programs/clock-tests /programs/h700-clock-tests /programs/battery-tests /programs/timezone-tests /programs/device-tests /programs/h700-device-tests /programs/wifi-tests /programs/h700-wifi-tests /baseos/tmp/
+cp /programs/game-frame-tests /programs/preferences-tests /programs/model-tests /programs/artwork-tests /programs/rumble-tests /programs/rumble-fixture.so /programs/input-tests /programs/state-tests /programs/psx-tests /programs/system-info-tests /programs/md-tests /programs/snes-tests /programs/gba-tests /programs/gb-tests /programs/bluetooth-tests /programs/battery-log-tests /programs/clock-tests /programs/h700-clock-tests /programs/battery-tests /programs/timezone-tests /programs/device-tests /programs/h700-device-tests /programs/wifi-tests /programs/h700-wifi-tests /baseos/tmp/
 mkdir -p /baseos/sys/power /baseos/sys/class/graphics/fb0 /baseos/sys/class/power_supply/axp2202-battery
 printf mem > /baseos/sys/power/state
 printf '0\n' > /baseos/sys/class/power_supply/axp2202-battery/moto
@@ -51,6 +51,7 @@ chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/device-tests /tmp/app/assets /tmp
  /tmp/app/cores/fceumm_libretro.so '/tmp/app/Demo/card-a/NES/Rondo Test Cartridge/test.nes'
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/preferences-tests /tmp/app/assets /tmp/preferences-test /tmp/app/cores/fceumm_libretro.so
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/model-tests /tmp/app/assets
+chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/game-frame-tests /tmp/app/assets /tmp/game-frame-test
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/artwork-tests /tmp/app/assets /tmp/artwork-test
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/rumble-tests /tmp/rumble --synthetic-sysfs
 chroot /baseos /lib/ld-linux-aarch64.so.1 /tmp/input-tests /tmp/app/assets /tmp/input-test

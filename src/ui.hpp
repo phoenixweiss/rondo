@@ -4,6 +4,7 @@
 #include "model.hpp"
 #include "platform.hpp"
 #include "artwork.hpp"
+#include "game_frame.hpp"
 #include <SDL.h>
 #include <SDL_ttf.h>
 #include <memory>
@@ -13,6 +14,9 @@ class UI {
   SDL_Window *window = nullptr;
   SDL_Renderer *display = nullptr;
   SDL_Texture *output = nullptr;
+  std::unique_ptr<GameFrame> gameFrame;
+  bool directGame=false,gameOverlay=false;
+  void composeDisplay();
   Timezones frameZones;
   std::string frameZone, frameClock;
   time_t frameSecond = -1;
@@ -68,7 +72,7 @@ public:
   void inputHints(bool keyboard);
   std::string buttonLabel(const std::string &) const;
   int width = 720, height = 480;
-  explicit UI(fs::path, bool);
+  explicit UI(fs::path, bool, bool hiddenWindow=false);
   ~UI();
   UI(const UI &) = delete;
   UI &operator=(const UI &) = delete;
@@ -96,6 +100,10 @@ public:
   void pixels(const std::vector<uint32_t> &, int, int, int, int, int, int, bool fitRawAspect = true);
   void scrollbar(double, double, double, bool library, int top = -1, int bottom = -1);
   void volumeOverlay(VolumeFeedback &, const Locale &, bool systemNotice = false);
+  const char *renderPath() const { return directGame?"display-game-texture":"software-composite"; }
+  double presentationMs=0;
+  void beginFrame() { directGame=false; }
+  void gamePixels(const std::vector<uint32_t> &,int,int,const SDL_Rect &,SDL_Color,bool overlay);
   void present();
   void save(const fs::path &);
 };

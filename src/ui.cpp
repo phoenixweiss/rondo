@@ -21,7 +21,7 @@ SDL_Color UI::parseColor(const std::string &s) {
   return {uint8_t(std::stoi(s.substr(1, 2), 0, 16)), uint8_t(std::stoi(s.substr(3, 2), 0, 16)),
           uint8_t(std::stoi(s.substr(5, 2), 0, 16)), 255};
 }
-UI::UI(fs::path a, bool hidden) : assets(std::move(a)), headless(hidden) {
+UI::UI(fs::path a, bool hidden, bool hiddenWindow) : assets(std::move(a)), headless(hidden) {
   volumeKeys = std::make_unique<VolumeKeys>();
   powerKeys = std::make_unique<PowerKeys>();
   handheldKeys = std::make_unique<H700Keys>();
@@ -54,10 +54,10 @@ UI::UI(fs::path a, bool hidden) : assets(std::move(a)), headless(hidden) {
   SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
   if (!headless) {
     window = SDL_CreateWindow("Rondo — local prototype", SDL_WINDOWPOS_CENTERED,
-                              SDL_WINDOWPOS_CENTERED, width, height, SDL_WINDOW_RESIZABLE);
+                              SDL_WINDOWPOS_CENTERED, width, height, hiddenWindow?SDL_WINDOW_HIDDEN:SDL_WINDOW_RESIZABLE);
     if (!window)
       throw std::runtime_error(SDL_GetError());
-    display = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    display = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | (hiddenWindow?0:SDL_RENDERER_PRESENTVSYNC));
     if (!display)
       display = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
     if (!display)
@@ -77,6 +77,7 @@ void UI::setTheme(const std::string &id) {
   }
 }
 UI::~UI() {
+  gameFrame.reset();
   artworkCache.reset();
   for(auto &entry:imageTextures)SDL_DestroyTexture(entry.second.texture);
   for (auto &entry : controllers) SDL_GameControllerClose(entry.second);
@@ -475,7 +476,8 @@ void UI::row(const std::string &label, int y, bool selected, int width, const st
   int available = width - 38;
   int labelX = startIcon.empty() ? 32 : 66;
   if (!startIcon.empty()) {
-    icon(startIcon, 32, y + (h - 24) / 2, 24);
+    const int opticalOffset=(startIcon=="play" && h==44)?1:0;
+    icon(startIcon,32,y+(h-24)/2+opticalOffset,24);
     available -= 34;
   }
   int valueW = measure(value, 21);
@@ -501,7 +503,8 @@ void UI::row(const std::string &label, int y, bool selected, int width, const st
     text(first, labelX, y + 10, 23, 700, c, available);
     text(second, labelX, y + 38, 23, 700, c, available);
   } else
-    text(label, labelX, y + 12, 23, selected ? 700 : 500, c, available);
+    text(label,labelX,y+(h-TTF_FontHeight(font(23,selected?700:500)))/2,
+         23,selected?700:500,c,available);
   if (!value.empty()) {
     int valueX=width-8-valueW-(endIcon.empty()?0:38)-(editableValue?24:0);
     text(value,valueX,y+14,21,500,c);
@@ -855,19 +858,50 @@ void UI::volumeOverlay(VolumeFeedback &feedback, const Locale &locale, bool /*sy
       rect(tx, ty, fill, th, cream, std::min(tr, fill / 2));
   }
 }
+void UI::gamePixels(const std::vector<uint32_t> &pixels,int w,int h,const SDL_Rect &target,SDL_Color background,bool overlay) {
+  gameOverlay=overlay;
+  if(display && (!overlay || SDL_SetTextureBlendMode(output,SDL_ComposeCustomBlendMode(
+      SDL_BLENDFACTOR_ONE,SDL_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,SDL_BLENDOPERATION_ADD,
+      SDL_BLENDFACTOR_ONE,SDL_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,SDL_BLENDOPERATION_ADD))==0)) {
+    if(!gameFrame)gameFrame=std::make_unique<GameFrame>(display);
+    directGame=gameFrame->draw(pixels,w,h,target,background);
+  }
+  if(directGame) {
+    // Only transparent interface overlays are uploaded at screen resolution.
+    SDL_SetRenderDrawColor(renderer,0,0,0,0);
+    SDL_RenderClear(renderer);
+  }else {
+    rect(0,0,width,height,background);
+    this->pixels(pixels,w,h,target.x,target.y,target.w,target.h,false);
+  }
+}
+void UI::composeDisplay() {
+  if (display) {
+    if(!directGame||gameOverlay)SDL_UpdateTexture(output, nullptr, surface->pixels, surface->pitch);
+    if(directGame)gameFrame->redraw();
+    else SDL_SetTextureBlendMode(output,SDL_BLENDMODE_NONE);
+    if(!directGame) {
+      SDL_SetRenderDrawColor(display, bg.r, bg.g, bg.b, 255);
+      SDL_RenderClear(display);
+    }
+    if(!directGame||gameOverlay)SDL_RenderCopy(display, output, nullptr, nullptr);
+  }
+}
 void UI::present() {
   SDL_RenderPresent(renderer);
-  if (display) {
-    SDL_UpdateTexture(output, nullptr, surface->pixels, surface->pitch);
-    SDL_SetRenderDrawColor(display, bg.r, bg.g, bg.b, 255);
-    SDL_RenderClear(display);
-    SDL_RenderCopy(display, output, nullptr, nullptr);
-    SDL_RenderPresent(display);
-  }
+  composeDisplay();
+  const auto before=SDL_GetPerformanceCounter();
+  if(display)SDL_RenderPresent(display);
+  presentationMs=1000.0*double(SDL_GetPerformanceCounter()-before)/SDL_GetPerformanceFrequency();
   batteryDisplay["submitted_monotonic_ms"] = monotonicMs();
 }
 void UI::save(const fs::path &p) {
-  present();
+  if(directGame) {
+    SDL_RenderPresent(renderer);
+    composeDisplay();
+    if(SDL_RenderReadPixels(display,nullptr,SDL_PIXELFORMAT_ARGB8888,surface->pixels,surface->pitch))
+      throw std::runtime_error(SDL_GetError());
+  }else present();
   fs::create_directories(p.parent_path());
   auto *converted = SDL_ConvertSurfaceFormat(surface, SDL_PIXELFORMAT_RGBA32, 0);
   if (!converted)

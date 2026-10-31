@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## [0.14.0] - 2026-10-31
+
+### Changed
+
+- Scale reusable native-resolution game textures on the display renderer, avoiding software upscaling before presentation. Retain software fallback and render notifications over the game.
+- Include the rendering path and presentation wait time in detailed frame diagnostics.
+
+### Fixed
+
+- Preserve display proportions in the pause-menu game preview, including high-resolution PSX modes.
+- Align compact menu-row labels vertically with their icons.
+- Capture the visible pause menu with the screenshot shortcut or F12. The menu's Screenshot action continues to export only the game frame.
+
 ## [0.13.1] - 2026-10-30
 
 ### Added

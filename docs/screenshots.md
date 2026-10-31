@@ -7,8 +7,9 @@ keep their own button handling and do not trigger screenshots.
 
 
 During a game, press **L3 + R3** together or open the game menu and select
-**Screenshot**. The shortcut also works in the game menu and keeps the game
-paused, just like the menu action. Captures contain the
+**Screenshot**. In the pause menu, the shortcut captures the complete visible interface and
+keeps the game paused. To capture only the game there, select **Screenshot**.
+Game captures contain the
 original game frame at the core's output resolution, without Rondo menus,
 notifications, display scaling or the surrounding background.
 
@@ -45,6 +46,6 @@ confirmation before removing the card. Sleep and normal shutdown finish a
 pending capture before handing control back to the system.
 
 The interface shortcut stays L3 + R3 independently of the game shortcut. F12
-also captures the raw game frame during gameplay or in the pause menu.
+captures the game frame during gameplay and the visible interface in menus.
 
 Screenshot sound is enabled by default and can be disabled in screenshot settings. A short shutter click plays after a successful PNG write, at the current game volume. During gameplay it is mixed into the existing audio stream; it does not open another audio device. Failed writes do not play the click. Interface captures follow the same sound and volume settings.
