@@ -39,7 +39,7 @@ bounded retries and the official mirrors recorded with each dependency. A checks
 mismatch stops the build instead of silently selecting another source. Source
 caching does not change the two independent `--fresh` compilations.
 
-The retained workflow artifact contains the source-complete frontend ZIP, verification.json, release-notes.md and SHA256SUMS.txt. It expires after seven days; download and preserve a candidate needed for physical testing. The ZIP is a frontend package for an existing BaseOS 1.3.0 RG34XXSP installation, not firmware or a bootable SD image. A non-tag run is clearly named development, even after VERSION is initialized.
+The retained workflow artifact contains the source-complete frontend ZIP, verification.json, release-notes.md and SHA256SUMS.txt. It expires after seven days; download and preserve a candidate needed for physical testing. The ZIP is a frontend package for an existing RG34XXSP BaseOS installation, not firmware or a bootable SD image. Current device testing uses BaseOS 1.5.3; package metadata retains the older 1.3.0 baseline. A non-tag run is clearly named development, even after VERSION is initialized.
 
 The BaseOS rootfs is an external input and is never uploaded. Its isolated preflight is a separate local check; the hosted workflow does not claim to have run it. Physical graphics, audio, input, brightness, save/resume and suspend acceptance of the exact candidate remain separate checks. See [installation/rollback](installation.md) and [compatibility](compatibility.md).
 

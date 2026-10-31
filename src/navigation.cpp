@@ -123,11 +123,6 @@ bool App::navigationAction(const std::string &a) {
     return true;
   }
   if(a=="B"&&gameOrigin&&(screen==Screen::Recovery||screen==Screen::PsxWarning||screen==Screen::PsxFirmwareError||(screen==Screen::PsxCoreSettings&&!navigation.empty()&&navigation.back().route==Screen::PsxFirmwareError))){navigationGameReturn();return true;}
-  if(screen==Screen::InputTest&&a=="MENU") {
-    if(motor)motor->stop();testButtons=0;testAxes={};testExtras.clear();mappingTest=false;
-    if(!navigation.empty())navigationBack();else {screen=testFromCores?Screen::CoreSettings:Screen::SettingsSection;category=4;row=3;}
-    return true;
-  }
   const bool gameChild=screen==Screen::GameSettings||screen==Screen::SaveSlots||screen==Screen::LoadSlots||screen==Screen::DeleteSlot||screen==Screen::Overwrite||screen==Screen::LoadConfirm||screen==Screen::ExitConfirm||screen==Screen::DiscardConfirm;
   if(a=="MENU"&&core&&(screen==Screen::GameMenu||gameChild||(screen==Screen::GameDetails&&core))) {
     if(gameChild){while(!navigation.empty()&&navigation.back().route!=Screen::GameMenu)navigation.pop_back();if(!navigation.empty())navigationBack();else{screen=Screen::GameMenu;row=0;}}

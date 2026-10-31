@@ -11,7 +11,7 @@ int main(int argc,char **argv){
   a.motor=std::make_shared<Rumble>([&](bool on){motorOn=on;if(on)++pulses;return true;});
   a.screen=Screen::SettingsSection;a.category=4;a.row=3;a.action("A");assert(a.screen==Screen::InputTest);
   a.testInput(0,{},{});assert(a.testInputArmed);
-  for(auto action:{"A","B","X","Y","UP","DOWN","VOLUME_UP","VOLUME_DOWN","SLEEP"})a.action(action);
+  for(auto action:{"A","B","X","Y","UP","DOWN","VOLUME_UP","VOLUME_DOWN","SLEEP","MENU"})a.action(action);
   assert(a.screen==Screen::InputTest&&a.store.data==before&&!a.infoOpen);
   const uint16_t shoulders=(1<<RETRO_DEVICE_ID_JOYPAD_L)|(1<<RETRO_DEVICE_ID_JOYPAD_R)|(1<<RETRO_DEVICE_ID_JOYPAD_L2)|(1<<RETRO_DEVICE_ID_JOYPAD_R2);
   a.testInput(shoulders,{},{});
@@ -28,10 +28,26 @@ int main(int argc,char **argv){
   a.testInput(exit,{},{});assert(a.screen==Screen::SettingsSection&&a.row==3&&a.category==4);
   a.openInputTest(true);a.testInput(exit,{},{});assert(a.screen==Screen::InputTest); // Entry-held chord is ignored.
   a.testInput(0,{},{});a.testInput(exit,{},{});assert(a.screen==Screen::CoreSettings&&a.row==3);
-  a.openInputTest(true);a.action("MENU");assert(a.screen==Screen::CoreSettings);
+  a.openInputTest(true);a.testInput(0,{},{});a.action("MENU");
+  a.testInput(0,{},{"MENU"});assert(a.screen==Screen::InputTest&&a.testExtras.count("MENU"));
+  a.action("MENU");assert(a.screen==Screen::InputTest);a.testInput(0,{},{});
+  a.testInput(exit,{},{});assert(a.screen==Screen::CoreSettings);
   a.openInputTest(true);a.testInput(0,{},{});a.store.data["rumble_enabled"]=false;
   a.testInput(shoulders,{},{});assert(!a.testFeedback.empty());SDL_Delay(20);assert(pulses==2);
   a.store.data=before;
+  // A real SDL Guide event must remain observable, never become navigation.
+  int index=SDL_JoystickAttachVirtual(SDL_JOYSTICK_TYPE_GAMECONTROLLER,6,15,0);assert(index>=0);
+  auto *pad=SDL_JoystickOpen(index);assert(pad);char guid[64];
+  SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(pad),guid,sizeof(guid));
+  auto mapping=std::string(guid)+",Input test virtual pad,back:b4,guide:b5,start:b6,leftx:a0,lefty:a1,rightx:a2,righty:a3,";
+  assert(SDL_GameControllerAddMapping(mapping.c_str())>=0);SDL_PumpEvents();a.ui->refreshControllers();
+  a.openInputTest(true);a.sampleInput();assert(a.testInputArmed);
+  SDL_JoystickSetVirtualButton(pad,5,1);SDL_GameControllerUpdate();a.sampleInput();a.action("MENU");
+  assert(a.screen==Screen::InputTest&&a.testExtras.count("MENU")&&a.store.data==before);
+  SDL_JoystickSetVirtualButton(pad,5,0);SDL_GameControllerUpdate();a.sampleInput();assert(a.testExtras.empty());
+  SDL_JoystickSetVirtualButton(pad,4,1);SDL_JoystickSetVirtualButton(pad,6,1);SDL_GameControllerUpdate();a.sampleInput();
+  assert(a.screen==Screen::CoreSettings);SDL_JoystickClose(pad);
+  assert(SDL_JoystickDetachVirtual(index)==0);SDL_PumpEvents();a.ui->refreshControllers();
   for(auto language:{"en","ru"}) {
     a.openInputTest(true);a.locale.select(o.assets,language);a.testInput(0,{},{});a.testFeedbackUntil=0;
     a.capture(std::string("input-neutral-")+language);

@@ -1,4 +1,5 @@
 #include "app.hpp"
+#include "resume_input.hpp"
 #include <cassert>
 #include <iostream>
 using namespace rondo;
@@ -11,6 +12,7 @@ int main(int argc,char **argv) {
  auto games=scan(o.volumes);assert(games.size()==1);auto game=games[0];assert(game.system=="GBA" && o.coreFor("GBA")==o.gbaCore && o.coreFor("NES")==o.core);
  auto dir=o.state/"games"/game.id;std::vector<uint8_t> seed(131072,0xff);seed[0]=0x5a;atomicWrite(dir/"sram.bin",seed);
  {App a(o,true,game);a.ticks(90);assert(a.core->width==240 && a.core->height==160 && a.core->audioFrames>0 && a.core->audioPeak>0 && a.core->sampleRate==32768);
+  verifyResumeInputFence(a);
   auto neutral=a.core->frame[0];a.gameButtons(0);
   for(unsigned button:{RETRO_DEVICE_ID_JOYPAD_A,RETRO_DEVICE_ID_JOYPAD_B,RETRO_DEVICE_ID_JOYPAD_L,RETRO_DEVICE_ID_JOYPAD_R,RETRO_DEVICE_ID_JOYPAD_START,RETRO_DEVICE_ID_JOYPAD_SELECT}) {
    a.core->buttons=a.gameButtons(uint16_t(1u<<button));a.ticks(2);assert(a.core->frame[0]!=neutral);

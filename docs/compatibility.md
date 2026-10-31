@@ -1,8 +1,8 @@
 # Compatibility and verification
 
 Rondo is in early development. The handheld target is Anbernic RG34XXSP with a
-720×480 display and BaseOS. The package baseline is BaseOS 1.3.0; BaseOS 1.5.2
-has also been tested on the device. Other handheld models have not been tested.
+720×480 display and BaseOS 1.5.3 as the current tested environment. Package metadata
+retains a BaseOS 1.3.0 baseline. Other handheld models have not been tested.
 
 ## Runtime environments
 
@@ -11,6 +11,7 @@ has also been tested on the device. Other handheld models have not been tested.
 | macOS | Native SDL prototype and automated core, runner, save and UI tests | Does not emulate BaseOS or its hardware drivers |
 | Linux | Automated native core, runner, save and UI tests | Dummy video/audio |
 | BaseOS 1.3.0 and 1.5.2 | Packaged runtime and synthetic device checks in isolated userspace | Physical drivers are tested separately on the handheld |
+| RG34XXSP / BaseOS 1.5.3 | Large library, input test, GBA/SNES, saves, audio and sleep tested on the device | Current development environment |
 | RG34XXSP / BaseOS 1.5.2 | Library, supported systems, saves, continuation, controls, audio and sleep tested on the device | Performance and game compatibility vary by title |
 
 ## Systems

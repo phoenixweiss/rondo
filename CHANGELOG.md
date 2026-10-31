@@ -2,14 +2,19 @@
 
 ## Unreleased
 
-### Fixed
-
-- Fetch pinned build inputs from official mirrors with bounded transport retries and atomic SHA-256-verified caching. Prefer the official GitHub release for SDL_ttf.
-- Wait briefly for both native CI jobs to register after an atomic dev/main push before selecting reuse or the full matrix.
+## [0.14.1] - 2026-11-01
 
 ### Changed
 
-- Cache verified source archives in H700 CI while retaining two independent full release builds.
+- Speed up large-library filtering and navigation by avoiding repeated favorites scans while preserving search and recent-history order.
+- Use BaseOS 1.5.3 as the current tested RG34XXSP environment.
+- Cache SHA-256-verified source archives in H700 CI while retaining independent full release builds.
+
+### Fixed
+
+- Test Menu like other buttons on the input-test screen; exit with Start + Select and show the matching hint.
+- Fetch pinned build dependencies from official mirrors with bounded transport retries and atomic checksum-verified caching.
+- Wait for both native CI jobs to register before deciding whether to reuse checks after a dev/main push.
 
 ## [0.14.0] - 2026-10-31
 

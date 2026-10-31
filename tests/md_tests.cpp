@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 PAVEL TKACHEV
 #include "app.hpp"
+#include "resume_input.hpp"
 #include <cassert>
 #include <iostream>
 #include <dlfcn.h>
@@ -16,6 +17,7 @@ int main(int argc,char **argv) {
  {App a(o,true,game);a.ticks(90);
   std::cout<<"MD frame "<<a.core->width<<"x"<<a.core->height<<" aspect "<<a.core->aspectRatio<<" rate "<<a.core->sampleRate<<" fps "<<a.core->fps<<"\n";
   assert(a.core->width>=256 && a.core->height>=224 && a.core->audioFrames>0);
+  verifyResumeInputFence(a);
   auto neutral=a.core->frame.at(0);a.gameButtons(0);
   for(unsigned button:{RETRO_DEVICE_ID_JOYPAD_A,RETRO_DEVICE_ID_JOYPAD_B,RETRO_DEVICE_ID_JOYPAD_X,RETRO_DEVICE_ID_JOYPAD_Y,RETRO_DEVICE_ID_JOYPAD_L,RETRO_DEVICE_ID_JOYPAD_R,RETRO_DEVICE_ID_JOYPAD_START,RETRO_DEVICE_ID_JOYPAD_SELECT,RETRO_DEVICE_ID_JOYPAD_UP,RETRO_DEVICE_ID_JOYPAD_DOWN,RETRO_DEVICE_ID_JOYPAD_LEFT,RETRO_DEVICE_ID_JOYPAD_RIGHT}) {
    a.core->buttons=a.gameButtons(uint16_t(1u<<button));a.ticks(3);if(a.core->frame[0]==neutral) {std::cerr<<"No response for button "<<button<<"\n";}assert(a.core->frame[0]!=neutral);

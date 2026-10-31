@@ -14,7 +14,7 @@ A personal frontend project for the Anbernic RG34XXSP. I enjoy using this handhe
 
 **Early development.** Interfaces and settings formats may change.
 
-The package baseline is BaseOS 1.3.0. Rondo has also been tested on RG34XXSP with BaseOS 1.5.2 (upstream prerelease). Time controls detect platform/service dependencies rather than an exact OS version; see [compatibility](docs/compatibility.md).
+The current tested environment is RG34XXSP with BaseOS 1.5.3 (upstream prerelease). Package metadata retains a BaseOS 1.3.0 baseline. Time controls detect platform/service dependencies rather than an exact OS version; see [compatibility](docs/compatibility.md).
 
 **Experimental Bluetooth:** pairing and connection controls are available, but controller input is not working on the tested 8BitDo Micro (D mode). Bluetooth audio and PIN confirmation are not supported. See [Bluetooth limitations](docs/bluetooth.md).
 
@@ -113,7 +113,7 @@ python3 tools/build_h700_runtime.py --work build/h700-first
 python3 tools/build_h700_runtime.py --work build/h700-second
 ```
 
-The package targets RG34XXSP with BaseOS 1.3.0. It includes the frontend, pinned runtime, original test cartridge, corresponding source and distribution notices. It is a frontend ZIP for an existing BaseOS installation, not a bootable SD image. The builder never accesses a card. The [macOS installer](docs/installation.md) backs up the original boot image and applies Rondo branding before the first frontend boot, unless disabled in existing preferences.
+The package targets RG34XXSP; current device testing uses BaseOS 1.5.3. It includes the frontend, pinned runtime, original test cartridge, corresponding source and distribution notices. It is a frontend ZIP for an existing BaseOS installation, not a bootable SD image. The builder never accesses a card. The [macOS installer](docs/installation.md) backs up the original boot image and applies Rondo branding before the first frontend boot, unless disabled in existing preferences.
 
 See the [runtime guide](runtime/README.md) for package audit and optional isolated BaseOS verification, [compatibility](docs/compatibility.md) for verification limits and [manual installation](docs/installation.md) for backup and rollback. GPL cores retain GPLv2 source obligations; PicoDrive retains noncommercial terms. Rondo code and original artwork remain MIT. See the [configured shipping audit](docs/shipping-audit.md).
 

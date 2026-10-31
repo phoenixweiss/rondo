@@ -35,6 +35,21 @@ int main(int argc,char **argv) {
     a.action("SELECT");assert(a.navigationActions&&a.selected==999&&a.scroll==last.scroll);a.action("SELECT");assert(!a.navigationActions&&a.selected==999&&a.scroll==last.scroll);
     a.games=std::move(catalog);a.navigationRestore(viewBefore);
   }
+  // Membership filtering must preserve catalog/history order, unavailable
+  // entries in history, and the first search-matching duplicate identity.
+  {auto catalog=a.games;auto cfg=a.store.data;auto state=a.navigationFrame();auto names=a.searchNames;
+    auto first=catalog.front();first.id="duplicate";first.title="First";first.available=false;
+    auto second=first;second.title="Second";second.available=true;
+    auto third=first;third.id="other";third.available=true;
+    a.games={first,second,third};a.searchNames={"first","second","other"};a.searchQuery.clear();
+    a.store.data["favorites"]=Json::array({"duplicate"});
+    a.store.data["recent_games"]=Json::array({{{"id","other"}},{{"id","duplicate"}},{{"id","absent"}}});
+    a.section="All";assert((a.visible()==std::vector<int>{1,2}));
+    a.section="Favorites";assert((a.visible()==std::vector<int>{1}));
+    a.section="Recent";assert((a.visible()==std::vector<int>{2,0}));
+    a.searchQuery="second";assert((a.visible()==std::vector<int>{1}));
+    a.games=std::move(catalog);a.store.data=std::move(cfg);a.searchNames=std::move(names);a.navigationRestore(state);
+  }
   // All game collections share arrow navigation, including empty results and
   // partial tile rows. Only Select moves focus to/from the action panel.
   {auto state=a.navigationFrame();auto cfg=a.store.data;auto names=a.searchNames;

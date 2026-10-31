@@ -21,7 +21,7 @@ int main(int argc,char **argv) {
   };
   {
     GameFrame frame(renderer);
-    for(auto size:std::vector<std::pair<int,int>>{{368,480},{512,240},{640,480},{256,240},{160,144},{240,160},{368,480}}) {
+    for(auto size:std::vector<std::pair<int,int>>{{368,480},{512,240},{640,480},{256,240},{256,224},{512,448},{160,144},{240,160},{368,480}}) {
       int w=size.first,h=size.second;std::vector<uint32_t> pixels(size_t(w)*h);
       for(size_t i=0;i<pixels.size();++i)pixels[i]=0xff000000u|((i*7919)&0xffffffu);
       SDL_Color bg{23,31,41,255};SDL_Rect rect{40,0,640,480};
@@ -55,15 +55,27 @@ int main(int argc,char **argv) {
       std::cout<<"Overlay "<<showOverlay<<": max channel error "<<maxError<<"\n";
     }
     Json result;result["hidden_display"]=true;result["vsync_requested"]=false;result["synthetic_frame"]=true;
-    for(bool direct:{false,true})for(bool showOverlay:{false,true}) {
-      for(int i=0;i<30;++i)paint(direct,showOverlay);
-      double cpu=0,wait=0;auto start=Clock::now();
-      for(int i=0;i<600;++i){auto before=Clock::now();paint(direct,showOverlay);
-        auto total=std::chrono::duration<double,std::milli>(Clock::now()-before).count();
-        cpu+=total-ui.presentationMs;wait+=ui.presentationMs;}
-      result[std::string(direct?"direct":"legacy")+(showOverlay?"_overlay":"")]=Json{
-        {"total_ms",std::chrono::duration<double,std::milli>(Clock::now()-start).count()/600},
-        {"prepare_ms",cpu/600},{"present_ms",wait/600}};
+    struct Mode {const char *name;int w,h;SDL_Rect target;};
+    for(const auto &mode:std::vector<Mode>{{"PSX",368,480,{40,0,640,480}},
+        {"GBA",240,160,{0,0,720,480}},{"SNES",256,224,{86,0,548,480}},
+        {"SNES-hires",512,448,{86,0,548,480}}}) {
+      pixels.assign(size_t(mode.w)*mode.h,0xff4676a6u);viewport=mode.target;
+      auto frame=[&](bool direct,bool overlayVisible) {
+        ui.beginFrame();
+        if(direct)ui.gamePixels(pixels,mode.w,mode.h,viewport,bg,overlayVisible);
+        else {ui.rect(0,0,720,480,bg);ui.pixels(pixels,mode.w,mode.h,viewport.x,viewport.y,viewport.w,viewport.h,false);}
+        if(overlayVisible)overlay();ui.present();
+      };
+      for(bool direct:{false,true})for(bool showOverlay:{false,true}) {
+        for(int i=0;i<30;++i)frame(direct,showOverlay);
+        double cpu=0,wait=0;auto start=Clock::now();
+        for(int i=0;i<240;++i){auto before=Clock::now();frame(direct,showOverlay);
+          auto total=std::chrono::duration<double,std::milli>(Clock::now()-before).count();
+          cpu+=total-ui.presentationMs;wait+=ui.presentationMs;}
+        result["modes"][mode.name][std::string(direct?"direct":"legacy")+(showOverlay?"_overlay":"")]=Json{
+          {"total_ms",std::chrono::duration<double,std::milli>(Clock::now()-start).count()/240},
+          {"prepare_ms",cpu/240},{"present_ms",wait/240}};
+      }
     }
     auto text=result.dump(2);atomicWrite(work/"benchmark.json",{text.begin(),text.end()});std::cout<<text<<"\n";
   }

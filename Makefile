@@ -74,6 +74,7 @@ $(eval $(call program,h700-clock-tests,tests/h700_clock_tests.cpp $(BASE) src/cl
 
 $(eval $(call program,game-frame-tests,tests/game_frame_tests.cpp $(UI),$$(LDLIBS)))
 $(eval $(call program,artwork-tests,tests/artwork_tests.cpp $(UI),$$(LDLIBS)))
+$(eval $(call program,library-benchmark,tests/library_performance.cpp $(APP),$$(LDLIBS)))
 $(eval $(call program,artwork-benchmark,tests/artwork_performance.cpp $(UI),$$(LDLIBS)))
 $(eval $(call program,state-tests,tests/state_tests.cpp $(BASE),$$(LDLIBS)))
 $(eval $(call program,rumble-tests,tests/rumble_tests.cpp $(BASE) src/core.cpp,$$(LDLIBS)))

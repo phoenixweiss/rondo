@@ -4,6 +4,8 @@
 #include "state.hpp"
 #include "psx.hpp"
 #include <algorithm>
+#include <unordered_map>
+#include <unordered_set>
 #include <iostream>
 #include <sstream>
 namespace rondo {
@@ -181,27 +183,36 @@ void App::searchDraw() {
 }
 std::vector<int> App::visible() const {
   std::vector<int> v;
-  auto favorites = store.data.value("favorites", Json::array());
+  auto matchesSearch=[&](size_t i) {return searchQuery.empty() ||
+      (i<searchNames.size() && searchNames[i].find(searchQuery)!=std::string::npos);};
   if (section == "Recent") {
-    for (const auto &entry : store.data.at("recent_games")) {
-      const auto &id=entry.at("id").get_ref<const std::string &>();
-      for (size_t i=0;i<games.size();++i)
-        if (games[i].id==id && (searchQuery.empty() ||
-            (i<searchNames.size() && searchNames[i].find(searchQuery)!=std::string::npos))) {
-          v.push_back(int(i));break;
-        }
+    v.reserve(store.data.at("recent_games").size());
+    // Preserve history order and the first matching occurrence of an identity.
+    std::unordered_map<std::string,size_t> index;
+    index.reserve(games.size());
+    for(size_t i=0;i<games.size();++i)if(matchesSearch(i))index.emplace(games[i].id,i);
+    for(const auto &entry:store.data.at("recent_games")) {
+      auto found=index.find(entry.at("id").get_ref<const std::string &>());
+      if(found!=index.end())v.push_back(int(found->second));
     }
     return v;
   }
-  for (size_t i = 0; i < games.size(); i++) {
-    auto &g = games[i];
-    bool fav = std::find(favorites.begin(), favorites.end(), g.id) != favorites.end();
-    if ((g.available || (section=="All"&&!searchQuery.empty())) && (section == "All" || (section == "Favorites" && fav) || section == g.system) &&
-        (searchQuery.empty() || (i<searchNames.size() && searchNames[i].find(searchQuery)!=std::string::npos)))
-      v.push_back(i);
+  v.reserve(games.size());
+  const bool all=section=="All",favoritesOnly=section=="Favorites";
+  std::unordered_set<std::string> favorites;
+  if(favoritesOnly && store.data.contains("favorites")) {
+    const auto &entries=store.data.at("favorites");favorites.reserve(entries.size());
+    for(const auto &id:entries)favorites.insert(id.get_ref<const std::string &>());
+  }
+  for(size_t i=0;i<games.size();++i) {
+    const auto &g=games[i];
+    if((g.available || (all&&!searchQuery.empty())) &&
+       (all || (favoritesOnly?favorites.count(g.id)!=0:section==g.system)) && matchesSearch(i))
+      v.push_back(int(i));
   }
   return v;
 }
+
 std::string App::countryLabel(const std::string &id) const {
   if (id == "UTC") return "UTC";
   const auto &names = timezoneNames.at(locale.current == "ru" ? "ru" : "en");
@@ -1589,7 +1600,7 @@ void App::draw() {
     } else {
       selected = std::clamp(selected, 0, int(v.size()) - 1);
       auto &g = games[v[selected]];
-      auto favs = store.data["favorites"];
+      const auto &favs = store.data.at("favorites");
       bool longRow = ui->measure(g.title, 23, 700) > 384;
       double content = v.size() * 54 + (longRow ? 26 : 0), viewport = 280, top = selected * 54,
              bottom = top + (longRow ? 78 : 52);

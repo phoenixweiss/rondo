@@ -18,7 +18,7 @@ def main():
     parser.add_argument("--rootfs", type=Path, required=True,
                         help="Owner-supplied extracted BaseOS rootfs; mounted read-only")
     parser.add_argument("--work", type=Path, required=True, help="New validation directory")
-    parser.add_argument("--baseos-version", choices=["1.3.0", "1.5.2"],
+    parser.add_argument("--baseos-version", choices=["1.3.0", "1.5.2", "1.5.3"],
                         help="Explicit compatibility probe; defaults to the package baseline")
     args = parser.parse_args()
     build, rootfs, work = args.build.resolve(), args.rootfs.resolve(), args.work.resolve()

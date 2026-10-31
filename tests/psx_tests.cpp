@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 PAVEL TKACHEV
 #include "app.hpp"
+#include "resume_input.hpp"
 #include "psx.hpp"
 #include <cassert>
 #include <fstream>
@@ -27,6 +28,7 @@ int main(int argc,char **argv) {
   auto handle=dlopen(o.psxCore.c_str(),RTLD_NOW|RTLD_LOCAL);assert(handle);auto memory=reinterpret_cast<void *(*)(unsigned)>(dlsym(handle,"retro_get_memory_data"));auto size=reinterpret_cast<size_t (*)(unsigned)>(dlsym(handle,"retro_get_memory_size"));assert(memory&&size);
   auto pressed=static_cast<unsigned short *>(dlsym(handle,"in_keystate"));// GNU builds export only the public libretro ABI. The optional native
   // probe additionally checks the core's internal digital pad translation.
+  verifyResumeInputFence(a);
   a.gameButtons(0);
   for(auto mapping:{std::pair<unsigned,unsigned>{RETRO_DEVICE_ID_JOYPAD_B,14},{RETRO_DEVICE_ID_JOYPAD_A,13},{RETRO_DEVICE_ID_JOYPAD_Y,15},{RETRO_DEVICE_ID_JOYPAD_X,12},{RETRO_DEVICE_ID_JOYPAD_UP,4},{RETRO_DEVICE_ID_JOYPAD_RIGHT,5},{RETRO_DEVICE_ID_JOYPAD_DOWN,6},{RETRO_DEVICE_ID_JOYPAD_LEFT,7},{RETRO_DEVICE_ID_JOYPAD_START,3},{RETRO_DEVICE_ID_JOYPAD_SELECT,0},{RETRO_DEVICE_ID_JOYPAD_L,10},{RETRO_DEVICE_ID_JOYPAD_R,11},{RETRO_DEVICE_ID_JOYPAD_L2,8},{RETRO_DEVICE_ID_JOYPAD_R2,9}}) {
    a.core->buttons=a.gameButtons(uint16_t(1u<<mapping.first));a.ticks(1);if(pressed)assert(pressed[0]==(1u<<mapping.second));a.core->buttons=0;a.ticks(1);if(pressed)assert(pressed[0]==0);

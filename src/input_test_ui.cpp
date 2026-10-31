@@ -172,6 +172,6 @@ void App::drawInputTest(const std::string &zone) {
   }
   auto message=monotonicMs()<testFeedbackUntil?testFeedback:(ui->keyboardHints?std::string("Q + W + E + R: ")+tr("setting.rumble"):tr("input.motor_combo"));
   ui->text(message,(720-ui->measure(message,20))/2,396,20,500,ui->cream,672);
-  ui->hints({{"MENU",tr("action.back")}});
+  ui->hints({{ui->keyboardHints?"Enter + RShift":"START + SELECT",tr("action.back")}});
 }
 }

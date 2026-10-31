@@ -1,4 +1,5 @@
 #include "app.hpp"
+#include "resume_input.hpp"
 #include <cassert>
 #include <iostream>
 using namespace rondo;
@@ -16,6 +17,7 @@ int main(int argc,char **argv) {
   auto dir=o.state/"games"/game.id;fs::create_directories(dir);
   std::vector<uint8_t> seed(32768,0);seed[0]=0x5a;atomicWrite(dir/"sram.bin",seed);
   { App a(o,true,game);a.ticks(60);assert(a.core->width==160 && a.core->height==144 && a.core->audioFrames>0);
+    verifyResumeInputFence(a);
     a.core->save(0);auto manual=readBytes(a.store.gameDir(game)/"slot-0.state");
     a.core->saveAutomatic();assert(a.core->compatibleAutomatic());
     a.core->flushSram();assert(readBytes(dir/"sram.bin")==seed);
