@@ -48,6 +48,7 @@ jobs:
           python tests/build_cache_tests.py
           python tests/release_tests.py
           python tests/runtime_build_tests.py
+          python tests/download_tests.py
           python tests/installer_tests.py
   native:
     needs: source

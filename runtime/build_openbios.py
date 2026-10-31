@@ -6,7 +6,7 @@ import json
 import os
 import shutil
 import subprocess
-import urllib.request
+from downloads import fetch
 
 
 def toolchain_inputs(root):
@@ -17,18 +17,7 @@ def fetch_toolchain(root, cache, destination):
     destination.mkdir(parents=True, exist_ok=True)
     for item in toolchain_inputs(root):
         cached = cache / (item['sha256'] + '.deb')
-        if not cached.exists():
-            partial = cached.with_suffix('.download')
-            try:
-                with urllib.request.urlopen(item['url'], timeout=90) as incoming, partial.open('wb') as out:
-                    shutil.copyfileobj(incoming, out)
-                if hashlib.sha256(partial.read_bytes()).hexdigest() != item['sha256']:
-                    raise ValueError('Compiler package checksum mismatch: ' + item['file'])
-                partial.replace(cached)
-            finally:
-                partial.unlink(missing_ok=True)
-        if hashlib.sha256(cached.read_bytes()).hexdigest() != item['sha256']:
-            raise ValueError('Cached compiler checksum mismatch')
+        fetch(item, cached)
         shutil.copyfile(cached, destination / item['file'])
 
 

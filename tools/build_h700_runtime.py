@@ -7,11 +7,11 @@ import subprocess
 import sys
 import tempfile
 import time
-import urllib.request
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "runtime"))
 from inputs import records, sha, archive_name
+from downloads import fetch
 from build_openbios import fetch_toolchain
 
 SOURCE_TREES = {"src", "assets", "vendor", "tests", "tools", "runtime", "docs", "licenses", ".github", ".bumpster"}
@@ -88,20 +88,7 @@ def main():
     archives.mkdir()
     for name, item in records(source).items():
         cached = cache / (item["sha256"] + item.get("archive_suffix", ".tar.gz"))
-        if not cached.exists():
-            temporary = cached.with_suffix(".download")
-            print("Fetching " + name, flush=True)
-            try:
-                with urllib.request.urlopen(item["url"], timeout=60) as incoming, temporary.open("xb") as output:
-                    shutil.copyfileobj(incoming, output)
-                if sha(temporary) != item["sha256"]:
-                    raise ValueError("Downloaded checksum mismatch: " + name)
-                temporary.replace(cached)
-            finally:
-                if temporary.exists():
-                    temporary.unlink()
-        if sha(cached) != item["sha256"]:
-            raise ValueError("Cached checksum mismatch: " + name)
+        fetch(item, cached)
         shutil.copyfile(cached, archives / archive_name(name, item))
     fetch_toolchain(source, cache, work / "openbios-toolchain")
     command = ["docker", "run", "--rm", "--network", "none", "--platform", lock["platform"],

@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / 'tools'))
-from ci_reuse import main, select_run, native_jobs_eligible
+from ci_reuse import main, select_run, native_jobs_eligible, await_run
 
 
 class ReuseTests(unittest.TestCase):
@@ -35,6 +35,35 @@ class ReuseTests(unittest.TestCase):
         self.assertFalse(native_jobs_eligible(jobs[:1]))
         self.assertFalse(native_jobs_eligible([jobs[0], {**jobs[1], 'conclusion': 'skipped'}]))
         self.assertFalse(native_jobs_eligible([jobs[0], {**jobs[1], 'conclusion': 'failure'}]))
+
+    def jobs(self):
+        return [{'name': name, 'status': 'queued'} for name in sorted({'native (ubuntu-24.04)', 'native (macos-15)'})]
+
+    def poll(self, runs, jobs, wait=10):
+        now = [0]
+        def pause(seconds): now[0] += seconds
+        return await_run(runs, jobs, self.sha, 'example/rondo', 11,
+                         wait_seconds=wait, clock=lambda: now[0], pause=pause), now[0]
+
+    def test_waits_for_run_then_both_native_jobs_to_register(self):
+        with patch('ci_reuse.select_run', wraps=select_run):
+            runs = iter([[], [self.run], [self.run]])
+            jobs = iter([self.jobs()[:1], self.jobs()])
+            chosen, elapsed = self.poll(lambda: next(runs), lambda run: next(jobs))
+        self.assertEqual((chosen, elapsed), ('10', 10))
+
+    def test_registration_timeout_keeps_full_matrix(self):
+        chosen, elapsed = self.poll(lambda: [self.run], lambda run: self.jobs()[:1])
+        self.assertEqual((chosen, elapsed), ('', 10))
+
+    def test_missing_run_does_not_wait_forever(self):
+        chosen, elapsed = self.poll(lambda: [], lambda run: self.fail('Unexpected jobs query'))
+        self.assertEqual((chosen, elapsed), ('', 10))
+
+    def test_skipped_matrix_falls_back_immediately(self):
+        jobs = [{**job, 'status': 'completed', 'conclusion': 'skipped'} for job in self.jobs()]
+        chosen, elapsed = self.poll(lambda: [self.run], lambda run: jobs)
+        self.assertEqual((chosen, elapsed), ('', 0))
 
     def test_non_main_never_queries_api(self):
         with tempfile.TemporaryDirectory() as work:

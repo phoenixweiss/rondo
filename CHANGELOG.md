@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Fixed
+
+- Fetch pinned build inputs from official mirrors with bounded transport retries and atomic SHA-256-verified caching. Prefer the official GitHub release for SDL_ttf.
+- Wait briefly for both native CI jobs to register after an atomic dev/main push before selecting reuse or the full matrix.
+
+### Changed
+
+- Cache verified source archives in H700 CI while retaining two independent full release builds.
+
 ## [0.14.0] - 2026-10-31
 
 ### Changed

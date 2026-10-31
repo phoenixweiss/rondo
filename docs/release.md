@@ -33,6 +33,12 @@ Only after explicit maintainer authorization, run the selected Bumpster action f
 
 The H700 candidate and release draft workflow can be dispatched on dev to build artifacts without creating a tag or GitHub Release. It runs on a native [Ubuntu ARM64 runner](https://docs.github.com/en/actions/reference/runners/github-hosted-runners). Source/model/UI/runner checks run first. Two independent offline H700 compilations then use the pinned SDK and verified dependency archives. tools/release.py bundle compares both results and readbacks, audits the ZIP and verifies that all source inputs match the checkout.
 
+Pinned source archives are cached separately from compiled dependencies. Every
+restored archive is checked against its pinned SHA-256 before use. Downloads use
+bounded retries and the official mirrors recorded with each dependency. A checksum
+mismatch stops the build instead of silently selecting another source. Source
+caching does not change the two independent `--fresh` compilations.
+
 The retained workflow artifact contains the source-complete frontend ZIP, verification.json, release-notes.md and SHA256SUMS.txt. It expires after seven days; download and preserve a candidate needed for physical testing. The ZIP is a frontend package for an existing BaseOS 1.3.0 RG34XXSP installation, not firmware or a bootable SD image. A non-tag run is clearly named development, even after VERSION is initialized.
 
 The BaseOS rootfs is an external input and is never uploaded. Its isolated preflight is a separate local check; the hosted workflow does not claim to have run it. Physical graphics, audio, input, brightness, save/resume and suspend acceptance of the exact candidate remain separate checks. See [installation/rollback](installation.md) and [compatibility](compatibility.md).
