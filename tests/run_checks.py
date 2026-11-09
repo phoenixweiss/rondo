@@ -94,7 +94,7 @@ result={'native_build':True,'real_fceumm_state_roundtrip':True,'sram_restart':Tr
 
 # Explicit power exit codes are emitted only after confirmed menu actions.
 # The native process never invokes a host power command.
-for index, code in [(13, 64), (12, 65)]:
+for index, code in [(14, 64), (13, 65)]:
     power_state = work / ("power-state-" + str(index))
     power_state.mkdir()
     (power_state / "config.json").write_text(json.dumps({"schema":1,"debug_enabled":True,"debug_level":"events"}))
