@@ -10,20 +10,20 @@ namespace rondo {
 namespace {
 bool hex(const std::string &value){return value.size()==64&&value.find_first_not_of("0123456789abcdef")==std::string::npos;}
 Json wrapped(const Json &body){auto text=body.dump();return {{"payload",body},{"sha256",hashBytes({text.begin(),text.end()})}};}
-std::vector<std::string> files(const fs::path &root,const std::string &id) {
+std::vector<std::string> files(const StatePaths &root,const std::string &id) {
  if(!hex(id))throw BackupError("backup.invalid");
  auto folder=backupSafePath(root,"games/"+id);std::vector<std::string> out;
  if(fs::is_directory(folder))for(const auto &item:fs::directory_iterator(folder)) {
-  auto name=item.path().lexically_relative(root).generic_string();
+  auto name=(fs::path("games")/id/item.path().filename()).generic_string();
   if(backupDataPath(name)) {backupSafePath(root,name);if(!item.is_regular_file()||item.file_size()>34*1024*1024)throw BackupError("backup.invalid");out.push_back(name);}
  }
  std::sort(out.begin(),out.end());return out;
 }
-Json snapshot(const fs::path &root,const std::string &id) {
- Json out=Json::array();for(const auto &name:files(root,id))out.push_back({{"path",name},{"bytes",fs::file_size(root/name)},{"sha256",hashFile(root/name)}});return out;
+Json snapshot(const StatePaths &root,const std::string &id) {
+ Json out=Json::array();for(const auto &name:files(root,id))out.push_back({{"path",name},{"bytes",fs::file_size(backupSafePath(root,name))},{"sha256",hashFile(backupSafePath(root,name))}});return out;
 }
 std::string digest(const Json &files){auto text=files.dump();return hashBytes({text.begin(),text.end()});}
-Json document(const fs::path &root,const std::string &id) {
+Json document(const StatePaths &root,const std::string &id) {
  auto p=backupSafePath(root,"games/"+id+"/identity.json");if(fs::file_size(p)>16384)throw BackupError("backup.invalid");return validateProgressRecord(readJson(p),id);
 }
 void stage(const fs::path &root,const std::string &name,const std::vector<uint8_t> &bytes,Json &changes) {
@@ -52,15 +52,15 @@ Json validateProgressRecord(const Json &data,const std::string &gameId) {
  for(const auto &part:fs::path(relative))if(part==".."||part==".")throw BackupError("backup.invalid");
  return body;
 }
-void rememberProgress(const fs::path &root,const Game &game,const std::vector<Volume> &volumes,const std::string &fingerprint) {
- auto record=progressRecord(game,volumes,fingerprint);auto path=backupSafePath(root,"games/"+game.id+"/identity.json");
+void rememberProgress(const StatePaths &root,const Game &game,const std::vector<Volume> &volumes,const std::string &fingerprint) {
+ auto record=progressRecord(game,volumes,fingerprint);auto path=backupSafePath(root,"games/"+game.id+"/identity.json",true);
  if(fs::exists(path)) {auto old=document(root,game.id);if(old.at("fingerprint")!=fingerprint)throw BackupError("progress.changed_rom");if(old==record.at("payload"))return;}
  atomicWrite(path,jsonBytes(record));
 }
-bool hasProgress(const fs::path &root,const std::string &id) {
+bool hasProgress(const StatePaths &root,const std::string &id) {
  for(const auto &name:files(root,id))if(fs::path(name).filename()!="identity.json")return true;return false;
 }
-bool hasMissingProgress(const fs::path &root,const std::vector<Game> &games) {
+bool hasMissingProgress(const StatePaths &root,const std::vector<Game> &games) {
  auto folder=backupSafePath(root,"games");if(!fs::is_directory(folder))return false;std::set<std::string> live;
  for(const auto &game:games)if(game.available)live.insert(game.id);
  for(const auto &item:fs::directory_iterator(folder))if(!item.is_symlink()&&item.is_directory()) {
@@ -68,7 +68,7 @@ bool hasMissingProgress(const fs::path &root,const std::vector<Game> &games) {
  }
  return false;
 }
-Json findProgress(const fs::path &root,const Game &target,const std::vector<Game> &games,const std::string &fingerprint,const std::string &legacyRom,const std::string &legacyCore) {
+Json findProgress(const StatePaths &root,const Game &target,const std::vector<Game> &games,const std::string &fingerprint,const std::string &legacyRom,const std::string &legacyCore) {
  if(hasProgress(root,target.id))throw BackupError("progress.target_exists");
  auto folder=backupSafePath(root,"games");Json out=Json::array();if(!fs::is_directory(folder))return out;
  std::set<std::string> live;for(const auto &game:games)if(game.available)live.insert(game.id);
@@ -89,7 +89,7 @@ Json findProgress(const fs::path &root,const Game &target,const std::vector<Game
  }
  std::sort(out.begin(),out.end(),[](const Json &a,const Json &b){return a.at("utc")==b.at("utc")?a.at("id")<b.at("id"):a.at("utc")>b.at("utc");});return out;
 }
-void relocateProgress(const fs::path &root,const Json &candidate,const Game &target,const std::vector<Volume> &volumes,const std::vector<Game> &games,const std::string &fingerprint,const std::string &legacyRom,const std::string &legacyCore,BackupProgress *progress) {
+void relocateProgress(const StatePaths &root,const Json &candidate,const Game &target,const std::vector<Volume> &volumes,const std::vector<Game> &games,const std::string &fingerprint,const std::string &legacyRom,const std::string &legacyCore,BackupProgress *progress) {
  if(progress)progress->phase=2;
  if(progressFingerprint(target)!=fingerprint)throw BackupError("progress.changed_rom");
  auto matches=findProgress(root,target,games,fingerprint,legacyRom,legacyCore);bool found=false;
@@ -102,7 +102,7 @@ void relocateProgress(const fs::path &root,const Json &candidate,const Game &tar
  if(next.value("focus",std::string())==source)next["focus"]=target.id;
  if(next.value("resume_game",std::string())==source)next["resume_game"]=target.id;
  next["revision"]=settings.data.value("revision",0LL)+1;settings.validateDocument(next);
- std::string pattern=(root/".relink-staging-XXXXXX").string();std::vector<char> temp(pattern.begin(),pattern.end());temp.push_back(0);if(!mkdtemp(temp.data()))throw BackupError("backup.io");fs::path staging(temp.data());
+ std::string pattern=(root.settings(true)/".relink-staging-XXXXXX").string();std::vector<char> temp(pattern.begin(),pattern.end());temp.push_back(0);if(!mkdtemp(temp.data()))throw BackupError("backup.io");fs::path staging(temp.data());
  try {
   Json changes=Json::array();if(progress){progress->phase=1;progress->done=0;progress->total=candidate.at("files").size();}
   for(const auto &file:candidate.at("files")) {

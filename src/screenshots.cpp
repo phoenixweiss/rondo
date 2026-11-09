@@ -66,7 +66,7 @@ static fs::path screenshotFolder(const fs::path &root,const Game &game) {
   }
   throw std::runtime_error("Screenshot folder unavailable");
 }
-static fs::path writeScreenshot(const fs::path &root,const Game &game,const std::vector<uint32_t> &frame,int width,int height,bool interface,std::string timestamp,double displayAspect) {
+static fs::path writeScreenshot(const fs::path &root,const Game &game,const std::vector<uint32_t> &frame,int width,int height,bool interface,std::string timestamp,double displayAspect,std::function<void()> check) {
   int sourceWidth=width,sourceHeight=height;
   if(displayAspect>0) {
     // Preserve all source detail: expand the non-square pixel axis instead of
@@ -85,6 +85,7 @@ static fs::path writeScreenshot(const fs::path &root,const Game &game,const std:
   std::vector<uint8_t> bytes;
   auto collect=[](void *context,void *data,int length){auto &out=*static_cast<std::vector<uint8_t> *>(context);auto p=static_cast<uint8_t *>(data);out.insert(out.end(),p,p+length);};
   if(!stbi_write_png_to_func(collect,&bytes,width,height,4,rgba.data(),width*4))throw std::runtime_error("Screenshot encoding failed");
+  if(check)check();
   auto folder=interface?root/"Interface":screenshotFolder(root,game);
   fs::create_directories(folder);
   if(timestamp.empty()){auto now=std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());tm local{};localtime_r(&now,&local);char stamp[32];strftime(stamp,sizeof(stamp),"%Y-%m-%d_%H-%M-%S",&local);timestamp=stamp;}
@@ -112,17 +113,17 @@ static fs::path writeScreenshot(const fs::path &root,const Game &game,const std:
   syncDirectory(folder);
   return path;
 }
-bool ScreenshotWriter::submit(const fs::path &root,const Game &game,const std::vector<uint32_t> &frame,int width,int height,const std::string &timestamp,double displayAspect) {
+bool ScreenshotWriter::submit(const fs::path &root,const Game &game,const std::vector<uint32_t> &frame,int width,int height,const std::string &timestamp,double displayAspect,std::function<void()> check) {
   if(busy())return false;
   if(width<1||height<1||width>4096||height>4096||size_t(width)*height!=frame.size())throw std::runtime_error("No game frame");
   if(!std::isfinite(displayAspect)||displayAspect<0||(displayAspect>0&&displayAspect<0.125)||displayAspect>8)throw std::runtime_error("Invalid screenshot display aspect");
   // Copy the immutable raw frame once. Resampling, encoding and SD I/O never touch SDL/Core.
-  job=std::async(std::launch::async,writeScreenshot,root,game,frame,width,height,false,timestamp,displayAspect);return true;
+  job=std::async(std::launch::async,writeScreenshot,root,game,frame,width,height,false,timestamp,displayAspect,check);return true;
 }
-bool ScreenshotWriter::submitInterface(const fs::path &root,const std::vector<uint32_t> &frame,int width,int height,const std::string &timestamp) {
+bool ScreenshotWriter::submitInterface(const fs::path &root,const std::vector<uint32_t> &frame,int width,int height,const std::string &timestamp,std::function<void()> check) {
   if(busy())return false;
   if(width<1||height<1||width>4096||height>4096||size_t(width)*height!=frame.size())throw std::runtime_error("No interface frame");
-  job=std::async(std::launch::async,writeScreenshot,root,Game{},frame,width,height,true,timestamp,0.0);return true;
+  job=std::async(std::launch::async,writeScreenshot,root,Game{},frame,width,height,true,timestamp,0.0,check);return true;
 }
 std::optional<fs::path> ScreenshotWriter::poll() {
   if(!job.valid()||job.wait_for(std::chrono::milliseconds(0))!=std::future_status::ready)return {};

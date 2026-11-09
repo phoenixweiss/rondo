@@ -25,12 +25,22 @@ printf '\n--- Rondo startup %s launcher_pid=%s ---\n' "$(date '+%Y-%m-%dT%H:%M:%
 printf 'Lid-wake experiment disabled after device failure; using stock Power wake.\n' >> "$LOG"
 VOLUME="TF1=$APP/Demo/card-a"
 [ ! -d "$SD/RondoGames" ] || VOLUME="TF1=$SD/RondoGames"
+# A prepared TF2 bridge supplies the second physical library. Never move the
+# application/config root to the frontend-selection card chosen by BaseOS.
+if [ -n "${RONDO_TF2_ROOT:-}" ] && [ -d "$RONDO_TF2_ROOT/RondoGames" ]; then
+ [ "$RONDO_TF2_ROOT" != "$SD" ] || { echo 'Duplicate TF1/TF2 root' >&2; exit 1; }
+ VOLUME="TF1=$SD/RondoGames"
+fi
 # Use the card's library when present, including collections without NES.
 run_frontend() {
+ set -- --volume "$VOLUME"
+ if [ -n "${RONDO_TF2_ROOT:-}" ] && [ -d "$RONDO_TF2_ROOT/RondoGames" ]; then
+  set -- "$@" --volume "TF2=$RONDO_TF2_ROOT/RondoGames"
+ fi
  set +e
  "$RONDO_RUNTIME_LOADER" "$APP/bin/rondo" --assets "$APP/assets" \
-  --core "$APP/cores/fceumm_libretro.so" --volume "$VOLUME" \
-  --state "$SD/RondoState" --output /tmp/rondo-output
+  --core "$APP/cores/fceumm_libretro.so" "$@" \
+  --state "$SD/RondoState" --physical-storage --output /tmp/rondo-output
  printf '%s\n' "$?" > /tmp/rondo-output/exit-status
 }
 # Keep raw library/ALSA stderr in two bounded RAM files, never an unbounded SD log.

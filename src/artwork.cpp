@@ -24,8 +24,8 @@ static bool cacheName(const std::string &name) {
   return name.size()==69&&name.substr(64)==".rgba"&&
     std::all_of(name.begin(),name.begin()+64,[](char c){return (c>='0'&&c<='9')||(c>='a'&&c<='f');});
 }
-ArtworkCache::ArtworkCache(fs::path root,size_t memoryBytes,size_t diskBytes)
- :directory(std::move(root)),memoryBudget(memoryBytes),diskBudget(diskBytes),worker(&ArtworkCache::loop,this) {}
+ArtworkCache::ArtworkCache(fs::path root,size_t memoryBytes,size_t diskBytes,std::function<void()> check)
+ :directory(std::move(root)),storageCheck(std::move(check)),memoryBudget(memoryBytes),diskBudget(diskBytes),worker(&ArtworkCache::loop,this) {}
 ArtworkCache::~ArtworkCache() {
   {std::lock_guard<std::mutex> lock(mutex);quitting=true;queue.clear();wanted.clear();}
   changed.notify_all();worker.join();
@@ -61,9 +61,10 @@ bool ArtworkCache::stillWanted(const std::string &id) {
   std::lock_guard<std::mutex> lock(mutex);return !quitting&&wanted.count(id);
 }
 bool ArtworkCache::missing(const ArtworkRequest &r) const {
-  std::lock_guard<std::mutex> lock(mutex);auto id=r.key();auto found=records.find(id);
-  return found!=records.end()&&!found->second.image&&running!=id&&
-    !std::any_of(queue.begin(),queue.end(),[&](const auto &q){return q.key()==id;});
+  std::lock_guard<std::mutex> lock(mutex);
+  auto found=records.find(r.key());
+  // Keep the last resolved state visible while the worker refreshes it.
+  return found!=records.end()&&!found->second.image;
 }
 Json ArtworkCache::statistics() const {
   std::lock_guard<std::mutex> lock(mutex);
@@ -73,6 +74,7 @@ Json ArtworkCache::statistics() const {
 void ArtworkCache::openDisk() {
   if(directory.empty())return;
   try {
+    if(storageCheck)storageCheck();
     if(fs::is_symlink(directory)||fs::is_symlink(directory.parent_path()))return;
     fs::create_directories(directory);writable=true;
     std::vector<std::pair<fs::file_time_type,fs::path>> files;
@@ -109,6 +111,7 @@ void ArtworkCache::touchDisk(const std::string &name,size_t bytes) {
 static void put32(std::vector<uint8_t> &out,uint32_t value){for(int i=0;i<4;++i)out.push_back(uint8_t(value>>(i*8)));}
 static uint32_t get32(const std::vector<uint8_t> &in,size_t offset){uint32_t n=0;for(int i=0;i<4;++i)n|=uint32_t(in[offset+i])<<(i*8);return n;}
 std::shared_ptr<ArtworkImage> ArtworkCache::load(const ArtworkRequest &r) {
+  if(storageCheck)try{storageCheck();}catch(...){writable=false;}
   std::error_code error;auto stamp=fs::last_write_time(r.path,error);if(error)return {};
   auto size=fs::file_size(r.path,error);if(error||size>16*1024*1024||!fs::is_regular_file(r.path))return {};
   auto fingerprint=r.key()+"#v1#"+std::to_string(static_cast<long long>(stamp.time_since_epoch().count()))+"#"+std::to_string(size);
@@ -163,6 +166,7 @@ std::shared_ptr<ArtworkImage> ArtworkCache::load(const ArtworkRequest &r) {
   }
   if(!stillWanted(r.key())||fs::last_write_time(r.path,error)!=stamp||error||fs::file_size(r.path,error)!=size||error)return {};
   if(writable&&image->rgba.size()+80<=diskBudget)try {
+    if(storageCheck)storageCheck();
     trimDisk(image->rgba.size()+80);
     std::vector<uint8_t> bytes{'R','A','R','T','0','0','0','1'};put32(bytes,image->width);put32(bytes,image->height);
     auto digest=hashBytes(image->rgba);bytes.insert(bytes.end(),digest.begin(),digest.end());bytes.insert(bytes.end(),image->rgba.begin(),image->rgba.end());

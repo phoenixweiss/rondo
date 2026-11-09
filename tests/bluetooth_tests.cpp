@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 PAVEL TKACHEV
 #include "app.hpp"
+#include "preferences.hpp"
 #include <cassert>
 #include <fstream>
 #include <thread>
@@ -13,6 +14,11 @@ struct FakeBluez : BluezBluetooth {
   int starts=0, scans=0;
   std::map<std::string,BluetoothDevice> entries;
   std::vector<std::vector<std::string>> calls;
+  BluetoothState status() override {
+    auto result=BluezBluetooth::status();
+    for(auto &device:result.devices)device.input=entries.at(device.address).input;
+    return result;
+  }
   void start() override {++starts;}
   std::string command(const std::vector<std::string> &args,int=8) override {
     calls.push_back(args);
@@ -41,6 +47,7 @@ static void wait(App &app) {
 }
 int main(int argc,char **argv) {
   if(argc==2 && std::string(argv[1])=="--transport") {
+    std::cout<<"Agent registered\n"<<std::flush;
     std::string input;
     while(std::getline(std::cin,input)) {
       if(input=="close") {close(0);close(1);close(2);SDL_Delay(5000);return 0;}
@@ -54,6 +61,7 @@ int main(int argc,char **argv) {
   {
     std::atomic<bool> cancelled{false};auto fixture=fs::absolute(argv[0]).string();
     BluetoothProcess process({fixture,"--transport"},cancelled);
+    process.waitFor({"Agent registered"},1000);
     auto one=process.request("one",{"reply:one:"},1000);
     auto two=process.request("two",{"reply:two:"},1000);
     auto firstPid=one.substr(one.find("reply:one:")+10);
@@ -142,18 +150,60 @@ const std::string address="AA:BB:CC:DD:EE:FF";
   Options options;options.assets=fs::absolute(argv[1]);options.state=argv[2];options.output=options.state/"renders";options.headless=true;
   App app(options);assert(!app.bt.available && !app.store.data.value("bluetooth_enabled",true));
   auto fake=std::make_shared<FakeBluez>();fake->entries[address]={address,"Очень длинное имя беспроводного контроллера",false,false,false};
-  for(int i=0;i<7;++i) {auto id="10:20:30:40:50:0"+std::to_string(i);fake->entries[id]={id,"Controller "+std::to_string(i),true,true,false};}
+  fake->entries[address].input=true;
+  for(int i=0;i<7;++i) {
+    auto id="10:20:30:40:50:0"+std::to_string(i);
+    fake->entries[id]={id,i<2?"Controller":"Controller "+std::to_string(i),true,true,false};
+  }
+  const std::string nearbyA="10:20:30:40:50:10", nearbyB="10:20:30:40:50:1E";
+  fake->entries[nearbyA]={nearbyA,"80EL"};
+  fake->entries[nearbyB]={nearbyB,"80EL"};
   app.btDevice=fake;app.bt.available=true;app.btPollAt=monotonicMs()+15000;
   app.action("MENU");if(app.screen==Screen::LibraryMenu)app.action("A");for(int i=0;i<4;++i)app.action("DOWN");app.action("A");app.action("DOWN");app.action("A");
   assert(app.screen==Screen::Bluetooth);
   app.requestSettings=[](Json){return false;};app.action("RIGHT");wait(app);assert(!fake->on && !app.store.data["bluetooth_enabled"].get<bool>());
   app.requestSettings={};app.action("RIGHT");wait(app);assert(fake->on && app.bt.enabled && app.store.data["bluetooth_enabled"]==true);
+  app.action("B");assert(app.screen==Screen::SettingsSection);
+  fake->on=false;app.bt.enabled=false;app.btError="unavailable";
+  app.action("A");assert(app.screen==Screen::Bluetooth && app.btBusy() && app.btError.empty());
+  app.capture("bluetooth-initializing");
+  wait(app);assert(app.bt.enabled && app.btError.empty());
+  app.btRun("poll",[]{throw BluetoothError("unavailable");return BluetoothState{};});
+  for(int i=0;i<1000 && app.btJob.valid();++i){app.btTick();SDL_Delay(1);}
+  assert(!app.btJob.valid() && app.bt.enabled && app.btError.empty());
+
   for(auto language:{"en","ru"}) {app.locale.select(options.assets,language);app.capture(std::string("radio-")+language);}
-  app.action("DOWN");app.action("DOWN");app.action("A");wait(app);assert(fake->scans==1 && app.screen==Screen::BluetoothDevices);
-  for(int i=0;i<10;++i) {app.action("DOWN");}
-  app.capture("devices-bottom-ru");assert(app.btScroll>0);
+  app.action("DOWN");app.action("A");
+  assert(app.screen==Screen::BluetoothDevices && app.btVisibleDevices().size()==7);
+  assert(app.navigationItems().front().label=="Bluetooth");
+  const auto pairedA=bluetoothGamepadKey("10:20:30:40:50:00"), pairedB=bluetoothGamepadKey("10:20:30:40:50:01");
+  assert(app.btColor(pairedA)!=app.btColor(pairedB));
+  app.capture("paired-ru");
+  app.action("B");app.action("DOWN");app.action("A");
+  wait(app);assert(fake->scans==1 && app.screen==Screen::BluetoothDevices && app.btVisibleDevices().size()==10);
+  const auto aKey=bluetoothGamepadKey(nearbyA), bKey=bluetoothGamepadKey(nearbyB);
+  assert(chooseGamepadColor(aKey,{})==chooseGamepadColor(bKey,{}));
+  const int aColor=app.btColor(aKey),bColor=app.btColor(bKey);
+  assert(aColor!=bColor && app.store.data["gamepad_colors"].empty());
+  std::reverse(app.bt.devices.begin(),app.bt.devices.end());app.btRefreshColors();
+  assert(app.btColor(aKey)==aColor && app.btColor(bKey)==bColor);
+  std::reverse(app.bt.devices.begin(),app.bt.devices.end());
+  for(int i=0;i<10;++i)app.action("DOWN");
+  app.capture("devices-bottom-ru");assert(app.btScroll>0 && app.row==9);
+  for(int i=0;i<10;++i)app.action("UP");
+  app.capture("devices-top-ru");assert(!app.navigationActions && app.row==0 && app.btScroll==0);
+  for(int i=0;i<10;++i)app.action("DOWN");
+  const int pairColor=app.btColor(bluetoothGamepadKey(address));
   app.action("A");assert(app.btSelected.address==address);app.action("A");wait(app);
   assert(app.btSelected.connected && app.store.data["bluetooth_device"]==address);
+  assert(gamepadColor(app.store.data,bluetoothGamepadKey(address))==pairColor);
+  for(int i=0;i<3;++i)app.action("DOWN");
+  app.action("RIGHT");
+  assert(gamepadPlayer(app.store.data,bluetoothGamepadKey(address))==0);
+  app.action("RIGHT");app.action("RIGHT");
+  assert(gamepadPlayer(app.store.data,bluetoothGamepadKey(address))==2);
+  app.capture("bluetooth-player-ru");
+  for(int i=0;i<3;++i)app.action("UP");
   app.capture("connected-ru");app.btSleep();fake->entries[address].connected=false;app.btResume();wait(app);assert(fake->entries[address].connected);
   app.action("DOWN");app.action("DOWN");app.action("A");assert(app.screen==Screen::BluetoothForget);app.capture("forget-ru");app.action("B");assert(fake->entries.count(address));
   app.action("A");app.action("DOWN");app.action("A");wait(app);assert(!fake->entries.count(address) && app.store.data["bluetooth_device"]=="");

@@ -44,10 +44,15 @@ run("runtime-build-tools", [sys.executable, str(ROOT / "tests/runtime_build_test
 run("release-tools", [sys.executable, str(ROOT / "tests/release_tests.py")])
 run("backup-faults", [sys.executable, str(ROOT / "tests/backup_fault_tests.py")])
 run("storage-sync", [sys.executable, str(ROOT / "tests/storage_sync_tests.py")])
+run("tf2-launcher", [sys.executable, str(ROOT / "tests/tf2_launcher_tests.py")])
 run("system-power", [sys.executable, str(ROOT / "tests/system_power_tests.py")])
 run("installer", [sys.executable, str(ROOT / "tests/installer_tests.py")])
-run("build", ["make", "-j4", "all", "build/game-frame-tests", "build/progress-tests", "build/backup-tests", "build/backup-ui-tests", "build/statistics-tests", "build/battery-log-tests", "build/model-tests", "build/core-tests", "build/state-tests", "build/rumble-tests", "build/input-tests", "build/artwork-tests", "build/preferences-tests", "build/screenshot-tests", "build/library-tests",
+run("build", ["make", "-j4", "all", "build/storage-conflict-tests", "build/storage-ui-tests", "build/storage-app-tests", "build/storage-tests", "build/game-frame-tests", "build/progress-tests", "build/backup-tests", "build/backup-ui-tests", "build/statistics-tests", "build/battery-log-tests", "build/model-tests", "build/core-tests", "build/state-tests", "build/rumble-tests", "build/input-tests", "build/artwork-tests", "build/preferences-tests", "build/screenshot-tests", "build/library-tests",
               "build/device-tests", "build/system-info-tests", "build/psx-tests", "build/md-tests", "build/snes-tests", "build/gba-tests", "build/gb-tests", "build/bluetooth-tests", "build/volume-ui-tests", "build/timezone-tests", "build/battery-tests", "build/wifi-tests", "build/clock-tests"], timeout=300)
+run("storage-conflicts", [str(ROOT / "build/storage-conflict-tests"),str(work / "storage-conflicts")])
+run("storage-ui", [str(ROOT / "build/storage-ui-tests"), str(ROOT / "assets"), str(work / "storage-ui")])
+run("storage-app", [str(ROOT / "build/storage-app-tests"), str(ROOT / "assets"), str(work / "storage-app"), str(core)])
+run("storage", [str(ROOT / "build/storage-tests"), str(work / "storage")])
 run("system-info", [str(ROOT / "build/system-info-tests"), str(ROOT / "assets"), str(work / "system-info"), str(ROOT / "build/rondo")])
 run("library", [str(ROOT / "build/library-tests"), str(ROOT / "assets"), str(work / "library")])
 run("screenshots", [str(ROOT / "build/screenshot-tests"), str(ROOT / "assets"), str(work / "screenshots"), str(ROOT / "build/rumble-fixture.so")])

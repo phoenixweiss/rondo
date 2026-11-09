@@ -10,6 +10,7 @@ static std::string combination(uint16_t mask) {
 }
 static const std::vector<std::string> shortcuts{"sticks","triggers","select_r1","custom","off"};
 void App::takeScreenshot(bool gameFrameOnly) {
+  if(screen==Screen::StorageBusy||screen==Screen::StorageStop)return;
   if(screen==Screen::ProgressBusy||screen==Screen::ProgressDone)return;
   if(screen==Screen::BackupBusy||screen==Screen::BackupRestart)return;
   if(stop||sleeping||screenBlank||screen==Screen::InputTest||screen==Screen::ScreenshotCapture||screen==Screen::SystemProgress||screen==Screen::SavingAutomatic)return;
@@ -17,14 +18,14 @@ void App::takeScreenshot(bool gameFrameOnly) {
     if(!screenshotWriter.busy()) {
       auto timestamp=screenshotTimestamp(zones,store.data.value("timezone","Etc/UTC"),time(nullptr));
       if(core&&(screen==Screen::Running||gameFrameOnly)) {
-        if(screenshotWriter.submit(options.state/"Screenshots",game,core->frame,core->width,core->height,timestamp,game.system=="PSX"?core->aspectRatio:0))return;
+        if(screenshotWriter.submit(options.paths().category("screenshots",true),game,core->frame,core->width,core->height,timestamp,game.system=="PSX"?core->aspectRatio:0,options.paths().guard("screenshots")))return;
       }else {
         // Render the current interface without the previous screenshot toast.
         auto feedback=screenshotMessageUntil;screenshotMessageUntil=0;
         draw();screenshotMessageUntil=feedback;
         std::vector<uint32_t> pixels(720*480);
         if(SDL_RenderReadPixels(ui->renderer,nullptr,SDL_PIXELFORMAT_ARGB8888,pixels.data(),720*4)!=0)throw std::runtime_error(SDL_GetError());
-        if(screenshotWriter.submitInterface(options.state/"Screenshots",pixels,720,480,timestamp))return;
+        if(screenshotWriter.submitInterface(options.paths().category("screenshots",true),pixels,720,480,timestamp,options.paths().guard("screenshots")))return;
       }
     }
     screenshotMessage=locale.tr("screenshot.busy");
@@ -49,6 +50,10 @@ void App::screenshotTick() {
 }
 void App::screenshotDraw() {
   if(monotonicMs()>=screenshotMessageUntil)return;
+  if(screenshotMessage==locale.tr("screenshot.failed")) {
+    ui->notice(screenshotMessage,"camera",false,true);
+    return;
+  }
   // A short acknowledgement, not a modal dialog or a permanent percentage.
   int width=std::min(560,ui->measure(screenshotMessage,22)+56);
   int x=696-width;ui->rect(x,76,width,44,ui->focus,8);

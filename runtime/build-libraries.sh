@@ -8,6 +8,7 @@ export PKG_CONFIG_PATH=/work/sdk/lib/pkgconfig
 export PKG_CONFIG_LIBDIR=/work/sdk/lib/pkgconfig
 mkdir -p /work/sdk
 cd /work/sources/SDL-malifbdev-rot-d4a7d7503524cc469fe775242f3f925d4dd56c88
+patch --batch --forward -p1 < /src/runtime/sdl-evdev-gamepads.patch
 [ -f configure ] || ./autogen.sh > /work/sdl-autogen.log 2>&1
 ./configure --host=aarch64-nextui-linux-gnu --prefix=/work/sdk --enable-video-mali --enable-alsa --enable-alsa-shared --enable-video-opengles --disable-video-opengl --disable-video-x11 --disable-video-wayland --disable-video-kmsdrm --disable-pulseaudio --disable-jack --disable-esd --disable-arts --disable-nas --disable-sndio --disable-dbus --disable-ibus --disable-fcitx --disable-hidapi --disable-libudev --disable-power --enable-filesystem --disable-sensor --disable-locale --enable-loadso --enable-shared --disable-static --disable-libsamplerate > /work/sdl-config.log 2>&1
 make -j4 > /work/sdl-build.log 2>&1

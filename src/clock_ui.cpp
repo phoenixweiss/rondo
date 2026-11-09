@@ -291,7 +291,7 @@ void App::clockDraw() {
     }
     ui->hints({{"LEFT/RIGHT",tr("clock.field")},{"UP/DOWN",tr("footer.value")},
                {"A",tr("action.apply")},{"B",tr("action.cancel")},{"X",tr("footer.info")}});
-    if (!clockError.empty()) ui->notice(tr("clock.error."+clockError), "clock");
+    if (!clockError.empty()) ui->notice(tr("clock.error."+clockError), "clock", false, true);
     return;
   }
   ui->frame(tr("clock.title"), tr("clock.phase." + clockPhase()),
@@ -310,6 +310,6 @@ void App::clockDraw() {
   hints.push_back({"X",tr("footer.info")});
   ui->hints(hints);
   if (!clockError.empty())
-    ui->notice(tr("clock.error." + clockError), "clock");
+    ui->notice(tr("clock.error." + clockError), "clock", false, true);
 }
 } // namespace rondo

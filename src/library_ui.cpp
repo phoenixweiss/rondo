@@ -131,13 +131,15 @@ void App::gamePositionDraw(const Game &g,size_t count) {
   constexpr int y=403;
   auto position=std::to_string(selected+1)+"/"+std::to_string(count);
   int counterX=696-ui->measure(position,18,400);
+  std::string source;
+  if(g.volume=="TF1"||g.volume=="TF2")source=" · "+g.volume;
   if(store.data.value("game_view","list")=="tiles") {
-    auto label=systemName(g.system);
+    auto label=systemName(g.system)+source;
     if(screen==Screen::SearchResults)label+=" · "+locale.tr("search.filter",{{"query",searchQuery}});
     ui->text(label,24,y,18,400,ui->secondary,std::max(0,counterX-24-24));
   } else {
     if(screen==Screen::SearchResults)ui->text(locale.tr("search.filter",{{"query",searchQuery}}),24,y,18,400,ui->secondary,444);
-    ui->text(g.system,492,y,18,400,ui->secondary,std::max(0,counterX-492-16));
+    ui->text(g.system+source,492,y,18,400,ui->secondary,std::max(0,counterX-492-16));
   }
   ui->text(position,counterX,y,18,400,ui->secondary);
 }

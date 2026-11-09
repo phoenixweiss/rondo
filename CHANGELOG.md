@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+## [0.15.0] - 2026-11-10
+
+### Added
+
+- Read game libraries from TF1 and TF2 and show each game's card in the library and game details.
+- Choose where saves, screenshots, BIOS files, backups, logs and artwork cache are stored. Copy or move existing files with a preview, explicit conflict choices and recovery after interruption.
+- Inspect space on either card and format TF2 as FAT32 with a timed confirmation. A TF2 prepared by Rondo hands off to the installation on TF1.
+- Play with up to four player ports. Assign external gamepads automatically or by a fixed player number, or use them for menu navigation only. Built-in controls stay on player 1.
+- Give gamepads persistent color labels and find a connected pad by pressing A on it. Input test shows which device sent the input and tests vibration on that device.
+- Smooth the displayed battery level by default and briefly hold 100% after a confirmed full charge. Smoothing can be turned off.
+
+### Changed
+
+- Separate Bluetooth discovery from the paired-device list, with color labels in both.
+- Use localized decimal storage units consistently across storage, backups and system information.
+
+### Fixed
+
+- Detect the 8BitDo Micro in D mode over Bluetooth and map its D-pad and face buttons to their labels. Two Micro controllers were tested together in NES on RG34XXSP with BaseOS 1.5.3.
+- Wait for the Bluetooth adapter during startup, keep temporary background read errors out of the menu and keep Up inside the device list.
+- Keep missing artwork placeholders steady and display error messages above the interface.
+
 ## [0.14.1] - 2026-11-01
 
 ### Changed

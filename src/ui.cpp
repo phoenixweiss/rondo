@@ -5,6 +5,7 @@
 #include "platform.hpp"
 #include "libretro.h"
 #include <algorithm>
+#include <fstream>
 #include <cmath>
 #define STBI_ONLY_PNG
 #define STBI_MAX_DIMENSIONS 4096
@@ -157,10 +158,38 @@ void UI::line(int x, int y, int xx, int yy, SDL_Color c) {
   SDL_SetRenderDrawColor(renderer, c.r, c.g, c.b, c.a);
   SDL_RenderDrawLine(renderer, x, y, xx, yy);
 }
+static std::string controllerKey(SDL_GameController *controller) {
+  auto *joystick=SDL_GameControllerGetJoystick(controller);
+  const char *path=SDL_JoystickPath(joystick);
+  std::string location;
+#ifdef __linux__
+  if(path && fs::path(path).parent_path()=="/dev/input") {
+    const auto device=fs::path("/sys/class/input")/fs::path(path).filename()/"device";
+    auto field=[&](const char *name) {
+      std::string value;
+      std::ifstream stream(device/name);
+      std::getline(stream,value);
+      return value;
+    };
+    const auto unique=field("uniq");
+    if(field("id/bustype")=="0005")return unique.empty()?std::string{}:bluetoothGamepadKey(unique);
+    location=unique.empty()?field("phys"):unique;
+  }
+#else
+  if(path)location=path;
+#endif
+  if(const char *serial=SDL_GameControllerGetSerial(controller);serial && *serial)location=serial;
+  if(location.empty())return {};
+  char guid[33];
+  SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(joystick),guid,sizeof(guid));
+  const auto identity=std::string(guid)+":"+location;
+  return hashBytes({identity.begin(),identity.end()});
+}
 void UI::refreshControllers() {
   for(auto it=controllers.begin();it!=controllers.end();) {
     if(!SDL_GameControllerGetAttached(it->second)) {
       controllerActivity.erase(it->first);axisRepeats.erase(it->first);controllerTriggers.erase(it->first);
+      controllerKeys.erase(it->first);
       SDL_GameControllerClose(it->second);it=controllers.erase(it);
     } else ++it;
   }
@@ -174,14 +203,15 @@ void UI::refreshControllers() {
     if(controllers.count(id))continue;
     const auto *name=SDL_JoystickNameForIndex(i);
     if(name && std::string(name)=="ANBERNIC-keys")continue;
-    if(controllers.size()+unmappedControllers.size()>=8 && !unmappedControllers.count(id))continue;
     if(SDL_IsGameController(i)) {
+      if(controllers.size()>=GamepadControllerCount)continue;
       if(auto *controller=SDL_GameControllerOpen(i)) {
         controllers[id]=controller;
+        controllerKeys[id]=controllerKey(controller);
         auto raw=unmappedControllers.find(id);
         if(raw!=unmappedControllers.end()) {SDL_JoystickClose(raw->second);unmappedControllers.erase(raw);}
       }
-    } else if(!unmappedControllers.count(id)) {
+    } else if(unmappedControllers.size()<8 && !unmappedControllers.count(id)) {
       // Keep unknown joysticks observable without guessing their button layout.
       if(auto *raw=SDL_JoystickOpen(i))unmappedControllers[id]=raw;
     }
@@ -247,34 +277,39 @@ uint16_t UI::controllerButtons(bool leftToDpad) const {
   uint16_t mask=0;
   if(leftToDpad) {
     auto axes=handheldKeys->axes();
-    if(axes[0]<-12000)mask|=1<<RETRO_DEVICE_ID_JOYPAD_LEFT;
-    if(axes[0]>12000)mask|=1<<RETRO_DEVICE_ID_JOYPAD_RIGHT;
-    if(axes[1]<-12000)mask|=1<<RETRO_DEVICE_ID_JOYPAD_UP;
-    if(axes[1]>12000)mask|=1<<RETRO_DEVICE_ID_JOYPAD_DOWN;
+    mask|=stickDirections(axes[0],axes[1]);
   }
-  for(const auto &entry:controllers) {
-    auto *controller=entry.second;
-    if(!SDL_GameControllerGetAttached(controller))continue;
-    auto put=[&](int button,bool pressed){if(pressed)mask|=uint16_t(1<<button);};
-    put(RETRO_DEVICE_ID_JOYPAD_A,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_A));
-    put(RETRO_DEVICE_ID_JOYPAD_B,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_B));
-    put(RETRO_DEVICE_ID_JOYPAD_X,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_X));
-    put(RETRO_DEVICE_ID_JOYPAD_Y,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_Y));
-    put(RETRO_DEVICE_ID_JOYPAD_L,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_LEFTSHOULDER));
-    put(RETRO_DEVICE_ID_JOYPAD_R,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_RIGHTSHOULDER));
-    put(RETRO_DEVICE_ID_JOYPAD_START,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_START));
-    put(RETRO_DEVICE_ID_JOYPAD_SELECT,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_BACK));
-    for(int d=0;d<4;++d)put(RETRO_DEVICE_ID_JOYPAD_UP+d,SDL_GameControllerGetButton(controller,SDL_GameControllerButton(SDL_CONTROLLER_BUTTON_DPAD_UP+d)));
-    put(RETRO_DEVICE_ID_JOYPAD_L2,SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_TRIGGERLEFT)>12000);
-    put(RETRO_DEVICE_ID_JOYPAD_R2,SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_TRIGGERRIGHT)>12000);
-    put(RETRO_DEVICE_ID_JOYPAD_L3,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_LEFTSTICK));
-    put(RETRO_DEVICE_ID_JOYPAD_R3,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_RIGHTSTICK));
-    const int x=leftToDpad?SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_LEFTX):0;
-    const int y=leftToDpad?SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_LEFTY):0;
-    put(RETRO_DEVICE_ID_JOYPAD_LEFT,x < -12000);put(RETRO_DEVICE_ID_JOYPAD_RIGHT,x > 12000);
-    put(RETRO_DEVICE_ID_JOYPAD_UP,y < -12000);put(RETRO_DEVICE_ID_JOYPAD_DOWN,y > 12000);
-  }
+  for(const auto &entry:controllers)
+    if(SDL_GameControllerGetAttached(entry.second))mask|=padButtons(entry.second,leftToDpad);
   return mask;
+}
+uint16_t UI::stickDirections(int x,int y) {
+  uint16_t mask=0;
+  if(x<-12000)mask|=1<<RETRO_DEVICE_ID_JOYPAD_LEFT;
+  if(x>12000)mask|=1<<RETRO_DEVICE_ID_JOYPAD_RIGHT;
+  if(y<-12000)mask|=1<<RETRO_DEVICE_ID_JOYPAD_UP;
+  if(y>12000)mask|=1<<RETRO_DEVICE_ID_JOYPAD_DOWN;
+  return mask;
+}
+uint16_t UI::padButtons(SDL_GameController *controller,bool leftToDpad) {
+  uint16_t mask=0;
+  auto put=[&](int button,bool pressed){if(pressed)mask|=uint16_t(1<<button);};
+  put(RETRO_DEVICE_ID_JOYPAD_A,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_A));
+  put(RETRO_DEVICE_ID_JOYPAD_B,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_B));
+  put(RETRO_DEVICE_ID_JOYPAD_X,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_X));
+  put(RETRO_DEVICE_ID_JOYPAD_Y,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_Y));
+  put(RETRO_DEVICE_ID_JOYPAD_L,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_LEFTSHOULDER));
+  put(RETRO_DEVICE_ID_JOYPAD_R,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_RIGHTSHOULDER));
+  put(RETRO_DEVICE_ID_JOYPAD_START,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_START));
+  put(RETRO_DEVICE_ID_JOYPAD_SELECT,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_BACK));
+  for(int d=0;d<4;++d)put(RETRO_DEVICE_ID_JOYPAD_UP+d,SDL_GameControllerGetButton(controller,SDL_GameControllerButton(SDL_CONTROLLER_BUTTON_DPAD_UP+d)));
+  put(RETRO_DEVICE_ID_JOYPAD_L2,SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_TRIGGERLEFT)>12000);
+  put(RETRO_DEVICE_ID_JOYPAD_R2,SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_TRIGGERRIGHT)>12000);
+  put(RETRO_DEVICE_ID_JOYPAD_L3,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_LEFTSTICK));
+  put(RETRO_DEVICE_ID_JOYPAD_R3,SDL_GameControllerGetButton(controller,SDL_CONTROLLER_BUTTON_RIGHTSTICK));
+  const int x=leftToDpad?SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_LEFTX):0;
+  const int y=leftToDpad?SDL_GameControllerGetAxis(controller,SDL_CONTROLLER_AXIS_LEFTY):0;
+  return mask | stickDirections(x,y);
 }
 std::array<int16_t,4> UI::controllerAxes() const {
   auto result=handheldKeys->axes();
@@ -283,14 +318,16 @@ std::array<int16_t,4> UI::controllerAxes() const {
   // the strongest pad avoids mixing axes from two controllers or idle drift.
   for(const auto &entry:controllers) {
     if(!SDL_GameControllerGetAttached(entry.second))continue;
-    std::array<int16_t,4> axes{};int strength=0;
-    for(int i=0;i<4;++i) {
-      int raw=SDL_GameControllerGetAxis(entry.second,SDL_GameControllerAxis(i));
-      axes[i]=stickAxis(raw);strength+=std::abs(int(axes[i]));
-    }
+    auto axes=padAxes(entry.second);
+    int strength=0;for(auto value:axes)strength+=std::abs(int(value));
     if(strength>strongest){strongest=strength;result=axes;}
   }
   return result;
+}
+std::array<int16_t,4> UI::padAxes(SDL_GameController *controller) {
+  std::array<int16_t,4> axes{};
+  for(int i=0;i<4;++i)axes[i]=stickAxis(SDL_GameControllerGetAxis(controller,SDL_GameControllerAxis(i)));
+  return axes;
 }
 std::vector<std::string> UI::controllerNavigation() {
   std::vector<std::string> result;
@@ -348,13 +385,16 @@ void UI::artworkPlaceholder(int x,int y,int w,int h,const std::string &label,boo
   for(const auto &line:lines){auto fitted=fit(line,maxWidth,size,400);text(fitted,x+(w-measure(fitted,size))/2,top,size,400,cream,maxWidth);top+=lineHeight;}
 }
 void UI::battery(const Telemetry &telemetry, bool showPercent, int x) {
+  drawBattery(telemetry, batteryFilter.update(telemetry, smoothBatteryLevel, monotonicMs()), showPercent, x);
+}
+
+void UI::drawBattery(const Telemetry &telemetry, std::optional<int> level, bool showPercent, int x) {
   const int y = 34, w = 27, h = 14;
-  const auto level = telemetry.capacity;
-  const bool known = level && *level >= 0 && *level <= 100;
+  const bool known = level.has_value();
   const std::string percentage = known ? std::to_string(*level) + "%" : "—";
   batteryDisplay["header_visible"] = true;
   batteryDisplay["percentage_visible"] = showPercent;
-  batteryDisplay["source_percent"] = level ? Json(*level) : Json(nullptr);
+  batteryDisplay["source_percent"] = telemetry.capacity ? Json(*telemetry.capacity) : Json(nullptr);
   batteryDisplay["displayed_percent"] = showPercent && known ? Json(*level) : Json(nullptr);
   batteryDisplay["label"] = showPercent ? Json(percentage) : Json(nullptr);
   batteryDisplay["rendered_monotonic_ms"] = monotonicMs();
@@ -413,13 +453,13 @@ void UI::wifiIcon(int x, int y, const Telemetry &telemetry) {
   } else if(telemetry.wifiState=="connecting") rect(x+18,y+19,4,4,accent,2);
 }
 int UI::status(const std::string &clock, const Telemetry &telemetry) {
-  const bool known = telemetry.capacity && *telemetry.capacity >= 0 && *telemetry.capacity <= 100;
-  const auto percentage = known ? std::to_string(*telemetry.capacity) + "%" : "—";
+  const auto level = batteryFilter.update(telemetry, smoothBatteryLevel, monotonicMs());
+  const auto percentage = level ? std::to_string(*level) + "%" : "—";
   int x = width - 24 - measure(clock, 21);
   text(clock, x, 29, 21);
   const int batteryWidth = showBatteryPercent ? 40 + measure(percentage, 21) : 31;
   x -= 12 + batteryWidth;
-  battery(telemetry, showBatteryPercent, x);
+  drawBattery(telemetry, level, showBatteryPercent, x);
   if (telemetry.wifiEnabled) {
     x -= 12 + 22;
     wifiIcon(x, 29, telemetry);
@@ -538,12 +578,26 @@ void UI::circle(int x, int y, int size, SDL_Color c, bool filled) {
   }
   SDL_Rect dst{x,y,size,size}; SDL_RenderCopy(renderer,textures.at(key),nullptr,&dst);
 }
-void UI::notice(const std::string &message, const std::string &symbol, bool library) {
-  int w=std::clamp(measure(message,22,400)+86,400,640), x=(720-w)/2;
-  int h=library?48:64;
+void UI::notice(const std::string &message, const std::string &symbol, bool library, bool error) {
+  if (message.empty() || (pendingNotice && pendingNotice->error && !error)) return;
+  pendingNotice=Notice{message,symbol,library,error};
+}
+void UI::drawNotice() {
+  if (!pendingNotice) return;
+  auto notice=std::move(*pendingNotice);
+  pendingNotice.reset();
+  int w=std::clamp(measure(notice.message,22,400)+86,400,640), x=(720-w)/2;
+  int h=notice.library?48:64;
+  SDL_Rect previousClip;
+  const bool clipped=SDL_RenderIsClipEnabled(renderer);
+  if (clipped) {
+    SDL_RenderGetClipRect(renderer,&previousClip);
+    SDL_RenderSetClipRect(renderer,nullptr);
+  }
   rect(x,76,w,h,separator,9); rect(x+1,77,w-2,h-2,focus,8);
-  icon(symbol,x+24,76+(h-24)/2,24);
-  text(message,x+62,76+(h-TTF_FontHeight(font(22,400)))/2,22,400,cream,w-78);
+  icon(notice.symbol,x+24,76+(h-24)/2,24);
+  text(notice.message,x+62,76+(h-TTF_FontHeight(font(22,400)))/2,22,400,cream,w-78);
+  if (clipped) SDL_RenderSetClipRect(renderer,&previousClip);
 }
 void UI::inputHints(bool keyboard) {
   keyboardHints = keyboard;
@@ -888,6 +942,7 @@ void UI::composeDisplay() {
   }
 }
 void UI::present() {
+  drawNotice();
   SDL_RenderPresent(renderer);
   composeDisplay();
   const auto before=SDL_GetPerformanceCounter();
@@ -897,6 +952,7 @@ void UI::present() {
 }
 void UI::save(const fs::path &p) {
   if(directGame) {
+    drawNotice();
     SDL_RenderPresent(renderer);
     composeDisplay();
     if(SDL_RenderReadPixels(display,nullptr,SDL_PIXELFORMAT_ARGB8888,surface->pixels,surface->pitch))

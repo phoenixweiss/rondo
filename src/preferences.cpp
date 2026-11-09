@@ -4,6 +4,7 @@
 #include "screenshots.hpp"
 #include "libretro.h"
 #include <algorithm>
+#include <cctype>
 namespace rondo {
 std::string themeId(std::string id) {
   if(id=="slate")id="nord";if(id=="moss")id="pine";
@@ -43,7 +44,58 @@ uint16_t mappedButtons(const Json &data,const std::string &system,uint16_t held)
   for(int target=0;target<16;++target){int source=mappedSource(data,id,target);if(source>=0&&(held&(1u<<source)))result|=uint16_t(1u<<target);}
   return result;
 }
+int gamepadColor(const Json &data,const std::string &key) {
+  const auto colors=data.find("gamepad_colors");
+  if(key.empty() || colors==data.end())return -1;
+  const auto id=colors->value(key,"");
+  for(size_t i=0;i<GamepadSwatches.size();++i)
+    if(GamepadSwatches[i].id==id)return int(i);
+  return -1;
+}
+int chooseGamepadColor(const std::string &key,const std::array<bool,GamepadSwatches.size()> &used) {
+  unsigned candidate=0;
+  for(char digit:key)
+    candidate=(16*candidate+(digit<='9'?digit-'0':digit-'a'+10))%GamepadSwatches.size();
+  auto color=candidate;
+  while(used[color]) {
+    color=(color+1)%GamepadSwatches.size();
+    if(color==candidate)break;
+  }
+  return int(color);
+}
+static bool gamepadKeyValid(const std::string &key) {
+  return key.size()==64 && key.find_first_not_of("0123456789abcdef")==std::string::npos;
+}
+int gamepadPlayer(const Json &data,const std::string &key) {
+  const auto players=data.find("gamepad_players");
+  if(key.empty() || players==data.end())return AutomaticGamepadPlayer;
+  const int assigned=players->value(key,AutomaticGamepadPlayer);
+  return assigned<=GamepadPlayerCount?assigned:AutomaticGamepadPlayer;
+}
+std::string bluetoothGamepadKey(std::string address) {
+  for(auto &c:address)c=char(std::toupper(static_cast<unsigned char>(c)));
+  address.insert(0,"bluetooth:");
+  return hashBytes({address.begin(),address.end()});
+}
 void validatePreferences(const Json &data) {
+  // Development builds allowed ten saved roles. Keep their configurations
+  // readable and resolve obsolete roles as Auto.
+  constexpr int legacyPlayerLimit=10;
+  if(auto players=data.find("gamepad_players");players!=data.end()) {
+    if(!players->is_object())throw std::runtime_error("Invalid gamepad assignments");
+    for(const auto &entry:players->items()) {
+      if(!gamepadKeyValid(entry.key()) ||
+         !entry.value().is_number_integer() || entry.value()<0 || entry.value()>legacyPlayerLimit)
+        throw std::runtime_error("Invalid gamepad assignment");
+    }
+  }
+  if(auto colors=data.find("gamepad_colors");colors!=data.end()) {
+    if(!colors->is_object())throw std::runtime_error("Invalid gamepad colors");
+    for(const auto &entry:colors->items()) {
+      if(!gamepadKeyValid(entry.key()) || !entry.value().is_string() || gamepadColor(data,entry.key())<0)
+        throw std::runtime_error("Invalid gamepad color");
+    }
+  }
   if(data.contains("screenshot_sound")&&!data["screenshot_sound"].is_boolean())throw std::runtime_error("Invalid screenshot sound setting");
   if(data.contains("screenshot_shortcut")) {
     const auto &v=data["screenshot_shortcut"];

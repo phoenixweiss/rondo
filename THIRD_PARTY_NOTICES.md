@@ -17,7 +17,7 @@ Original Rondo code, scripts, synthetic test fixtures and original artwork are M
 | Gambatte, including libretro-common helpers | docs/dependencies/gb-core-source.json | GPLv2 baseline and exact per-file notices; shipped Licenses/Gambatte-GPLv2.txt from pinned COPYING |
 | FCEUmm, including libretro-common helpers | docs/dependencies/core-source.json | GPLv2 baseline and exact per-file MIT/GPL notices; licenses/FCEUmm-GPLv2.txt |
 | SDL_GameControllerDB Micro profiles | assets/ControllerMappings/sources.json | zlib-style terms and upstream copyright; assets/ControllerMappings/LICENSE |
-| SDL2 Mali-fbdev fork | docs/dependencies/runtime-sources.json | zlib-style source terms; licenses/SDL-LICENSE.txt |
+| SDL2 Mali-fbdev fork | docs/dependencies/runtime-sources.json; Rondo applies runtime/sdl-evdev-gamepads.patch | zlib-style source terms; licenses/SDL-LICENSE.txt |
 | SDL yuv2rgb | same SDL source archive | BSD-3-Clause; licenses/SDL-yuv2rgb-BSD-3-Clause.txt |
 | SDL2_ttf 2.20.2 | docs/dependencies/runtime-sources.json | zlib-style source terms; licenses/SDL_ttf-LICENSE.txt |
 | bundled FreeType 2.12.1 | complete SDL2_ttf archive | GPLv2 alternative for GPL-core runners; FTL alternative for the MIT/PicoDrive runner; licenses/FreeType-GPLv2.txt and FreeType-License-Choice.txt |

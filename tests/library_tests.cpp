@@ -170,12 +170,24 @@ int main(int argc,char **argv) {
   a.capture("unified-root-systems-shortcut");
   // Same-title games stay distinguishable in both views and search results.
   {auto catalog=a.games;auto names=a.searchNames;auto state=a.navigationFrame();auto cfg=a.store.data;
-    Game nes=catalog.front(),md=catalog.front();nes.id="alien-nes";md.id="alien-md";nes.title=md.title="Alien 3";nes.system="NES";md.system="MD";a.games={nes,md};a.searchNames={searchFold(nes.title),searchFold(md.title)};a.section="All";a.navigation.clear();a.navigationActions=false;
+    Game nes=catalog.front(),md=catalog.front();nes.id="alien-nes";md.id="alien-md";nes.title=md.title="Alien 3";nes.system="NES";md.system="MD";md.volume="TF2";a.games={nes,md};a.searchNames={searchFold(nes.title),searchFold(md.title)};a.section="All";a.navigation.clear();a.navigationActions=false;
     for(auto lang:{"en","ru"})for(auto view:{"list","tiles"}) {
       a.locale.select(o.assets,lang);a.store.data["game_view"]=view;a.screen=Screen::Library;a.searchQuery.clear();a.selected=0;a.capture(std::string("system-label-")+lang+"-"+view+"-nes");
-      auto pixels=[&](){std::vector<uint8_t> out;int y=403;for(int row=y;row<y+21;++row){auto *p=static_cast<uint8_t *>(a.ui->surface->pixels)+row*a.ui->surface->pitch;int x=std::string(view)=="list"?492:24;out.insert(out.end(),p+x*4,p+(x+98)*4);}return out;};auto first=pixels();
+      auto pixels=[&](){
+        std::vector<uint8_t> out;
+        const bool list=std::string(view)=="list";
+        for(int row=403;row<424;++row){
+          auto *p=static_cast<uint8_t *>(a.ui->surface->pixels)+row*a.ui->surface->pitch;
+          out.insert(out.end(),p+(list?492:24)*4,p+595*4);
+        }
+        return out;
+      };auto first=pixels();
       a.selected=1;a.capture(std::string("system-label-")+lang+"-"+view+"-md");assert(first!=pixels());
       a.screen=Screen::SearchResults;a.searchQuery=searchFold("Alien");assert(a.visible().size()==2);a.capture(std::string("system-label-")+lang+"-"+view+"-search");
+      a.games[1].system="NES";a.selected=0;a.draw();
+      auto tf1=pixels();a.selected=1;
+      a.capture(std::string("card-source-")+lang+"-"+view+"-tf2");
+      assert(tf1!=pixels());a.games[1].system="MD";
     }
     a.screen=Screen::Library;a.searchQuery.clear();a.locale.select(o.assets,"ru");
     for(const auto &system:{"NES","SNES","GBA","MD","PSX"}) {
@@ -201,6 +213,24 @@ int main(int argc,char **argv) {
     auto displayed=region();a.ui->notice(a.notice,"settings",a.screen==Screen::Library);a.ui->present();assert(displayed==region());
     a.capture(std::string("notice-over-navigation-")+lang+"-"+layout);
   }
+  a.screen=Screen::Bluetooth;
+  a.btError="command";
+  a.notice=a.locale.tr("notice.config_recovered");
+  a.capture("bluetooth-error-over-navigation");
+  auto errorArea=[&]{
+    std::vector<Uint32> result;
+    for(int y=84;y<118;++y){
+      auto *pixels=reinterpret_cast<const Uint32 *>(static_cast<const Uint8 *>(a.ui->surface->pixels)+y*a.ui->surface->pitch);
+      result.insert(result.end(),pixels+200,pixels+520);
+    }
+    return result;
+  };
+  auto displayedError=errorArea();
+  a.ui->notice(a.locale.tr("bt.error.command"),"settings",false,true);
+  a.ui->present();
+  assert(displayedError==errorArea());
+  a.btError.clear();a.draw();
+  assert(displayedError!=errorArea());
   a.notice.clear();a.store.data=before;
   // Old wizard progress resumes the same logical step after the new step is inserted.
   auto legacy=before;legacy["wizard"]={{"schema",1},{"step",3},{"completed",false},{"deferred",false}};Store old(work/"legacy");old.commit(legacy);Store migrated(work/"legacy");assert(migrated.data["wizard"]["schema"]==2&&migrated.data["wizard"]["step"]==4);

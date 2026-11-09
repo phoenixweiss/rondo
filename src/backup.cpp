@@ -118,10 +118,10 @@ Json backupGames(const fs::path &folder,const std::vector<Game> &known) {
   std::sort(result.begin(),result.end(),[](const Json &a,const Json &b){return std::make_tuple(searchFold(a["title"]),a["system"],a["id"])<std::make_tuple(searchFold(b["title"]),b["system"],b["id"]);});
   return result;
 }
-void deleteBackup(const fs::path &root,const fs::path &folder,const std::string &expectedManifest) {
-  auto parent=backupSafePath(root,"Backups");auto name=folder.filename().string();
+void deleteBackup(const StatePaths &root,const fs::path &folder,const std::string &expectedManifest) {
+  auto parent=backupSafePath(root,"Backups",true);auto name=folder.filename().string();
   if(name.find("Rondo-")!=0||folder.lexically_normal()!=parent/name||!fs::is_directory(backupSafePath(parent,name)))throw BackupError("backup.invalid");
-  auto lockPath=backupSafePath(root,".backup.lock");int fd=open(lockPath.c_str(),O_RDWR|O_CREAT|O_CLOEXEC|O_NOFOLLOW,0600);
+  auto lockPath=backupSafePath(root,".backup.lock",true);int fd=open(lockPath.c_str(),O_RDWR|O_CREAT|O_CLOEXEC|O_NOFOLLOW,0600);
   if(fd<0)throw BackupError("backup.io");
   struct Close{int fd;~Close(){close(fd);}} closeLock{fd};
   if(flock(fd,LOCK_EX|LOCK_NB))throw BackupError("backup.busy");
@@ -130,12 +130,12 @@ void deleteBackup(const fs::path &root,const fs::path &folder,const std::string 
   // selected immediate Backups child is eligible, including a damaged copy.
   fs::remove_all(folder);syncDirectory(parent);
 }
-std::vector<fs::path> backupFolders(const fs::path &root) {
+std::vector<fs::path> backupFolders(const StatePaths &root) {
   std::vector<fs::path> result;auto folder=backupSafePath(root,"Backups");if(!fs::exists(folder))return result;
   for(const auto &item:fs::directory_iterator(folder))if(!item.is_symlink()&&item.is_directory()&&item.path().filename().string().find("Rondo-")==0)result.push_back(item.path());
   std::sort(result.rbegin(),result.rend());return result;
 }
-fs::path createBackup(const fs::path &root,const BackupContext &context,BackupProgress *progress) {
+fs::path createBackup(const StatePaths &root,const BackupContext &context,BackupProgress *progress) {
   version(context.version);
   if(fs::exists(backupSafePath(root,".restore-transaction")))throw BackupError("backup.unfinished");
   Store validator(root);if(validator.readOnly)throw BackupError("backup.version");
@@ -144,14 +144,14 @@ fs::path createBackup(const fs::path &root,const BackupContext &context,BackupPr
     for(const auto *name:{"config.json","config.previous.json"})try{validator.validateDocument(readJson(backupSafePath(root,name)));valid=true;break;}catch(...){}
     if(!valid)throw BackupError("backup.invalid");
   }
-  auto folder=backupSafePath(root,"Backups");fs::create_directories(folder);
+  auto folder=backupSafePath(root,"Backups",true);fs::create_directories(folder);
   auto staging=temporary(folder,".creating-");
   try {
     std::vector<std::string> names{"config.json"};
     try {validator.validateDocument(readJson(backupSafePath(root,"config.previous.json")));names.push_back("config.previous.json");}catch(...){}
     auto games=backupSafePath(root,"games");
     if(fs::exists(games))for(auto it=fs::recursive_directory_iterator(games);it!=fs::recursive_directory_iterator();++it) {
-      auto name=it->path().lexically_relative(root).generic_string();
+      auto name=(fs::path("games")/it->path().lexically_relative(games)).generic_string();
       if(it->is_directory()) {
         auto id=it->path().filename().string();
         if(it.depth()>0||id.size()!=64||id.find_first_not_of("0123456789abcdef")!=std::string::npos)it.disable_recursion_pending();
@@ -163,7 +163,7 @@ fs::path createBackup(const fs::path &root,const BackupContext &context,BackupPr
     }
     if(names.size()>maxFiles)throw BackupError("backup.invalid");
     uint64_t bytes=1024*1024+validator.data.dump(2).size();for(const auto &name:names)if(name!="config.json")bytes+=fs::file_size(backupSafePath(root,name));
-    if(fs::space(root).available<bytes)throw BackupError("backup.space");
+    if(fs::space(folder).available<bytes)throw BackupError("backup.space");
     if(progress){progress->phase=1;progress->done=0;progress->total=names.size();}
     Json manifest={{"format",1},{"rondo_version",context.version},{"created_utc",time(nullptr)},{"total_bytes",uint64_t(0)},{"files",Json::array()}};
     for(const auto &name:names) {
@@ -201,7 +201,7 @@ fs::path createBackup(const fs::path &root,const BackupContext &context,BackupPr
     fs::rename(staging,target);syncDirectory(folder);return target;
   } catch (...) {std::error_code error;fs::remove_all(staging,error);throw;}
 }
-void restoreBackup(const fs::path &root,const fs::path &folder,const BackupContext &context,BackupProgress *progress) {
+void restoreBackup(const StatePaths &root,const fs::path &folder,const BackupContext &context,BackupProgress *progress) {
   // All source checks precede both the rollback journal and active replacements.
   std::string digest;auto manifest=backupManifest(folder,&digest);
   if(!context.expectedManifest.empty()&&context.expectedManifest!=digest)throw BackupError("backup.changed");
@@ -209,9 +209,9 @@ void restoreBackup(const fs::path &root,const fs::path &folder,const BackupConte
   if(fs::exists(backupSafePath(root,".restore-transaction")))throw BackupError("backup.unfinished");
   Store validator(root);if(validator.readOnly)throw BackupError("backup.version");
   validateData(folder,manifest,validator,context,progress);
-  fs::create_directories(root);
-  if(fs::space(root).available<manifest.at("total_bytes").get<uint64_t>()+1024*1024)throw BackupError("backup.space");
-  auto staging=temporary(root,".restore-staging-");
+  fs::create_directories(root.settings(true));
+  if(fs::space(root.settings()).available<manifest.at("total_bytes").get<uint64_t>()+1024*1024)throw BackupError("backup.space");
+  auto staging=temporary(root.settings(true),".restore-staging-");
   try {
     if(progress){progress->phase=1;progress->done=0;progress->total=manifest.at("files").size();}
     for(const auto &file:manifest.at("files")) {
@@ -231,7 +231,7 @@ void restoreBackup(const fs::path &root,const fs::path &folder,const BackupConte
     for(const auto &game:games) {
       auto folder=backupSafePath(root,"games/"+game);
       if(fs::is_directory(folder))for(const auto &file:fs::directory_iterator(folder)) {
-        auto name=file.path().lexically_relative(root).generic_string();if(backupDataPath(name))removeAbsent(name);
+        auto name=(fs::path("games")/game/file.path().filename()).generic_string();if(backupDataPath(name))removeAbsent(name);
       }
     }
     applyBackupFiles(root,staging,changes,progress);

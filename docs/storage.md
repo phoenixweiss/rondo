@@ -72,3 +72,8 @@ fsync into the actual writer through linker adapters. It checks operation
 ordering, old/new generation outcomes and temporary-file cleanup. It also runs
 as part of the native check suite. Device FAT behavior requires a separate
 controlled card test.
+
+## Category placement API
+
+The separate [storage layout service](storage-layout.md) provides checked card
+placement and copy operations. Its integration boundary is documented separately.

@@ -16,6 +16,7 @@ class BatteryLog {
   bool sampleSync(uint64_t now, const Json &context, const std::string &event);
   fs::path directory, sys, proc, fallback;
   std::string role;
+  std::function<void()> storageCheck;
   uint64_t pollAt = 0, writtenAt = 0;
   Json lastKey, passport;
   size_t limit;
@@ -23,7 +24,7 @@ public:
   Json lastError = Json::object();
   BatteryLog(fs::path directory, std::string role, fs::path sys = "/sys",
              fs::path proc = "/proc", size_t limit = 2 * 1024 * 1024,
-             fs::path fallback = {}, bool background = false);
+             fs::path fallback = {}, bool background = false, std::function<void()> check = {});
   ~BatteryLog();
   // Only call while paused or shutting down, never from the frame/input loop.
   void drain();

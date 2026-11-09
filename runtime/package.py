@@ -98,6 +98,7 @@ def main():
     shutil.copyfile(root / "tools/ntp-notify.sh", app / "tools/ntp-notify.sh")
     shutil.copyfile(root / "tools/bluetooth-radio.sh", app / "tools/bluetooth-radio.sh")
     shutil.copyfile(root / "tools/system-power.sh", app / "tools/system-power.sh")
+    shutil.copyfile(root / "tools/tf2-launch.sh", app / "tools/tf2-launch.sh")
     shutil.copyfile(root / "runtime/package/launch_frontend.sh", payload / "System/launch_frontend.sh")
     compiler = subprocess.check_output([
         "/opt/aarch64-nextui-linux-gnu/bin/aarch64-nextui-linux-gnu-g++", "--version"

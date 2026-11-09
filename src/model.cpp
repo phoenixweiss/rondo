@@ -267,7 +267,7 @@ static void validateConfig(const Json &candidate, const Json &defaults) {
   if (!candidate.is_object() || candidate.value("schema", 0) != 1)
     throw std::runtime_error("Unsupported configuration");
   for (const auto &key : {"revision", "locale", "artwork", "section", "focus", "timezone", "volume",
-                          "favorites", "game_options", "psx_hle_warning_acknowledged", "psx_firmware", "psx_bios_file", "psx_controller", "rumble_enabled", "left_stick_dpad", "replace_boot_logo", "brightness", "lid_sleep", "wake_on_lid_open", "show_battery_percent", "wifi_enabled", "bluetooth_enabled", "bluetooth_device", "ntp_auto", "debug_enabled", "debug_level", "integer_scaling", "game_background", "autosave_enabled", "startup_resume", "resume_game", "idle_screen_minutes", "battery_warning"})
+                          "favorites", "game_options", "psx_hle_warning_acknowledged", "psx_firmware", "psx_bios_file", "psx_controller", "rumble_enabled", "left_stick_dpad", "replace_boot_logo", "brightness", "lid_sleep", "wake_on_lid_open", "show_battery_percent", "smooth_battery_level", "wifi_enabled", "bluetooth_enabled", "bluetooth_device", "ntp_auto", "debug_enabled", "debug_level", "integer_scaling", "game_background", "autosave_enabled", "startup_resume", "resume_game", "idle_screen_minutes", "battery_warning", "storage_chart_colors"})
     if (candidate.contains(key) && candidate[key].type() != defaults[key].type() &&
         !(candidate[key].is_number() && defaults[key].is_number()))
       throw std::runtime_error("Invalid configuration field");
@@ -305,13 +305,26 @@ static void validateConfig(const Json &candidate, const Json &defaults) {
         throw std::runtime_error("Invalid game PSX controller");
     }
 }
-Store::Store(fs::path p) : root(std::move(p)) {
-  if(recoverPendingRestore(root))warning="Recovered interrupted restore";
+fs::path StatePaths::category(const std::string &name,bool writing) const {
+  if(resolve)return resolve(name,writing);
+  static const std::map<std::string,std::string> leaves{{"saves","games"},{"screenshots","Screenshots"},{"bios","BIOS"},{"backups","Backups"},{"logs","Logs"},{"cache","Cache"}};
+  return config/leaves.at(name);
+}
+fs::path StatePaths::settings(bool writing) const {return resolve?resolve("config",writing):config;}
+Json StatePaths::binding() const {return identity?identity():Json();}
+std::function<void()> StatePaths::guard(const std::string &name,bool writing) const {
+  auto expected=category(name,writing);auto paths=*this;
+  return [paths,name,writing,expected]{if(paths.category(name,writing)!=expected)throw std::runtime_error("Storage location changed");};
+}
+Store::Store(fs::path p):Store(StatePaths(std::move(p))){}
+Store::Store(StatePaths p) : root(p.settings()), paths(std::move(p)) {
+  if(recoverPendingRestore(paths))warning="Recovered interrupted restore";
   fresh=!fs::exists(root/"config.json")&&!fs::exists(root/"config.previous.json");
   data = {{"schema", 1},
           {"revision", 0},
           {"locale", "en"},
           {"volume", 80},
+          {"storage_chart_colors", false},
           {"debug_enabled", false},
           {"debug_level", "events"},
           {"brightness", 70},
@@ -325,6 +338,7 @@ Store::Store(fs::path p) : root(std::move(p)) {
           {"lid_sleep", true},
           {"wake_on_lid_open", true},
           {"show_battery_percent", true},
+          {"smooth_battery_level", true},
           {"wifi_enabled", false},
           {"ntp_auto", true},
           {"replace_boot_logo", true},
@@ -341,6 +355,8 @@ Store::Store(fs::path p) : root(std::move(p)) {
           {"timezone", "Etc/UTC"},
           {"bluetooth_enabled", false},
           {"bluetooth_device", ""},
+          {"gamepad_players", Json::object()},
+          {"gamepad_colors", Json::object()},
           {"favorites", Json::array()},
           {"recent_games", Json::array()},
           {"library_grouping","unified"}, {"game_view","list"}, {"system_tiles","grid"},
@@ -375,6 +391,7 @@ Store::Store(fs::path p) : root(std::move(p)) {
 }
 void Store::validateDocument(const Json &document) const { validateConfig(document,data); }
 void Store::commit(Json next) {
+  paths.settings(true);
   validatePreferences(next);
   if(next.contains("rumble_enabled")&&!next.at("rumble_enabled").is_boolean())
     throw std::runtime_error("Invalid vibration setting");
@@ -415,7 +432,7 @@ void Store::commit(Json next) {
   }
   data = std::move(next);
 }
-fs::path Store::gameDir(const Game &g) const { return root / "games" / g.id; }
+fs::path Store::gameDir(const Game &g,bool writing) const { return backupSafePath(paths.category("saves",writing),g.id); }
 void Store::migrateLegacyTf1(const std::vector<Game> &games,const std::vector<Volume> &volumes) {
   if(readOnly)return;
   auto volume=std::find_if(volumes.begin(),volumes.end(),[](const auto &v){return v.id=="TF1";});
@@ -452,13 +469,14 @@ void Store::migrateLegacyTf1(const std::vector<Game> &games,const std::vector<Vo
   }
   // Enumerate names once, without reading SRAM/state contents. This also allows
   // a previously absent ROM to migrate when it returns on a later boot.
-  std::set<std::string> occupied,directories;auto parent=root/"games";
+  std::set<std::string> occupied,directories;auto parent=paths.category("saves");
   if(fs::is_directory(parent))for(auto &entry:fs::directory_iterator(parent)) {
     auto name=entry.path().filename().string();occupied.insert(name);
     if(!entry.is_symlink()&&entry.is_directory())directories.insert(name);
   }
   bool moved=false;
   for(auto &alias:aliases)if(directories.count(alias.first)&&!occupied.count(alias.second)) {
+    paths.category("saves",true);
     fs::rename(parent/alias.first,parent/alias.second);directories.erase(alias.first);occupied.erase(alias.first);occupied.insert(alias.second);moved=true;
   }
   if(next!=data||moved)commit(next); // Existing atomic config write flushes the owning filesystem.

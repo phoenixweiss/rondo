@@ -26,7 +26,7 @@ Core::Core(const fs::path &path, const Game &game, const fs::path &saves, bool s
   if(psx)romHash=psxContentHash(game.path,systemRoot,testHle);
   else {rom = readBytes(game.path);romHash = hashBytes(rom);}
   fs::create_directories(saveRoot);
-  fs::create_directories(systemRoot);
+  if(bios.empty())fs::create_directories(systemRoot);
   handle = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
   if (!handle)
     throw std::runtime_error(dlerror());
@@ -291,11 +291,20 @@ void Core::audioSample(int16_t l, int16_t r) {
 }
 void Core::inputPoll() {}
 int16_t Core::inputState(unsigned port, unsigned device, unsigned index, unsigned id) {
-  if(port!=0)return 0;
+  if(port>active->otherPlayerButtons.size())return 0;
   device &= RETRO_DEVICE_MASK;
-  if(device==RETRO_DEVICE_JOYPAD && index==0 && id<16)return (active->buttons>>id)&1;
-  if(device==RETRO_DEVICE_ANALOG && index<2 && id<2)return active->axes[index*2+id];
+  if(device==RETRO_DEVICE_JOYPAD && index==0) {
+    const uint16_t held=port==0?active->buttons:active->otherPlayerButtons[port-1];
+    if(id==RETRO_DEVICE_ID_JOYPAD_MASK)return static_cast<int16_t>(held);
+    if(id<16)return (held>>id)&1;
+  }
+  if(port==0 && device==RETRO_DEVICE_ANALOG && index<2 && id<2)return active->axes[index*2+id];
   return 0;
+}
+void Core::clearInput() {
+  buttons=0;
+  otherPlayerButtons={};
+  axes={};
 }
 void Core::psxController(bool dualshock) {
   if(!psx)return;
@@ -303,7 +312,7 @@ void Core::psxController(bool dualshock) {
   // PCSX ReARMed advertises DualShock as ANALOG subclass 1, not plain ANALOG.
   sym<void (*)(unsigned,unsigned)>("retro_set_controller_port_device")(
       0,dualshock?RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_ANALOG,1):RETRO_DEVICE_JOYPAD);
-  buttons=0;axes={};
+  clearInput();
 }
 void Core::tick() {
   if (!paused) {
@@ -356,6 +365,7 @@ void Core::saveAutomatic() {
   saveTo(saveRoot/stateName(3),false);
 }
 void Core::saveTo(const fs::path &p, bool flush) {
+  if(storageCheck)storageCheck();
   auto n = serializeSize();
   if (!n || n > 32 * 1024 * 1024)
     throw std::runtime_error("Save states unavailable");
@@ -386,6 +396,7 @@ void Core::saveTo(const fs::path &p, bool flush) {
   if(flush)flushSram();
 }
 void Core::deleteSlot(int slot) {
+  if(storageCheck)storageCheck();
   if (slot < 0 || slot > 2) throw std::runtime_error("Invalid save slot");
   const auto path = saveRoot / stateName(slot);
   // Remove the overwrite backup first; a failure keeps the active slot intact.
@@ -409,6 +420,7 @@ bool Core::compatibleAutomatic() const {
   try {automaticPath();return true;}catch(...){return false;}
 }
 void Core::loadFrom(const fs::path &path) {
+  if(storageCheck)storageCheck();
   auto state = readRecoverableState(path);
   const auto &j=state.meta;
   if (j.at("core") != identity || j.at("rom") != romHash)
@@ -432,6 +444,7 @@ bool Core::compatibleFile(const fs::path &path) const {
   }
 }
 void Core::flushSram() {
+  if(storageCheck)storageCheck();
   for(auto memory:{std::pair<unsigned,const char *>{RETRO_MEMORY_SAVE_RAM,"sram.bin"},
                    {RETRO_MEMORY_RTC,"rtc.bin"}}) {
     auto n=memorySize(memory.first);

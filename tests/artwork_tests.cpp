@@ -2,6 +2,7 @@
 // Copyright (c) 2026 PAVEL TKACHEV
 #include "ui.hpp"
 #include "stb_image_write.h"
+#include <atomic>
 #include <cassert>
 #include <chrono>
 #include <iostream>
@@ -33,6 +34,24 @@ int main(int argc,char **argv) {
    auto image=settle(cache,a);assert(image&&image->identity!=id&&image->rgba[0]==210);
    fs::remove(source);SDL_Delay(1100);assert(!settle(cache,a));}
   png(source,150);
+  {
+    ArtworkRequest absent{root/"later.png",204,204,true};
+    std::atomic<bool> block{false};
+    ArtworkCache cache(root/"refresh-cache",4*1024*1024,32*1024*1024,[&]{
+      while(block.load())SDL_Delay(1);
+    });
+    assert(!settle(cache,absent)&&cache.missing(absent));
+    SDL_Delay(1100);
+    block=true;
+    cache.select({absent});
+    auto work=cache.statistics();
+    assert(work["queued"]!=0||work["busy"].get<bool>());
+    assert(cache.missing(absent));
+    png(absent.path,210);
+    block=false;
+    auto updated=settle(cache,absent);
+    assert(updated&&updated->rgba[0]==210&&!cache.missing(absent));
+  }
   {ArtworkCache cache(root/"bad-cache");atomicWrite(root/"invalid.png",{1,2,3});assert(!settle(cache,{root/"invalid.png",204,204,true}));
    auto decodes=cache.statistics()["decodes"];SDL_Delay(1100);assert(!settle(cache,{root/"invalid.png",204,204,true}));assert(cache.statistics()["decodes"]==decodes);
    png(root/"invalid.png",210);SDL_Delay(1100);assert(settle(cache,{root/"invalid.png",204,204,true}));

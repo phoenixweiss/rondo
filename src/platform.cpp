@@ -45,6 +45,50 @@ int brightnessPercent(int raw) {
     if(std::abs(brightnessRawLevel(step)-raw)<std::abs(brightnessRawLevel(nearest)-raw))nearest=step;
   return nearest;
 }
+std::optional<int> BatteryDisplayFilter::update(const Telemetry &telemetry, bool enabled, uint64_t now) {
+  auto raw = telemetry.capacity;
+  if (raw && (*raw < 0 || *raw > 100)) raw.reset();
+  if (!enabled || !raw) {
+    *this = {};
+    return raw;
+  }
+
+  constexpr uint64_t StepMs = 5000;
+  constexpr uint64_t ConfirmMs = 15000;
+  constexpr uint64_t FullHoldMs = 60000;
+  if (*raw == 100 && telemetry.batteryStatus == "Full") lastFull = now;
+
+  // Show the warning range immediately even after a large correction.
+  if (!shown || (*raw <= 10 && *raw < *shown)) {
+    shown = raw;
+    lastStep = now;
+    pendingDirection = 0;
+    if (*raw <= 10) lastFull.reset();
+    return shown;
+  }
+
+  const int delta = *raw - *shown;
+  if (!delta) {
+    pendingDirection = 0;
+    return shown;
+  }
+
+  const int direction = delta > 0 ? 1 : -1;
+  const bool correction = std::abs(delta) > 1;
+  if (correction && pendingDirection != direction) {
+    pendingDirection = direction;
+    pendingSince = now;
+  } else if (!correction) {
+    pendingDirection = 0;
+  }
+  if (*shown == 100 && lastFull && now - *lastFull < FullHoldMs) return shown;
+  if (now - lastStep >= StepMs && (!correction || now - pendingSince >= ConfirmMs)) {
+    *shown += direction;
+    lastStep = now;
+  }
+  return shown;
+}
+
 int wifiSignalLevel(std::optional<int> dbm) {
   if (!dbm || *dbm < -127 || *dbm >= 0) return -1;
   return *dbm >= -55 ? 3 : *dbm >= -67 ? 2 : *dbm >= -80 ? 1 : 0;

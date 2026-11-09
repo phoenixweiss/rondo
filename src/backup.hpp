@@ -14,14 +14,15 @@ struct BackupError : std::runtime_error {
 };
 bool backupDataPath(const std::string &);
 fs::path backupSafePath(const fs::path &,const std::string &);
+fs::path backupSafePath(const StatePaths &,const std::string &,bool writing=false);
 // Returns true after rolling back an interrupted multi-file restore. Unknown or
 // damaged journals fail closed before settings/core initialization can write.
-bool recoverPendingRestore(const fs::path &);
-void applyBackupFiles(const fs::path &,const fs::path &,const Json &,BackupProgress * = nullptr,const std::string &newGame = {});
+bool recoverPendingRestore(const StatePaths &);
+void applyBackupFiles(const StatePaths &,const fs::path &,const Json &,BackupProgress * = nullptr,const std::string &newGame = {});
 Json backupManifest(const fs::path &,std::string *digest = nullptr);
 Json backupGames(const fs::path &,const std::vector<Game> & = {});
-void deleteBackup(const fs::path &,const fs::path &,const std::string &expectedManifest = {});
-std::vector<fs::path> backupFolders(const fs::path &);
-fs::path createBackup(const fs::path &,const BackupContext &,BackupProgress * = nullptr);
-void restoreBackup(const fs::path &,const fs::path &,const BackupContext &,BackupProgress * = nullptr);
+void deleteBackup(const StatePaths &,const fs::path &,const std::string &expectedManifest = {});
+std::vector<fs::path> backupFolders(const StatePaths &);
+fs::path createBackup(const StatePaths &,const BackupContext &,BackupProgress * = nullptr);
+void restoreBackup(const StatePaths &,const fs::path &,const BackupContext &,BackupProgress * = nullptr);
 }

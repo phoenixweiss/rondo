@@ -349,8 +349,8 @@ struct BatteryLog::Worker {
   Json error = Json::object();
   std::thread thread;
   Worker(const fs::path &directory, const std::string &role, const fs::path &sys,
-         const fs::path &proc, size_t limit, const fs::path &fallback)
-      : sink(directory, role, sys, proc, limit, fallback), thread([this] { run(); }) {}
+         const fs::path &proc, size_t limit, const fs::path &fallback, const std::function<void()> &check)
+      : sink(directory, role, sys, proc, limit, fallback, false, check), thread([this] { run(); }) {}
   void run() {
     std::unique_lock<std::mutex> lock(mutex);
     for (;;) {
@@ -388,12 +388,12 @@ bool BatteryLog::sample(uint64_t now, const Json &context, const std::string &ev
   return lastError.empty();
 }
 BatteryLog::BatteryLog(fs::path directory, std::string role, fs::path sys, fs::path proc,
-                       size_t limit, fs::path fallback, bool background)
+                       size_t limit, fs::path fallback, bool background, std::function<void()> check)
     : directory(std::move(directory)), sys(std::move(sys)), proc(std::move(proc)),
-      fallback(std::move(fallback)), role(std::move(role)), limit(limit) {
+      fallback(std::move(fallback)), role(std::move(role)), storageCheck(std::move(check)), limit(limit) {
   if (this->role != "shell" && this->role != "runner")
     throw std::invalid_argument("Invalid battery log role");
-  if (background) worker = std::make_unique<Worker>(this->directory, this->role, this->sys, this->proc, limit, this->fallback);
+  if (background) worker = std::make_unique<Worker>(this->directory, this->role, this->sys, this->proc, limit, this->fallback, storageCheck);
 }
 static Json displayComparison(const Json &snapshot, const Json &context, uint64_t now) {
   Json percent = nullptr;
@@ -425,6 +425,7 @@ bool BatteryLog::sampleSync(uint64_t now, const Json &context, const std::string
     auto line=std::to_string(row["utc"].get<long long>())+" "+std::to_string(now)+" "+role+" "+
       Json(event).dump()+"\t"+row.dump(-1,' ',false,Json::error_handler_t::replace)+"\n";
     try {
+      if(storageCheck)storageCheck();
       appendJournal(directory,role,line,limit,".log");recoverJournal(directory,fallback,role,".log");
       lastError=Json::object();return true;
     }catch(const std::exception &e){lastError={{"message",e.what()}};}
@@ -467,6 +468,7 @@ bool BatteryLog::sampleSync(uint64_t now, const Json &context, const std::string
     snapshot["battery_comparison"] = std::move(comparison);
     if (includePassport) snapshot["storage"] = storageSnapshot(directory, proc);
     auto line = snapshot.dump(-1, ' ', false, Json::error_handler_t::replace) + "\n";
+    if(storageCheck)storageCheck();
     appendJournal(directory, role, line, limit);
     recoverJournal(directory, fallback, role);
     lastKey = std::move(key); writtenAt = now; lastError = Json::object();

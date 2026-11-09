@@ -42,7 +42,10 @@ int main(int argc,char **argv) {
     CoreEntry missing{"absent","Absent","NONE",o.state/"absent.so",false,{}};assert(!missing.enabled(choices));
     auto input=a.store.data;input["input_mapping"]["fceumm"]["8"]=0;assert(mappedButtons(input,"NES",1)==((1<<0)|(1<<8)));assert(mappedButtons(input,"GB",1)==1);input["input_mapping"]["fceumm"]["8"]=-1;assert(mappedButtons(input,"NES",1<<8)==0);
     a.screen=Screen::MappingCores;a.row=0;a.action("A");assert(a.screen==Screen::Mapping);a.row=4;a.action("LEFT");assert(mappedSource(a.store.data,"fceumm",8)==7);
-    a.action("X");assert(a.screen==Screen::InputTest);a.testInput(0,{},{});a.testInput((1<<3)|(1<<2),{},{});assert(a.screen==Screen::Mapping&&a.row==4);
+    a.action("X");assert(a.screen==Screen::InputTest);
+    a.testInput({{App::TestHandheld,{}}});
+    a.testInput({{App::TestHandheld,{(1<<3)|(1<<2),{},{}}}});
+    assert(a.screen==Screen::Mapping&&a.row==4);
     a.action("Y");assert(a.screen==Screen::MappingReset);a.action("B");assert(mappedSource(a.store.data,"fceumm",8)==7);a.action("Y");a.action("DOWN");a.action("A");assert(mappedSource(a.store.data,"fceumm",8)==8);
     for(auto lang:{"en","ru"}){a.locale.select(o.assets,lang);a.screen=Screen::MappingCores;a.capture(std::string("mapping-cores-")+lang);a.screen=Screen::Mapping;a.mappingCore="pcsx_rearmed";a.row=15;a.featureScroll=0;a.capture(std::string("mapping-psx-")+lang);a.screen=Screen::CoreCatalog;a.row=5;a.capture(std::string("core-catalog-")+lang);}
   }
@@ -121,8 +124,8 @@ int main(int argc,char **argv) {
     const std::vector<Setting> settings{
       {Screen::CoreSettings,0,1,"left_stick_dpad"},{Screen::CoreSettings,0,2,"rumble_enabled"},
       {Screen::SettingsSection,1,1,"integer_scaling"},{Screen::SettingsSection,3,0,"show_battery_percent"},
-      {Screen::SettingsSection,3,2,"autosave_enabled"},{Screen::SettingsSection,3,3,"startup_resume"},
-      {Screen::SettingsSection,3,5,"battery_warning"},{Screen::SettingsSection,4,0,"debug_enabled"},
+      {Screen::SettingsSection,3,1,"smooth_battery_level"},{Screen::SettingsSection,3,3,"autosave_enabled"},{Screen::SettingsSection,3,4,"startup_resume"},
+      {Screen::SettingsSection,3,6,"battery_warning"},{Screen::SettingsSection,4,0,"debug_enabled"},
       {Screen::ScreenshotSettings,0,2,"screenshot_sound"}};
     for(const auto &s:settings){a.navigation.clear();a.navigationActions=false;a.screen=s.screen;a.category=s.category;a.row=s.row;
       bool expected=a.store.data.value(s.key,false);
@@ -133,7 +136,7 @@ int main(int argc,char **argv) {
     for(auto lang:{"en","ru"})for(const auto &theme:a.ui->themes["themes"]){
       const auto id=theme["id"].get<std::string>();a.locale.select(o.assets,lang);a.ui->setTheme(id);a.notice.clear();
       a.screen=Screen::CoreSettings;a.row=1;a.capture("binary-cores-"+id+"-"+lang);
-      a.screen=Screen::SettingsSection;a.category=3;a.row=2;a.powerScroll=0;a.capture("binary-power-"+id+"-"+lang);
+      a.screen=Screen::SettingsSection;a.category=3;a.row=3;a.powerScroll=0;a.capture("binary-power-"+id+"-"+lang);
       a.category=4;a.row=0;a.capture("binary-debug-"+id+"-"+lang);
       a.screen=Screen::ScreenshotSettings;a.row=2;a.capture("binary-screenshot-"+id+"-"+lang);
       // Check the selected segment surface independently of row focus.

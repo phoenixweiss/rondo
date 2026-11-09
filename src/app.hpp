@@ -13,6 +13,7 @@
 #include "game_statistics.hpp"
 #include "backup.hpp"
 #include "progress.hpp"
+#include "storage.hpp"
 #include <functional>
 #include <future>
 namespace rondo {
@@ -20,12 +21,14 @@ enum class GameMenuItem { Resume, Save, Load, Screenshot, Settings, Info, Exit, 
 enum class Screen {
   Systems, LibraryPreferences, LibraryMenu,
   ScreenshotSettings, ScreenshotCapture,
+  Storage, StorageFiles, StorageCards, StorageUsage, StorageDetails, StorageReview, StorageConflicts, StorageCompare, StorageConfirm, StorageBusy, StorageStop, StorageResult, StorageRecovery, StorageDiscard, StorageFormat, StorageFormatResult,
   Themes, CoreCatalog, MappingCores, Mapping, MappingReset, Wizard, WizardExit,
   Library,
   Search, SearchResults, GameDetails,
   Settings,
   SettingsSection,
   InputTest,
+  Controls, Gamepads, GamepadFind, GamepadDetails, GamepadColor, GamepadPlayer,
   SystemInfo,
   ProgressBusy, ProgressSources, ProgressConfirm, ProgressDone,
   Backups, BackupDetails, BackupGames, BackupDelete, BackupConfirm, BackupBusy, BackupRestart,
@@ -79,7 +82,12 @@ struct NavigationFrame {
 };
 struct Options {
   fs::path assets, state, core, gbCore, gbaCore, snesCore, mdCore, psxCore, psxBios, executable, script, output;
-  bool psxTestHle=false, shellReload=false;
+  bool psxTestHle=false, shellReload=false, physicalStorage=false;
+  std::shared_ptr<StorageLayout> storage;
+  std::function<Tf2FormatTarget()> tf2FormatProbe;
+  std::function<void(const Tf2FormatTarget &,const fs::path &,const std::function<void(int)> &)> tf2Formatter;
+  Json storageBinding;
+  StatePaths paths() const {return storage?storagePaths(storage):StatePaths(state);}
   fs::path coreFor(const std::string &system) const {
     if(system=="NES")return core;
     if(system=="GB" || system=="GBC") {
@@ -188,24 +196,57 @@ public:
   std::string timezoneSortKey(const std::string &) const;
   void openTimezones();
   std::unique_ptr<UI> ui;
-  void configureArtwork();
+  void configureArtwork(bool inGame=false);
   std::unique_ptr<DeviceControl> device;
   std::shared_ptr<Rumble> motor;
   uint16_t testButtons=0;
   std::array<int16_t,4> testAxes{};
   std::set<std::string> testExtras;
-  bool testChordHeld=false,testInputArmed=false;
+  struct InputTestSample {
+    uint16_t buttons=0;
+    std::array<int16_t,4> axes{};
+    std::set<std::string> extras;
+  };
+  static constexpr SDL_JoystickID TestHandheld=-1,TestKeyboard=-2;
+  std::optional<SDL_JoystickID> testSource;
+  std::map<SDL_JoystickID,InputTestSample> testPrevious;
+  bool testInputArmed=false;
   bool testFromCores=false;
   uint64_t testFeedbackUntil=0;
   std::string testFeedback;
   void openInputTest(bool fromCores);
-  void testInput(uint16_t,const std::array<int16_t,4> &,const std::set<std::string> &);
+  void testInput(std::map<SDL_JoystickID,InputTestSample>);
   void drawInputTest(const std::string &zone);
+  std::string gamepadPlayerLabel(int player) const;
+  void changeGamepadPlayer(const std::string &key,int direction);
+  int gamepadPort(SDL_JoystickID) const;
+  std::string gamepadRoleLabel(const std::string &key,std::optional<SDL_JoystickID> live={}) const;
+  void syncGamepadPlayers();
+  Json gamepadPortHandoff() const;
+  void restoreGamepadPortHandoff(const Json &);
+  std::map<SDL_JoystickID,int> automaticGamepadPorts;
+  void gamepadsAction(const std::string &);
+  void drawGamepads(const std::string &zone);
+  struct GamepadEntry {
+    std::string token, key, name;
+    std::optional<SDL_JoystickID> live;
+  };
+  std::vector<GamepadEntry> gamepadEntries() const;
+  std::vector<std::string> gamepadOrder;
+  std::string gamepadFocus;
+  int gamepadRow=0,gamepadFirstRow=0;
+  bool controlsRoute() const;
+  void refreshGamepads();
+  bool identifyGamepad(SDL_JoystickID);
+  std::set<SDL_JoystickID> gamepadIdentifyHeld;
+  void drawGamepadDot(const std::string &key,int x,int y);
+  void drawDeviceColor(int color,int x,int y);
   std::optional<int> brightness;
   std::optional<bool> lastLidOpen = true;
   uint64_t lidCheckAt = 0;
   bool sleeping = false;
   bool gameInputBlocked=true;
+  std::set<SDL_JoystickID> gamepadsAwaitRelease;
   ScreenshotWriter screenshotWriter;
   ScreenshotChord screenshotKeys,interfaceScreenshotKeys;
   std::string screenshotMessage;
@@ -220,7 +261,7 @@ public:
   void screenshotSettingsDraw(const std::string &);
   void screenshotRecord(uint16_t);
   uint16_t gameButtons(uint16_t);
-  void gameInput(uint16_t, const std::array<int16_t,4> &);
+  void gameInput(uint16_t, const std::array<int16_t,4> &,const AdditionalPlayerButtons &others={});
   void sampleInput();
   bool psxDualshock() const;
   bool screenBlank=false, batteryWarningsLoaded=false;
@@ -269,6 +310,30 @@ public:
   double settingsScroll = 0;
   void returnToSettings();
   struct SystemInfoRow { std::string label,value,source,state,page; };
+  std::future<Json> storageJob;
+  std::shared_ptr<std::atomic<bool>> storageCancel;
+  std::shared_ptr<BackupProgress> storageProgress;
+  Json storageChoices=Json::object();
+  int storageConflictFocus=0,storageConflictColumn=0,storageDetailsAction=0;
+  bool storageCollect=false;
+  std::string storageFrom;
+  Json storageUsage=Json::object(), storageReview=Json::object(), storagePending;
+  std::string storageTask,storageError,storageCategory="saves",storageTarget="TF2";
+  size_t storageNavigationDepth=0;
+  int storageFocus=0,storageColumn=1,storageNav=0,storageItem=0,storageCard=0,storageMethod=0;
+  bool storagePanel=false,storageReviewQueued=false,storageCommitted=false,storageQuiesced=false;
+  Screen storageFilesOrigin=Screen::Storage;
+  double storageListScroll=0;
+  Tf2FormatTarget storageFormatTarget;
+  uint64_t storageFormatReady=0;
+  bool storageRoute() const {return screen>=Screen::Storage&&screen<=Screen::StorageFormatResult;}
+  void storageOpen();
+  void storageScan();
+  void storageInspect();
+  void storageRun(const std::string &);
+  void storageTick();
+  void storageAction(const std::string &);
+  void storageDraw(const std::string &);
   std::future<Json> backupJob;
   std::shared_ptr<BackupProgress> backupProgress;
   std::vector<fs::path> backupList;
@@ -397,6 +462,12 @@ public:
   uint64_t btPollAt = 0;
   int btFocus = 0;
   double btScroll = 0;
+  bool btShowDiscovered=false;
+  std::map<std::string,int> btColors;
+  std::vector<size_t> btVisibleDevices() const;
+  void btRefreshColors();
+  int btColor(const std::string &key) const;
+  void btOpen();
   bool btBusy() const { return bool(btQueued) || (btJob.valid() && btTask!="poll"); }
   void btRun(const std::string &, std::function<BluetoothState()>);
   void btTick();

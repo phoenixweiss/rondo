@@ -18,7 +18,7 @@ class BuildGraphTests(unittest.TestCase):
                 (root / directory).mkdir()
                 for source in (ROOT / directory).glob('*.cpp'):
                     text = 'int main() { return 0; }\n' if directory == 'tests' or source.stem == 'main' else 'int stub_' + source.stem + ';\n'
-                    if source.stem in {"preferences_tests", "screenshot_tests", "library_tests"}:
+                    if source.stem in {"preferences_tests", "screenshot_tests", "library_tests", "storage_tests"}:
                         text = '#include "test_dependency.hpp"\n' + text
                     if source.stem == 'ui':
                         text = '#include "ui.hpp"\n' + text
@@ -39,7 +39,7 @@ class BuildGraphTests(unittest.TestCase):
                 return [line for line in output.splitlines() if ' -c ' in line]
 
             output = make()
-            self.assertEqual(len(compiles(output)), 61, output)
+            self.assertEqual(len(compiles(output)), 67, output)
             self.assertEqual(sum(' -c src/model.cpp ' in line for line in compiles(output)), 1)
             self.assertEqual(make(), '')
             time.sleep(1.05)
@@ -51,16 +51,16 @@ class BuildGraphTests(unittest.TestCase):
             self.assertEqual(make(), '')
             time.sleep(1.05)
             (root / 'tests/test_dependency.hpp').touch()
-            self.assertEqual(len(compiles(make())), 3)
+            self.assertEqual(len(compiles(make())), 4)
             self.assertEqual(make(), '')
             time.sleep(1.05)
-            self.assertEqual(len(compiles(make('CXXFLAGS=-std=c++17 -O1'))), 61)
+            self.assertEqual(len(compiles(make('CXXFLAGS=-std=c++17 -O1'))), 67)
             time.sleep(1.05)
-            self.assertEqual(len(compiles(make())), 61)  # Switching back is a rebuild too.
+            self.assertEqual(len(compiles(make())), 67)  # Switching back is a rebuild too.
             time.sleep(1.05)
             linked = make('LDFLAGS=-s')
             self.assertEqual(compiles(linked), [])
-            self.assertEqual(sum(' -o build/' in line for line in linked.splitlines()), 30)
+            self.assertEqual(sum(' -o build/' in line for line in linked.splitlines()), 34)
             self.assertEqual(make('LDFLAGS=-s'), '')
             # Cross-adapter wrappers stay on link commands, never object commands.
             dry = subprocess.run(['make', '-n', 'h700-programs', 'PKG_CONFIG=true'],

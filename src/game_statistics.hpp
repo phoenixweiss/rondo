@@ -15,8 +15,9 @@ class GameStatistics {
   void submit();
 public:
   std::string error;
+  std::function<void()> storageCheck;
   size_t writesStarted=0;
-  GameStatistics(const fs::path &,const std::string &,uint64_t now);
+  GameStatistics(const fs::path &,const std::string &,uint64_t now,std::function<void()> check={});
   ~GameStatistics();
   void tick(uint64_t now,bool running);
   bool flush(uint64_t now,bool running=false);

@@ -15,7 +15,7 @@ The result is output/Rondo-BaseOS-RG34XXSP-development-*.zip plus its SHA-256 an
 
 The exact-kernel lid-wake research module is included with source/build material but is not loaded by the launcher; H700 wake-on-open remains unavailable after a failed hardware experiment.
 
-The ZIP contains System/, corresponding source archives and build definitions, license texts, build provenance and two checksum manifests. Its only cartridge is an original synthetic test fixture. It contains no BaseOS firmware, commercial games, saves or user preferences. The SDK is a build tool, not a NextUI frontend dependency. The compiler-only tools/build_h700.sh remains a separate, quicker gate.
+The ZIP contains System/, corresponding source archives and build definitions, license texts, build provenance and two checksum manifests. It contains an original synthetic test fixture. It contains no BaseOS firmware, commercial games, saves or user preferences. The SDK is a build tool, not a NextUI frontend dependency. The compiler-only tools/build_h700.sh remains a separate, quicker gate.
 
 ## Fast development builds
 

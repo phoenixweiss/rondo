@@ -53,10 +53,12 @@ class BluetoothProcess {
   int fd=-1, pid=-1;
   std::atomic<bool> &cancelled;
   std::string readSome(int milliseconds);
+  std::string readReply(const std::vector<std::string> &success,uint64_t deadline);
 public:
   BluetoothProcess(const std::vector<std::string> &,std::atomic<bool> &);
   ~BluetoothProcess();
   BluetoothProcess(const BluetoothProcess &)=delete;
+  void waitFor(const std::vector<std::string> &success,int milliseconds);
   std::string request(const std::string &,const std::vector<std::string> &,int milliseconds);
   std::string finish(int milliseconds);
 };

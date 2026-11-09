@@ -4,12 +4,15 @@
 #include "json.hpp"
 #include "picosha2.h"
 #include <ctime>
+#include <functional>
 #include <filesystem>
 #include <map>
 #include <set>
 #include <string>
 #include <vector>
 namespace rondo {
+constexpr int GamepadPlayerCount=4;
+constexpr int GamepadControllerCount=10;
 namespace fs = std::filesystem;
 using Json = nlohmann::json;
 std::string systemName(const std::string &);
@@ -34,17 +37,30 @@ struct Game {
 std::vector<Game> scan(const std::vector<Volume> &);
 Json recentAfterLaunch(const Json &, const Game &, const std::vector<Volume> &);
 std::vector<Game> recentUnavailable(const Json &, const std::vector<Game> &);
+// Config stays on TF1; category paths are resolved afresh at operation boundaries.
+struct StatePaths {
+  fs::path config;
+  std::function<fs::path(const std::string &,bool)> resolve;
+  std::function<Json()> identity;
+  StatePaths(fs::path p):config(std::move(p)){}
+  fs::path category(const std::string &,bool writing=false) const;
+  fs::path settings(bool writing=false) const;
+  Json binding() const;
+  std::function<void()> guard(const std::string &,bool writing=true) const;
+};
 class Store {
 public:
   fs::path root;
+  StatePaths paths;
   Json data;
   std::string warning;
   bool readOnly = false;
   bool fresh = false;
   explicit Store(fs::path);
+  explicit Store(StatePaths);
   void commit(Json);
   void validateDocument(const Json &) const;
-  fs::path gameDir(const Game &) const;
+  fs::path gameDir(const Game &,bool writing=false) const;
   void migrateLegacyTf1(const std::vector<Game> &,const std::vector<Volume> &);
   bool integerScaling(const std::string &gameId) const;
 };

@@ -7,7 +7,7 @@ void App::progressCopy() {
  if(core||statistics)return;
  if(bootPending()||btJob.valid()||btQueued||wifiJob.valid()||wifiQueued||clockJob.valid()||clockQueued){progressError="binary.applying";return;}
  volumeTick(true);progressError.clear();progressCopying=true;progressStatus=std::make_shared<BackupProgress>();auto status=progressStatus;
- auto root=options.state;auto target=game;auto volumes=options.volumes;auto library=games;auto source=progressSelected;
+ auto root=options.paths();auto target=game;auto volumes=options.volumes;auto library=games;auto source=progressSelected;
  auto fingerprint=progressFingerprintValue,legacy=progressLegacyRom,core=progressLegacyCore;
  progressJob=std::async(std::launch::async,[root,target,volumes,library,source,fingerprint,legacy,core,status] {
   try{relocateProgress(root,source,target,volumes,library,fingerprint,legacy,core,status.get());return Json{{"ok",true}};}
@@ -19,7 +19,7 @@ void App::progressTick() {
  if(!progressJob.valid()||progressJob.wait_for(std::chrono::milliseconds(0))!=std::future_status::ready)return;
  auto result=progressJob.get();progressError=result.value("ok",false)?"":result.value("error","backup.io");
  if(progressCopying) {
-  try{store=Store(options.state);previewVolume=store.data.value("volume",80);}catch(...){progressError="backup.unfinished";}
+  try{store=Store(options.paths());previewVolume=store.data.value("volume",80);}catch(...){progressError="backup.unfinished";}
   screen=Screen::ProgressDone;return;
  }
  progressSources=result.value("sources",Json::array());row=0;screen=Screen::ProgressSources;

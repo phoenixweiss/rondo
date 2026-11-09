@@ -1,19 +1,18 @@
-# Bluetooth (experimental)
+# Bluetooth gamepads
 
-**Controller input is not working on the tested RG34XXSP / 8BitDo Micro D combination.**
-The cold-start test paired/connected successfully, loaded both Linux profiles,
-and recorded no SDL external input device in menus or the game. The earlier
-5–19-second stalls were absent after excluding external HID battery reads,
-but one 0.7-second frame remained. Linux HID/input creation and SDL discovery
-need further investigation. Connection alone is not usable controller support.
+Two 8BitDo Micro controllers in D mode were tested together in an NES game on
+RG34XXSP with BaseOS 1.5.3. In Auto mode, a connected controller kept its player
+number when the other disconnected.
 
 Settings → Network → Bluetooth controls the BaseOS BlueZ adapter. Bluetooth is
 off by default. The header symbol appears only after a powered-on readback and
 is placed to the left of Wi-Fi. The radio uses BaseOS's existing UART attach and
 service scripts; Rondo does not replace Bluetooth firmware or pairing storage.
 
-Devices lists named, paired or HID-advertising devices. Unresolved anonymous
-advertisements are omitted; an unnamed HID target has a visible address suffix.
+**Paired devices** lists paired and connected devices. **Search for devices**
+also shows nearby devices. Both lists show color labels; connected gamepads use
+the same color as [Settings → Controls](input-test.md). An unnamed HID device
+can show an address suffix to help identify it.
 Search keeps a single `bluetoothctl` session alive for up to 30 seconds, updating
 the list about once a second while remote names resolve. The same session owns
 the pairing agent. Leaving discovery, completing a connection or suspending
@@ -26,13 +25,12 @@ GetManagedObjects request rather than starting a client per device. No periodic
 Bluetooth queries run while the radio is off. Success requires rereading
 Powered/Paired/Trusted/Connected properties.
 
-The pairing agent uses NoInputNoOutput. PIN entry and numeric confirmation are
-not implemented. Audio routing and game-controller input require separate device
-acceptance; a BlueZ connection alone is not proof of either profile working in
-Rondo. The last explicitly selected paired device is reconnected after restart
-or suspend. An explicit disconnect clears that reconnect target. Pairing records
-remain in BaseOS's `/data/bluetooth` storage; Rondo stores only the enabled
-preference and reconnect address. Device names and addresses are not journaled.
+The pairing agent uses NoInputNoOutput. Bluetooth audio, PIN entry and numeric
+confirmation are unavailable. Rondo attempts to reconnect the last explicitly
+selected paired device after restart or suspend. An explicit disconnect clears
+that reconnect target. BaseOS stores pairing records in `/data/bluetooth`.
+Rondo stores the radio preference and reconnect target, plus player assignments
+and colors keyed by hashed device identity.
 
 SDL-mapped gamepads are kept open across menu and game sessions, including
 hotplug and disconnect. D-pad and the left stick navigate; the stick uses a
@@ -43,23 +41,21 @@ Native and isolated BaseOS tests use a simulated BlueZ protocol, structured
 D-Bus snapshots and real child-process transport fixtures (persistent ownership,
 EOF, cancellation, timeout and response limits);
 virtual SDL gamepads also cover hotplug, buttons, dead zone and release after
-disconnect. They never access host Bluetooth. Real pairing, profile availability and repeated
-sleep/reconnect cycles still need testing on RG34XXSP.
+disconnect. They never access host Bluetooth. Other controllers and firmware modes need separate checks.
 
 Protocol reference: [BlueZ bluetoothctl documentation](https://github.com/bluez/bluez/blob/master/doc/bluetoothctl.rst).
 
-With Diagnostics enabled, operation type, elapsed time, state and bounded error
-codes are journaled without device names or addresses. The initial device test
-failed to pair an 8BitDo Micro in D mode and showed severe shell slowdown. The
-cold-start retest paired/connected, but controller input failed as described above.
-D is the Android gamepad mode in the [official Micro manual](https://download.8bitdo.com/Manual/Controller/Micro/Micro-Bluetooth-gamepad-8.pdf).
+With Diagnostics enabled, operation type, elapsed time, state and error codes
+are journaled without device names or addresses. D is the Android gamepad mode
+in the [official Micro manual](https://download.8bitdo.com/Manual/Controller/Micro/Micro-Bluetooth-gamepad-8.pdf).
 
 ### Micro mapping and input evidence
 
 Rondo loads the four selected Micro profiles in
 `assets/ControllerMappings/micro.txt` before opening controllers. The Linux USB
 and Bluetooth rows supplement the older SDL fork, whose Linux automatic mapping
-routine is disabled. Existing controller mappings remain available. Exact
+routine is disabled. The Linux Bluetooth profile maps the D-mode directional
+axes to the D-pad and uses the printed A/B/X/Y labels. Existing controller mappings remain available. Exact
 provenance and retained terms are in that directory; no network download occurs
 on the console. A differing firmware GUID or report layout still needs device
 acceptance, rather than a guessed mapping for an arbitrary controller.

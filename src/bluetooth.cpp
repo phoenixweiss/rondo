@@ -249,6 +249,12 @@ std::string BluetoothProcess::request(const std::string &command,const std::vect
     else if(errno==EAGAIN || errno==EINTR) {if(monotonicMs()>=deadline)throw BluetoothError("timeout");pollfd d{fd,POLLOUT,0};poll(&d,1,25);}
     else throw BluetoothError("service");
   }
+  return readReply(success,deadline);
+}
+void BluetoothProcess::waitFor(const std::vector<std::string> &success,int milliseconds) {
+  readReply(success,monotonicMs()+milliseconds);
+}
+std::string BluetoothProcess::readReply(const std::vector<std::string> &success,uint64_t deadline) {
   std::string output;
   while(monotonicMs()<deadline) {
     output+=readSome(25);
@@ -310,11 +316,12 @@ class H700Bluetooth final : public BluezBluetooth {
     }
     try {
       if(!client) {
-        client=std::make_unique<BluetoothProcess>(std::vector<std::string>{"/usr/bin/env","LC_ALL=C","/usr/bin/bluetoothctl"},cancelled);
-        // The daemon is ready before this session starts. The list reply also
-        // confirms that bluetoothctl has populated its adapter proxy.
+        client=std::make_unique<BluetoothProcess>(std::vector<std::string>{
+          "/usr/bin/env","LC_ALL=C","/usr/bin/bluetoothctl","--agent=NoInputNoOutput"},cancelled);
+        // bluetoothctl registers its own agent at startup. Wait for the D-Bus
+        // reply before requesting default-agent to avoid duplicate registration.
+        client->waitFor({"Agent registered"},3000);
         client->request("list",{"Controller "},3000);
-        client->request("agent NoInputNoOutput",{"Agent registered","Agent is already registered"},3000);
         client->request("default-agent",{"Default agent request successful"},3000);
       }
       std::string input;for(const auto &arg:args) {if(!input.empty())input+=' ';input+=arg;}
@@ -332,7 +339,20 @@ class H700Bluetooth final : public BluezBluetooth {
       return output;
     }catch(...) {client.reset();throw;}
   }
-  void start() override {BluetoothProcess process({"/bin/sh",helper.string()},cancelled);process.finish(15000);}
+  void start() override {
+    BluetoothProcess process({"/bin/sh",helper.string()},cancelled);
+    process.finish(15000);
+    // The UART may be visible in sysfs before BlueZ publishes Adapter1.
+    const auto deadline=monotonicMs()+3500;
+    for(;;) {
+      try {readState();return;}
+      catch(const BluetoothError &error) {
+        const std::string code=error.what();
+        if((code!="unavailable" && code!="command" && code!="timeout") || monotonicMs()>=deadline)throw;
+      }
+      poll(nullptr,0,150);
+    }
+  }
 public:
   explicit H700Bluetooth(fs::path script):helper(std::move(script)){}
   void stopScan() override {

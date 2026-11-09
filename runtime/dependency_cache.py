@@ -13,7 +13,7 @@ ROOTS = ['sdk', *['programs/' + name + '_libretro.so' for name in CORES],
 def cache_key(root):
     names = ['runtime/' + name for name in ['build-lock.json', 'build_cache.py', 'dependency_cache.py',
              'build-all.sh', 'inputs.py', 'build_openbios.py', 'openbios-toolchain.json', 'build-libraries.sh',
-             'build-cores.sh', 'build-lid-module.sh', 'lid_module.py']]
+             'build-cores.sh', 'build-lid-module.sh', 'lid_module.py', 'sdl-evdev-gamepads.patch']]
     names += ['tools/build_h700_runtime.py']
     names += [p.relative_to(root).as_posix() for p in (root / 'runtime/lid-wake').rglob('*') if p.is_file()]
     names += [p.relative_to(root).as_posix() for p in (root / 'docs/dependencies').glob('*.json')]

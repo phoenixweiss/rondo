@@ -29,7 +29,7 @@ Json summary(const fs::path &folder) {
 }
 void App::backupOpen() {
   if(core||statistics){notice=locale.tr("backup.close_game");return;}
-  backupList=backupFolders(options.state);backupMetadata.clear();backupError.clear();backupScroll=0;row=0;screen=Screen::Backups;
+  backupList=backupFolders(options.paths());backupMetadata.clear();backupError.clear();backupScroll=0;row=0;screen=Screen::Backups;
 }
 void App::backupStart(bool restore,bool deleting) {
   if(core||statistics){notice=locale.tr("backup.close_game");return;}
@@ -42,10 +42,10 @@ void App::backupStart(bool restore,bool deleting) {
   backupJob=std::async(std::launch::async,[opts,folder,restore,deleting,progress,expected,catalog] {
     auto reload=[&] {std::error_code error;bool pending=fs::exists(opts.state/".restore-transaction",error);return restore&&(progress->phase>=3||pending||bool(error));};
     try {
-      if(deleting){progress->phase=5;deleteBackup(opts.state,folder,expected);return Json{{"ok",true},{"reload",false}};}
+      if(deleting){progress->phase=5;deleteBackup(opts.paths(),folder,expected);return Json{{"ok",true},{"reload",false}};}
       auto inputs=context(opts);inputs.expectedManifest=expected;inputs.games=catalog;
-      if(restore){restoreBackup(opts.state,folder,inputs,progress.get());return Json{{"ok",true},{"reload",true}};}
-      return Json{{"ok",true},{"folder",createBackup(opts.state,inputs,progress.get()).string()}};
+      if(restore){restoreBackup(opts.paths(),folder,inputs,progress.get());return Json{{"ok",true},{"reload",true}};}
+      return Json{{"ok",true},{"folder",createBackup(opts.paths(),inputs,progress.get()).string()}};
     }catch(const BackupError &error){return Json{{"ok",false},{"error",error.code},{"reload",reload()}};}
     catch(const std::exception &error){std::cerr<<"Backup: "<<error.what()<<"\n";return Json{{"ok",false},{"error","backup.io"},{"reload",reload()}};}
   });
@@ -56,7 +56,7 @@ void App::backupTick() {
   auto result=backupJob.get();backupError=result.value("ok",false)?"":result.value("error","backup.io");
   if(backupRestoring&&result.value("reload",true)) {
     // Resolve any post-rename failure before another settings writer is allowed.
-    try {store=Store(options.state);previewVolume=store.data.value("volume",80);}
+    try {store=Store(options.paths());previewVolume=store.data.value("volume",80);}
     catch(const std::exception &error){backupError="backup.unfinished";std::cerr<<"Restore recovery: "<<error.what()<<"\n";}
     screen=Screen::BackupRestart;return;
   }
@@ -66,7 +66,7 @@ void App::backupTick() {
     if(route!=Screen::Backups&&route!=Screen::BackupDetails&&route!=Screen::BackupGames&&route!=Screen::BackupDelete&&route!=Screen::BackupConfirm)break;
     navigation.pop_back();
   }
-  try {backupList=backupFolders(options.state);}catch(...){backupError="backup.io";}
+  try {backupList=backupFolders(options.paths());}catch(...){backupError="backup.io";}
   notice=locale.tr(backupError.empty()?(backupDeleting?"backup.deleted":"backup.created"):backupError);noticeUntil=monotonicMs()+6000;
 }
 void App::backupAction(const std::string &action) {
@@ -131,7 +131,7 @@ void App::backupDraw(const std::string &zone) {
   if(screen==Screen::BackupDetails||screen==Screen::BackupDelete) {
     bool valid=!backupSummary.empty();
     ui->text(valid?slotDate(backupSummary.at("created_utc")):tr("backup.invalid"),32,132,24,600,ui->cream,656);
-    std::string detail=valid?std::to_string((backupSummary.at("bytes").get<uint64_t>()+1048575)/1048576)+" MB · Rondo "+backupSummary.at("version").get<std::string>():backupSelected.filename().string();
+    std::string detail=valid?storageBytes(backupSummary.at("bytes").get<uint64_t>(),locale.current)+" · Rondo "+backupSummary.at("version").get<std::string>():backupSelected.filename().string();
     ui->text(detail,32,174,22,400,ui->secondary,656);
     if(screen==Screen::BackupDelete) {
       ui->text(tr("backup.delete_question"),32,222,23,600,ui->cream,656);
@@ -188,7 +188,7 @@ void App::backupDraw(const std::string &zone) {
     auto path=backupList[i-1].string();
     if(!backupMetadata.count(path)) {try{backupMetadata[path]=summary(backupList[i-1]);}catch(...){backupMetadata[path]=Json::object();}}
     const auto &item=backupMetadata[path];std::string label=tr("backup.invalid"),detail;
-    if(!item.empty()) {label=slotDate(item.at("created_utc"));detail=std::to_string((item.at("bytes").get<uint64_t>()+1048575)/1048576)+" MB";}
+    if(!item.empty()) {label=slotDate(item.at("created_utc"));detail=storageBytes(item.at("bytes").get<uint64_t>(),locale.current);}
     ui->row(label,y,row==i,672,detail,true,52,"chevron-right","folder");
   }
   SDL_RenderSetClipRect(ui->renderer,nullptr);ui->scrollbar(count*54,viewport,backupScroll,false,128,128+viewport);

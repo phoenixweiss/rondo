@@ -23,6 +23,7 @@ class ArtworkCache {
   struct Record {std::shared_ptr<const ArtworkImage> image;uint64_t checked=0,used=0;};
   struct DiskRecord {uintmax_t size=0;uint64_t used=0;};
   fs::path directory;
+  std::function<void()> storageCheck;
   size_t memoryBudget,diskBudget;
   mutable std::mutex mutex;
   std::condition_variable changed;
@@ -44,7 +45,7 @@ class ArtworkCache {
   std::shared_ptr<ArtworkImage> load(const ArtworkRequest &);
   bool stillWanted(const std::string &);
 public:
-  explicit ArtworkCache(fs::path directory,size_t memoryBytes=4*1024*1024,size_t diskBytes=32*1024*1024);
+  explicit ArtworkCache(fs::path directory,size_t memoryBytes=4*1024*1024,size_t diskBytes=32*1024*1024,std::function<void()> check={});
   ~ArtworkCache();
   // Current image first, followed by at most four neighbours. Queued stale jobs
   // are discarded; an in-flight decode never publishes to a different selection.

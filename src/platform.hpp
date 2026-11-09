@@ -14,6 +14,15 @@ struct Telemetry {
   std::string wifiState;
   std::optional<int> wifiSignalDbm;
 };
+class BatteryDisplayFilter {
+  std::optional<int> shown;
+  std::optional<uint64_t> lastFull;
+  uint64_t lastStep = 0, pendingSince = 0;
+  int pendingDirection = 0;
+
+public:
+  std::optional<int> update(const Telemetry &, bool enabled, uint64_t now);
+};
 int brightnessRawLevel(int percent);
 int brightnessPercent(int raw);
 int wifiSignalLevel(std::optional<int> dbm);

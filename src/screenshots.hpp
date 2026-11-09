@@ -26,8 +26,8 @@ class ScreenshotWriter {
   std::future<fs::path> job;
 public:
   bool busy() const {return job.valid();}
-  bool submit(const fs::path &,const Game &,const std::vector<uint32_t> &,int,int,const std::string &timestamp="",double displayAspect=0);
-  bool submitInterface(const fs::path &,const std::vector<uint32_t> &,int,int,const std::string &timestamp="");
+  bool submit(const fs::path &,const Game &,const std::vector<uint32_t> &,int,int,const std::string &timestamp="",double displayAspect=0,std::function<void()> check={});
+  bool submitInterface(const fs::path &,const std::vector<uint32_t> &,int,int,const std::string &timestamp="",std::function<void()> check={});
   // Empty until finished; errors propagate only when the UI collects the result.
   std::optional<fs::path> poll();
 };

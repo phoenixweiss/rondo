@@ -16,7 +16,9 @@ A personal frontend project for the Anbernic RG34XXSP. I enjoy using this handhe
 
 The current tested environment is RG34XXSP with BaseOS 1.5.3 (upstream prerelease). Package metadata retains a BaseOS 1.3.0 baseline. Time controls detect platform/service dependencies rather than an exact OS version; see [compatibility](docs/compatibility.md).
 
-**Experimental Bluetooth:** pairing and connection controls are available, but controller input is not working on the tested 8BitDo Micro (D mode). Bluetooth audio and PIN confirmation are not supported. See [Bluetooth limitations](docs/bluetooth.md).
+**Bluetooth gamepads.** Two 8BitDo Micro controllers in D mode were tested together in NES on RG34XXSP with BaseOS 1.5.3. Settings → Controls lets you set a player number and color label. Bluetooth audio and PIN confirmation are unavailable. See [Bluetooth setup](docs/bluetooth.md) and [Controls](docs/input-test.md).
+
+**Two-card storage.** Rondo reads games from TF1 and TF2. Choose where saves, screenshots and other data live under Settings → Storage locations. See [storage and TF2 setup](docs/storage-layout.md).
 
 See [themes, core switches and button mapping](docs/preferences.md) and the [setup wizard](docs/setup.md) for available settings.
 

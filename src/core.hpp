@@ -7,6 +7,7 @@
 #include <SDL.h>
 #include <array>
 namespace rondo {
+using AdditionalPlayerButtons=std::array<uint16_t,GamepadPlayerCount-1>;
 class Core {
   void *handle = nullptr;
   bool loaded = false;
@@ -44,13 +45,16 @@ class Core {
   template <class T> T sym(const char *name);
 
 public:
+  std::function<void()> storageCheck;
   std::shared_ptr<Rumble> rumble;
   bool rumbleEnabled=true;
   void stopRumble();
   std::vector<uint32_t> frame;
   int width = 256, height = 240;
   uint16_t buttons = 0;
+  AdditionalPlayerButtons otherPlayerButtons{};
   std::array<int16_t,4> axes{}; // left X/Y, right X/Y, libretro signed range
+  void clearInput();
   void psxController(bool dualshock);
   double fps = 60, sampleRate = 48000, aspectRatio = 4.0/3.0;
   std::string identity, romHash;

@@ -1,21 +1,35 @@
 # Input test and game vibration
 
-Open **Settings → Diagnostics → Input test**, or the shortcut in **Core settings**.
-Buttons light up while held. Both sticks show their positions and normalized
+Open **Settings → Controls → Gamepads** to choose a player's number and
+label color. **X → Find gamepad** waits for A on the controller you want to
+locate. **Auto** gives an external controller the first free player number
+when it connects and keeps that number until it disconnects. Built-in controls
+always belong to player 1 and can share that port with an external controller.
+Choose **Always player 1–4** to save a fixed number or **Menu only** to use
+the controller just in Rondo menus. If all four player numbers are in use,
+extra Auto controllers can navigate the menus while they wait for a free number. Manually choosing an occupied number shares
+that player's input. Games and cores determine which ports are available.
+Paired Bluetooth gamepads stay in the list while disconnected. Label colors
+and manual player choices are saved per controller.
+
+Open **Settings → Controls → Input test** to check the input from each device.
+The diagram follows the last active device. External gamepads show their saved label color and player role
+so two of the same model can be told apart. Buttons light up while held. Both sticks show their positions and normalized
 axis deflection from −100% to +100%, with 0% at the centre. The diagram reports input, not whether a button is healthy.
 An unmapped external controller needs a mapping before its controls appear.
 
 **Start + Select** returns to the previous menu. **Menu** is tested like the other buttons. **L1 + R1 + L2 + R2** requests one
-short motor pulse. Release the combination before trying again. The motor test
+short motor pulse on the device that supplies all four buttons. Release the
+combination before trying again. The motor test
 respects **Core settings → Game vibration**, which defaults to On. The screen
-reports an unavailable or disabled motor instead of claiming a successful test.
+reports unavailable vibration for a controller without a motor.
 Other buttons do not change volume, open menus or enter sleep on this screen.
 Lid-close sleep still follows the power preference.
 
 On a keyboard, Z/X/S/A represent A/B/X/Y; Q/W and E/R represent L1/L2 and R1/R2.
 T/Y test stick clicks; arrows test the D-pad. Tab tests Menu, +/− test the volume
-buttons, and **Enter + Right Shift** exits. An attached mapped gamepad can supply
-stick movement. Keyboard labels replace button labels on the diagram.
+buttons, and **Enter + Right Shift** exits. Keyboard labels appear when testing
+keyboard input.
 
 ## Built-in game vibration
 

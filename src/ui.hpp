@@ -17,6 +17,12 @@ class UI {
   std::unique_ptr<GameFrame> gameFrame;
   bool directGame=false,gameOverlay=false;
   void composeDisplay();
+  struct Notice {
+    std::string message, symbol;
+    bool library, error;
+  };
+  std::optional<Notice> pendingNotice;
+  void drawNotice();
   Timezones frameZones;
   std::string frameZone, frameClock;
   time_t frameSecond = -1;
@@ -26,6 +32,8 @@ class UI {
   std::map<std::string,ImageTexture> imageTextures;
   size_t imageTextureBytes=0;
   uint64_t imageClock=0;
+  BatteryDisplayFilter batteryFilter;
+  void drawBattery(const Telemetry &, std::optional<int> level, bool showPercent, int x);
   SDL_Texture *rememberImage(const std::string &,const uint8_t *,int,int,bool);
 
 public:
@@ -49,8 +57,10 @@ public:
   std::optional<Telemetry> wifiOverride;
   void wifiIcon(int x, int y, const Telemetry &);
   bool showBatteryPercent = true;
+  bool smoothBatteryLevel = true;
   bool bluetoothEnabled = false;
   std::map<SDL_JoystickID,SDL_GameController *> controllers;
+  std::map<SDL_JoystickID,std::string> controllerKeys;
   std::map<SDL_JoystickID,SDL_Joystick *> unmappedControllers;
   struct ControllerActivity {uint64_t buttons=0,axes=0,hats=0,mappedButtons=0,mappedAxes=0;};
   std::map<SDL_JoystickID,ControllerActivity> controllerActivity;
@@ -64,6 +74,9 @@ public:
   void refreshControllers();
   uint16_t controllerButtons(bool leftToDpad = true) const;
   std::array<int16_t,4> controllerAxes() const;
+  static uint16_t padButtons(SDL_GameController *,bool leftToDpad);
+  static std::array<int16_t,4> padAxes(SDL_GameController *);
+  static uint16_t stickDirections(int x,int y);
   std::vector<std::string> controllerNavigation();
   // Values submitted to the renderer, not a claim about physical panel pixels.
   Json batteryDisplay = Json::object();
@@ -91,7 +104,7 @@ public:
   void keycap(int x, int y, int width, bool round, SDL_Color, int height = 32, bool filled = false);
   void keyArrows(int x, int y, int width, bool vertical, SDL_Color);
   void keyLabel(const std::string &, int x, int y, int width, int size, SDL_Color, int height = 32);
-  void notice(const std::string &, const std::string &, bool library = false);
+  void notice(const std::string &, const std::string &, bool library = false, bool error = false);
   void hints(const std::vector<std::pair<std::string, std::string>> &, bool disabledActions = false);
   int info(const std::string &, const std::string &, int scroll, const Json &sections = Json());
   void binaryRow(const std::string &, int, bool, std::optional<bool>, const Locale &, bool supported = true);

@@ -25,7 +25,7 @@ Json GameStatistics::read(const fs::path &path,const std::string &id) {
   catch (const StatisticsIdentityError &) { throw; }
   catch (...) { return readStatistics(previous,id); }
 }
-GameStatistics::GameStatistics(const fs::path &file,const std::string &id,uint64_t now):path(file),last(now),nextCheckpoint(now+60000) {
+GameStatistics::GameStatistics(const fs::path &file,const std::string &id,uint64_t now,std::function<void()> check):path(file),last(now),nextCheckpoint(now+60000),storageCheck(std::move(check)) {
   data=read(path,id);
   if(data.empty())data={{"schema",1},{"game_id",id},{"launches",0},{"played_ms",0},{"tracking_started_utc",time(nullptr)},{"historical_time_unknown",true}};
   if(data["launches"]>=std::numeric_limits<int64_t>::max()-1)throw std::runtime_error("Statistics counter exhausted");
@@ -37,9 +37,10 @@ void GameStatistics::poll() {
   error=job.get();if(error.empty())persisted=writing;
 }
 void GameStatistics::submit() {
-  auto file=path;auto snapshot=data;writing=generation;++writesStarted;
-  job=std::async(std::launch::async,[file,snapshot] {
+  auto file=path;auto snapshot=data;auto check=storageCheck;writing=generation;++writesStarted;
+  job=std::async(std::launch::async,[file,snapshot,check] {
     try {
+      if(check)check();
       bool valid=false;
       try { readStatistics(file,snapshot.at("game_id")); valid=true; }
       catch (const StatisticsIdentityError &) { throw; } catch (...) {}

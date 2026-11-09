@@ -7,7 +7,39 @@ using namespace rondo;
 int main(int argc, char **argv) {
   assert(argc == 3); fs::path out=argv[2];fs::create_directories(out);
   UI ui(argv[1],true); Locale locale(argv[1]);
+  BatteryDisplayFilter filter;
+  auto sample = [&](int raw, uint64_t time, const char *status = "Discharging", bool enabled = true) {
+    Telemetry t;
+    t.capacity = raw;
+    t.batteryStatus = status;
+    return filter.update(t, enabled, time);
+  };
+  assert(sample(92, 0, "Charging") == 92);
+  assert(sample(100, 5000, "Full") == 92);
+  assert(sample(100, 19999, "Full") == 92);
+  for (int i=0; i<8; ++i) assert(sample(100, 20000 + 5000*i, "Full") == 93+i);
+  // The confirmed 100% holds for one minute, then a persistent change ramps down.
+  assert(sample(89, 60000) == 100);
+  assert(sample(89, 114999) == 100);
+  assert(sample(89, 115000) == 99);
+  assert(sample(5, 115001) == 5);
+  assert(sample(100, 120000, "Full", false) == 100);
+  assert(sample(100, 125000) == 100);
+  assert(sample(89, 130000) == 100);
+  assert(sample(100, 135000) == 100);
+  assert(sample(99, 140000) == 99);
+  assert(!sample(101, 145000));
+  assert(sample(89, 150000) == 89);
+
   Telemetry observed; observed.capacity=100;
+  ui.status("12:34", observed);
+  observed.capacity=89;
+  ui.status("12:34", observed);
+  assert(ui.batteryDisplay["source_percent"]==89 && ui.batteryDisplay["displayed_percent"]==100);
+  ui.smoothBatteryLevel=false;
+  ui.status("12:34", observed);
+  assert(ui.batteryDisplay["source_percent"]==89 && ui.batteryDisplay["displayed_percent"]==89);
+  observed.capacity=100;
   ui.battery(observed,true);ui.present();
   assert(ui.batteryDisplay["displayed_percent"]==100 && ui.batteryDisplay["label"]=="100%");
   observed.capacity=10;ui.battery(observed,true);ui.present();
@@ -77,9 +109,9 @@ int main(int argc, char **argv) {
   ui.rect(0,0,720,68,ui.bg);int charging=ui.status("12:34",telemetry);
   assert(compact==charging);
   ui.save(out/"status-charging-percent-off.png");
-  Store legacy(out/"state");assert(legacy.data["show_battery_percent"]==true);
-  auto config=legacy.data;config["show_battery_percent"]=false;legacy.commit(config);
-  Store restart(out/"state");assert(restart.data["show_battery_percent"]==false);
+  Store legacy(out/"state");assert(legacy.data["show_battery_percent"]==true && legacy.data["smooth_battery_level"]==true);
+  auto config=legacy.data;config["show_battery_percent"]=false;config["smooth_battery_level"]=false;legacy.commit(config);
+  Store restart(out/"state");assert(restart.data["show_battery_percent"]==false && restart.data["smooth_battery_level"]==false);
   auto bad=Json{{"schema",1},{"show_battery_percent","false"}}.dump();atomicWrite(out/"state/config.json",{bad.begin(),bad.end()});
   Store invalid(out/"state");assert(!invalid.warning.empty() && invalid.data["show_battery_percent"].is_boolean());
   std::cout<<"PASS: real battery fill, zero/low/full/charging/unknown, hidden percentage with unchanged icon, readable monochrome charging mark, compact optional status items, legacy default, persistence and invalid-type rejection.\n";

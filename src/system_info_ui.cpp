@@ -20,7 +20,7 @@ std::vector<App::SystemInfoRow> App::systemInfoRows() const {
   auto entry=fields.value(name,Json::object());std::string state=entry.value("state",systemInfoError.empty()?"unknown":"error");
   auto value=entry.value("value",Json());auto text=scalar(value);
   if(text.empty()&&state=="ready")state="unknown";
-  if((name=="ram_total"||name=="ram_available")&&value.is_number_unsigned())text=amount(value.get<double>()/1048576.0,"MiB");
+  if((name=="ram_total"||name=="ram_available")&&value.is_number_unsigned())text=storageBytes(value.get<uintmax_t>(),locale.current);
   if(name=="build"&&!text.empty())text=label("local")+" · "+text;
   if(name=="uptime"&&value.is_number_integer()) {auto n=value.get<long long>();text=std::to_string(n/3600)+" h "+std::to_string(n/60%60)+" min";}
   if(name=="mode") {auto comma=text.find(',');if(comma!=text.npos)text.replace(comma,1,"×");}
@@ -45,13 +45,13 @@ std::vector<App::SystemInfoRow> App::systemInfoRows() const {
  } else if(systemInfoPage=="cards") {
   for(int i=0;i<2;++i) {
    Json card=cards.size()>size_t(i)?cards[i]:Json::object();auto state=card.value("state",systemInfoError.empty()?"unknown":"error");
-   auto summary=card.contains("physical_bytes")?amount(card["physical_bytes"].get<double>()/1073741824.0,"GiB"):std::string();
+   auto summary=card.contains("physical_bytes")?storageBytes(card["physical_bytes"].get<uintmax_t>(),locale.current):std::string();
    rows.push_back({"TF"+std::to_string(i+1)+" · "+label(i==0?"primary":"extra"),summary,card.value("source",""),state,state=="ready"?"card"+std::to_string(i):""});
   }
  } else if(systemInfoPage.rfind("card",0)==0 && systemInfoPage!="cards") {
   int slot=systemInfoPage[4]-'0';Json card=cards.size()>size_t(slot)?cards[slot]:Json::object();
   if(systemInfoPage.size()==5) {
-   if(card.contains("physical_bytes"))add("physical",amount(card["physical_bytes"].get<double>()/1073741824.0,"GiB"),"/sys/class/block/mmcblkN/size · entire card");else add("physical","",card.value("source",""),"unknown");
+   if(card.contains("physical_bytes"))add("physical",storageBytes(card["physical_bytes"].get<uintmax_t>(),locale.current),"/sys/class/block/mmcblkN/size · entire card");else add("physical","",card.value("source",""),"unknown");
    const auto volumes=card.value("volumes",Json::array());
    for(size_t i=0;i<volumes.size();++i) {auto &v=volumes[i];std::string device=v.value("device","");
     rows.push_back({device, v.value("filesystem",""),v.value("mount",""),"ready",systemInfoPage+"v"+std::to_string(i)});
@@ -59,7 +59,7 @@ std::vector<App::SystemInfoRow> App::systemInfoRows() const {
   } else {
    size_t index=std::stoul(systemInfoPage.substr(6));auto volumes=card.value("volumes",Json::array());if(index>=volumes.size()){add("partition","","/proc/self/mounts","unknown");return rows;}const auto &v=volumes[index];const auto source=v.value("device","")+" · "+v.value("mount","");
    add("partition",v.value("device",""),source);add("filesystem",v.value("filesystem",""),source);
-   for(auto key:{"total","used","free"})add(key,v.contains(key)?amount(v[key].get<double>()/1073741824.0,"GiB"):"",source+" · statvfs",v.contains(key)?"ready":"error");
+   for(auto key:{"total","used","free"})add(key,v.contains(key)?storageBytes(v[key].get<uintmax_t>(),locale.current):"",source+" · statvfs",v.contains(key)?"ready":"error");
    add("access",label(v.value("readonly",true)?"readonly":"readwrite"),"/proc/self/mounts");
   }
  } else if(systemInfoPage=="power"||systemInfoPage=="sensors") {

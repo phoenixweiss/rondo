@@ -15,7 +15,7 @@ Third-party assets retain their own terms:
 
 - Unicode CLDR country/city names: Unicode License v3, retained in Timezones/LICENSE, with the pinned revision and input hashes in Timezones/sources.json. These data are not original MIT artwork.
 
-- SDL_GameControllerDB Micro profiles: zlib-style license and original copyright retained in ControllerMappings/LICENSE. Selected rows are unmodified; the upstream commit and hashes are in ControllerMappings/sources.json. These data are not original MIT artwork.
+- SDL_GameControllerDB Micro profiles: zlib-style license and original copyright retained in ControllerMappings/LICENSE. Rondo adapts the Linux Bluetooth row for D-pad axes and printed button labels. The upstream commit and hashes are in ControllerMappings/sources.json.
 
 - OpenBIOS firmware: MIT, Copyright (c) 2019 PCSX-Redux authors; this is third-party software, not original Rondo artwork. The unmodified source archive, build arguments, binary hash and license are retained. See Firmware/OpenBIOS/LICENSE, FONT-NOTICES.md and sources.json for Shinonome font provenance and public-domain credits.
 

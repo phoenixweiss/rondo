@@ -27,7 +27,7 @@ Before changing the card it copies and verifies existing files, including fronte
 
 Boot-logo replacement defaults to enabled. The installer preserves the first original as RondoState/BootLogo/original.bmp with original.sha256, never overwrites a valid original backup and writes/verifies the Rondo image in p2 before the console is switched on. An existing false replace_boot_logo preference is respected. Corrupt or incomplete original backups cause refusal. No second application splash or delay is added. The existing console setting still restores the original and controls subsequent launches.
 
-After installation, read back the files and bootlogo, check the FAT filesystem, flush writes and safely eject the whole physical disk. Then test initial boot branding, controls, an existing save/resume, audio, brightness and power/lid behavior on the console. Userspace preflight does not establish these hardware paths. Keep TF2 empty while testing TF1: BaseOS prefers a usable TF2 frontend volume.
+After installation, read back the files and bootlogo, check the FAT filesystem, flush writes and safely eject the whole physical disk. Then test initial boot branding, controls, an existing save/resume, audio, brightness and power/lid behavior on the console. Userspace preflight does not establish these hardware paths. Keep TF2 empty for the first TF1 boot check. To use a second card, follow [two-card setup](storage-layout.md#format-tf2). BaseOS can select TF2 at boot, so the second card needs a launcher that hands off to Rondo on TF1.
 
 ## Logo and frontend rollback
 

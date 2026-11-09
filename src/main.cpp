@@ -136,11 +136,18 @@ static void events(App &a) {
     }
     if(e.type==SDL_TEXTINPUT && a.activity())continue;
     if(e.type==SDL_CONTROLLERDEVICEADDED || e.type==SDL_CONTROLLERDEVICEREMOVED ||
-       e.type==SDL_CONTROLLERDEVICEREMAPPED || e.type==SDL_JOYDEVICEADDED || e.type==SDL_JOYDEVICEREMOVED)
+       e.type==SDL_CONTROLLERDEVICEREMAPPED || e.type==SDL_JOYDEVICEADDED || e.type==SDL_JOYDEVICEREMOVED) {
       a.ui->refreshControllers();
+      a.syncGamepadPlayers();
+      if(a.controlsRoute() || a.screen==Screen::InputTest)a.refreshGamepads();
+    }
+    if(e.type==SDL_CONTROLLERBUTTONUP && e.cbutton.button==SDL_CONTROLLER_BUTTON_A)
+      a.gamepadIdentifyHeld.erase(e.cbutton.which);
+    if(e.type==SDL_CONTROLLERDEVICEREMOVED)a.gamepadsAwaitRelease.erase(e.cdevice.which);
     a.ui->controllerEvent(e);
     if((e.type==SDL_CONTROLLERDEVICEREMOVED||e.type==SDL_JOYDEVICEREMOVED)&&a.core)a.core->stopRumble();
     if (e.type == SDL_QUIT) {
+      if (a.screen==Screen::StorageBusy && a.storageTask=="format") continue;
       if (a.core) {
         a.screen = Screen::GameMenu;
         a.core->paused = true;
@@ -198,6 +205,7 @@ static void events(App &a) {
       auto *controller = SDL_GameControllerFromInstanceID(e.cbutton.which);
       const char *name = controller ? SDL_GameControllerName(controller) : nullptr;
       if (name && std::string(name) == "ANBERNIC-keys") continue;
+      if(e.cbutton.button==SDL_CONTROLLER_BUTTON_A && a.identifyGamepad(e.cbutton.which))continue;
       auto action = pad(e.cbutton.button);
       // Keep Select usable in NES; Guide or Start+Back opens the game menu.
       if(e.cbutton.button==SDL_CONTROLLER_BUTTON_BACK)
@@ -248,11 +256,14 @@ static Json supervise(App &a, const Json &runnerScript) {
   if (socketpair(AF_UNIX, SOCK_STREAM, 0, channel))
     throw std::runtime_error("Cannot create runner channel");
   auto &g = a.game;
+  a.syncGamepadPlayers();
+  auto gamepadPorts=a.gamepadPortHandoff();
   Json entry = {{"id", g.id},
                 {"volume", g.volume},
                 {"system", g.system},
                 {"title", g.title},
-                {"path", g.path.string()}, {"runtime_volume", a.previewVolume}};
+                {"path", g.path.string()}, {"runtime_volume", a.previewVolume},
+                {"gamepad_ports",gamepadPorts}};
   std::vector<std::string> args = {a.options.executable.string(),
                                    "--runner",
                                    "--assets",
@@ -269,6 +280,8 @@ static Json supervise(App &a, const Json &runnerScript) {
                                    a.volumeFeedback.json().dump(),
                                    "--channel",
                                    std::to_string(channel[1])};
+  if(a.options.physicalStorage)args.push_back("--physical-storage");
+  if(a.options.storage)args.insert(args.end(),{"--storage-binding",a.options.paths().binding().dump()});
   auto gbCore=a.options.coreFor("GB");
   if(!gbCore.empty()) {args.push_back("--gb-core");args.push_back(gbCore.string());}
   auto gbaCore=a.options.coreFor("GBA");
@@ -362,6 +375,7 @@ static Json supervise(App &a, const Json &runnerScript) {
           }
         } else if (type == "stopped") {
           result = reply;
+          gamepadPorts=reply.value("gamepad_ports",Json::object());
           if (reply.contains("feedback"))
             a.volumeFeedback.restore(reply["feedback"]);
           a.applyVolume(reply.value("runtime_volume", a.previewVolume));
@@ -390,6 +404,7 @@ static Json supervise(App &a, const Json &runnerScript) {
     }
   }
   a.ui = std::make_unique<UI>(a.options.assets, a.options.headless);
+  a.restoreGamepadPortHandoff(gamepadPorts);
   a.ui->setTheme(a.store.data.value("theme_id","rondo"));
   a.configureArtwork();
   // Time spent in the runner is not idle time in the library.
@@ -429,6 +444,8 @@ static int runRondo(int argc, char **argv,bool afterRestore=false) {
         opts.assets = fs::absolute(value());
       else if (flag == "--state")
         opts.state = fs::absolute(value());
+      else if (flag == "--physical-storage")opts.physicalStorage=true;
+      else if (flag == "--storage-binding")opts.storageBinding=Json::parse(value());
       else if (flag == "--core")
         opts.core = fs::absolute(value());
       else if (flag == "--gb-core")
@@ -506,7 +523,10 @@ static int runRondo(int argc, char **argv,bool afterRestore=false) {
               entry.at("path").get<std::string>()};
     App app(opts, runner, game);
     app.restoreInputFence=afterRestore;
-    if (runner) app.applyVolume(entry.value("runtime_volume", app.previewVolume));
+    if (runner) {
+      app.restoreGamepadPortHandoff(entry.value("gamepad_ports",Json::object()));
+      app.applyVolume(entry.value("runtime_volume", app.previewVolume));
+    }
     if (!initialFeedback.is_null())
       app.volumeFeedback.restore(initialFeedback);
     Json results = Json::array();
@@ -624,6 +644,7 @@ static int runRondo(int argc, char **argv,bool afterRestore=false) {
       message(fd,
               {{"type", "stopped"}, {"game_closed", app.gameClosed}, {"report", report}, {"feedback", app.volumeFeedback.json()},
                {"runtime_volume", app.previewVolume},
+               {"gamepad_ports",app.gamepadPortHandoff()},
                {"keyboard_hints", app.ui->keyboardHints}});
       close(fd);
     }

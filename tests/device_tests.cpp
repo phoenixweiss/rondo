@@ -1,5 +1,6 @@
 #include "state.hpp"
 #include "app.hpp"
+#include "preferences.hpp"
 #include <cassert>
 #include <atomic>
 #include <chrono>
@@ -40,7 +41,11 @@ int main(int argc,char **argv) {
     a.requestSettings={};a.action("RIGHT");assert(a.store.data["show_battery_percent"].get<bool>());
     group(2);a.action("RIGHT");assert(a.screen==Screen::SettingsSection && a.store.data["volume"]==85);
     a.action("A");assert(a.screen==Screen::SettingsSection);a.capture("sound-inline");a.action("LEFT");assert(a.store.data["volume"]==80);
-    group(5);a.action("DOWN");a.action("LEFT");assert(a.store.data["lid_sleep"]==false);
+    group(5);a.action("DOWN");assert(a.infoKey()=="battery_smoothing" && a.store.data["smooth_battery_level"]==true);
+    a.action("LEFT");assert(a.store.data["smooth_battery_level"]==false);
+    a.capture("battery-smoothing-off");assert(!a.ui->smoothBatteryLevel);
+    a.action("A");assert(a.store.data["smooth_battery_level"]==true);
+    group(5);a.action("DOWN");a.action("DOWN");a.action("LEFT");assert(a.store.data["lid_sleep"]==false);
     d->open=false;a.lidCheckAt=0;a.ticks(0);assert(d->sleeps==0);
     a.action("RIGHT");d->open=true;a.lidCheckAt=0;a.ticks(0);d->open=false;a.lidCheckAt=0;a.ticks(0);assert(d->sleeps==1);
     a.action("SLEEP");assert(d->sleeps==2);
@@ -79,7 +84,7 @@ int main(int argc,char **argv) {
         o.state=root/(std::string("system-power-")+language+std::to_string(target));App a(o);
         a.locale.select(o.assets,language);a.settingsFocus=0;a.screen=Screen::Settings;
         a.capture(std::string("settings-icons-top-")+language);
-        for(int i=0;i<target;++i)a.action("DOWN");
+        for(int i=0;i<target+2;++i)a.action("DOWN");
         assert(a.row==target && a.infoKey()=="system_power");
         a.capture(std::string("power-menu-")+language+std::to_string(target));
         const auto before=a.store.data;
@@ -208,7 +213,10 @@ int main(int argc,char **argv) {
     a.screen=Screen::SettingsSection;a.lastActivity=0;d->failBlank=true;a.powerTick(900000);assert(!a.screenBlank && !a.notice.empty());d->failBlank=false;a.notice.clear();
     for(const auto *language:{"en","ru"}) {
       a.locale.select(o.assets,language);a.row=0;a.capture(std::string("power-options-top-")+language);
-      a.row=5;a.capture(std::string("power-options-bottom-")+language);assert(a.powerScroll>0);
+      a.action("DOWN");a.capture(std::string("battery-smoothing-")+language);
+      a.action("X");assert(a.infoOpen);a.capture(std::string("battery-smoothing-info-")+language);a.action("B");
+      for(int i=0;i<5;++i)a.action("DOWN");
+      assert(a.row==6);a.capture(std::string("power-options-bottom-")+language);assert(a.powerScroll>0);
       a.action("X");a.capture(std::string("battery-warning-info-")+language);a.action("B");
     }
     Telemetry t;t.capacity=10;t.batteryStatus="Discharging";
@@ -322,8 +330,8 @@ int main(int argc,char **argv) {
     o.state=root/"lid-options";App a(o);auto fake=std::make_unique<FakeDevice>();auto *d=fake.get();a.device=std::move(fake);
     assert(a.store.data["lid_sleep"]==true && a.store.data["wake_on_lid_open"]==true);
     a.action("MENU");if(a.screen==Screen::LibraryMenu)a.action("A");for(int i=0;i<5;++i)a.action("DOWN");a.action("A");
-    a.action("DOWN");
-    assert(a.row==1 && a.infoKey()=="lid"); // No wake-on-open row, even with a capable adapter.
+    a.action("DOWN");a.action("DOWN");
+    assert(a.row==2 && a.infoKey()=="lid"); // No wake-on-open row, even with a capable adapter.
     a.action("LEFT");assert(a.store.data["wake_on_lid_open"]==true && a.store.data["lid_sleep"]==false);
     a.requestSettings=[](Json){return false;};a.action("RIGHT");assert(a.store.data["lid_sleep"]==false);a.requestSettings={};a.action("RIGHT");a.notice.clear();
     for(const auto *language:{"en","ru"}) { a.locale.select(o.assets,language);a.capture(std::string("lid-options-")+language);a.action("X");a.capture(std::string("lid-sleep-info-")+language);a.action("B"); }
@@ -337,7 +345,7 @@ int main(int argc,char **argv) {
     auto bad=Json{{"schema",1},{"wake_on_lid_open","true"}}.dump();
     atomicWrite(root/"invalid-lid/config.json",{bad.begin(),bad.end()});
     Store invalid(root/"invalid-lid");assert(!invalid.warning.empty() && invalid.data["wake_on_lid_open"].is_boolean());
-    d->wakeAvailable=false;a.row=1;a.action("DOWN");assert(a.row==2 && a.infoKey()=="autosave" && a.store.data["wake_on_lid_open"]==true);a.row=1;
+    d->wakeAvailable=false;a.row=2;a.action("DOWN");assert(a.row==3 && a.infoKey()=="autosave" && a.store.data["wake_on_lid_open"]==true);a.row=2;
     a.capture("lid-adapter-unavailable");a.action("SLEEP");assert(d->policies.back()==std::make_pair(false,true));
   }
   {
@@ -511,10 +519,14 @@ int main(int argc,char **argv) {
     int index=SDL_JoystickAttachVirtual(SDL_JOYSTICK_TYPE_GAMECONTROLLER,6,15,0);assert(index>=0);
     auto *joystick=SDL_JoystickOpen(index);assert(joystick);
     assert(ui.controllerMappingsLoaded>=1);
-    // The shipped Linux Bluetooth profile must be recognized by the real SDL
-    // mapping API even when this test runs on the native macOS renderer.
+    // SDL selects the shipped Bluetooth profile on Linux.
     auto *micro=SDL_GameControllerMappingForGUID(SDL_JoystickGetGUIDFromString("05000000c82d00002090000000010000"));
-    if(std::string(SDL_GetPlatform())=="Linux") {assert(micro && std::string(micro).find("a:b1,")!=std::string::npos);}
+    if(std::string(SDL_GetPlatform())=="Linux") {
+      assert(micro);
+      const std::string profile=micro;
+      assert(profile.find(",a:b0,b:b1,")!=std::string::npos);
+      assert(profile.find(",dpup:-a1,")!=std::string::npos && profile.find(",leftx:")==std::string::npos);
+    }
     SDL_free(micro);
     char guid[64];SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(joystick),guid,sizeof(guid));
     std::string mapping=std::string(guid)+",Rondo test controller,a:b0,b:b1,back:b4,start:b6,dpup:b11,dpdown:b12,dpleft:b13,dpright:b14,leftx:a0,lefty:a1,rightx:a2,righty:a3,lefttrigger:a4,righttrigger:a5,leftstick:b7,rightstick:b8,";
@@ -563,6 +575,203 @@ int main(int argc,char **argv) {
     assert(ui.controllers.count(id) && ui.unmappedControllers.empty());
     SDL_JoystickClose(unknown);assert(SDL_JoystickDetachVirtual(index)==0);SDL_PumpEvents();ui.refreshControllers();
     assert(ui.controllers.empty() && ui.unmappedControllers.empty() && ui.controllerActivity.empty());
+  }
+  {
+    // Distinct simulated Bluetooth identities with the same SDL controller model.
+    std::array<std::string,GamepadControllerCount> keys;
+    for(size_t i=0;i<keys.size();++i)
+      keys[i]=bluetoothGamepadKey("02:00:00:00:00:"+std::to_string(10+i));
+    o.state=root/"gamepad-players";
+    o.output=o.state/"renders";
+    auto attach=[&](App &app,const std::string &key) {
+      int index=SDL_JoystickAttachVirtual(SDL_JOYSTICK_TYPE_GAMECONTROLLER,6,15,0);
+      assert(index>=0);
+      auto *stick=SDL_JoystickOpen(index);
+      assert(stick);
+      char guid[33];
+      SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(stick),guid,sizeof(guid));
+      auto mapping=std::string(guid)+",8BitDo Micro fixture,a:b0,leftx:a0,";
+      assert(SDL_GameControllerAddMapping(mapping.c_str())>=0);
+      SDL_PumpEvents();app.ui->refreshControllers();
+      const auto id=SDL_JoystickInstanceID(stick);
+      assert(app.ui->controllers.count(id));
+      app.ui->controllerKeys.at(id)=key;
+      app.syncGamepadPlayers();
+      return stick;
+    };
+    {
+      App shell(o);
+      shell.action("MENU");
+      for(int i=0;i<8;++i)shell.action("DOWN");
+      const int gamepadsFocus=shell.settingsFocus;
+      shell.locale.select(o.assets,"ru");shell.capture("settings-gamepads-ru");
+      shell.action("A");assert(shell.screen==Screen::Controls);
+      shell.capture("controls-ru");
+      shell.action("A");assert(shell.screen==Screen::Gamepads);
+      shell.action("A");assert(shell.screen==Screen::Gamepads); // Built-in role is fixed.
+      std::vector<SDL_Joystick *> pads;
+      for(size_t i=0;i<keys.size();++i) {
+        auto *pad=attach(shell,keys[i]);
+        pads.push_back(pad);
+        shell.refreshGamepads();
+        const auto id=SDL_JoystickInstanceID(pad);
+        const int color=gamepadColor(shell.store.data,keys[i]);
+        assert(color>=0);
+        if(i>=GamepadPlayerCount) {
+          assert(shell.gamepadPort(id)==0);
+          continue;
+        }
+        if(i<2) {
+          assert(SDL_JoystickSetVirtualButton(pad,0,1)==0);
+          SDL_GameControllerUpdate();
+          shell.action("X");assert(shell.screen==Screen::GamepadFind);
+          assert(shell.identifyGamepad(id)&&shell.screen==Screen::GamepadFind);
+          shell.action("B");assert(shell.screen==Screen::Gamepads);
+          assert(SDL_JoystickSetVirtualButton(pad,0,0)==0);
+          SDL_GameControllerUpdate();
+          shell.action("X");assert(shell.screen==Screen::GamepadFind);
+          assert(SDL_JoystickSetVirtualButton(pad,0,1)==0);
+          assert(shell.identifyGamepad(id)&&shell.screen==Screen::Gamepads&&shell.gamepadFocus==keys[i]);
+          assert(SDL_JoystickSetVirtualButton(pad,0,0)==0);
+          shell.action("A");assert(shell.screen==Screen::GamepadDetails);
+          shell.action("A");assert(shell.screen==Screen::GamepadColor);
+          const auto moveColor=[&](int wanted) {
+            for(int col=0;col<2;++col)shell.action("LEFT");
+            for(int r=0;r<2;++r)shell.action("UP");
+            for(int col=0;col<wanted%3;++col)shell.action("RIGHT");
+            for(int r=0;r<wanted/3;++r)shell.action("DOWN");
+          };
+          moveColor(i==0?1:0);
+          shell.action("B");assert(gamepadColor(shell.store.data,keys[i])==color);
+          shell.action("A");moveColor(i==0?1:0);
+          shell.capture(i==0?"gamepad-colors-ru":"gamepad-colors-blue-ru");
+          if(color!=(i==0?1:0)) {
+            shell.requestSettings=[](Json){return false;};
+            shell.action("A");
+            assert(shell.screen==Screen::GamepadColor&&gamepadColor(shell.store.data,keys[i])==color);
+            shell.requestSettings={};
+          }
+          shell.action("A");assert(gamepadColor(shell.store.data,keys[i])==(i==0?1:0));
+        } else {
+          shell.action("X");assert(shell.identifyGamepad(id));
+          shell.action("A");
+        }
+        assert(shell.screen==Screen::GamepadDetails);
+        shell.action("DOWN");shell.action("A");assert(shell.screen==Screen::GamepadPlayer);
+        assert(shell.row==0 && gamepadPlayer(shell.store.data,keys[i])==AutomaticGamepadPlayer);
+        assert(shell.gamepadPort(id)==int(i)+1);
+        if(i==1) {
+          shell.capture("gamepad-auto-ru");
+          shell.action("DOWN");
+          shell.capture("gamepad-menu-only-ru");
+          shell.action("A");assert(gamepadPlayer(shell.store.data,keys[i])==0 && shell.gamepadPort(id)==0);
+          shell.action("A");shell.action("UP");shell.action("A");
+          assert(!shell.store.data["gamepad_players"].contains(keys[i]) && shell.gamepadPort(id)==2);
+          shell.action("A");
+        }
+        for(int step=0;step<int(i)+2;++step)shell.action("DOWN");
+        assert(shell.row==int(i)+2);
+        shell.action("A");assert(gamepadPlayer(shell.store.data,keys[i])==int(i)+1);
+        shell.action("B");assert(shell.screen==Screen::Gamepads&&shell.gamepadFocus==keys[i]);
+        if(i==1) {
+          shell.capture("gamepads-two-ru");
+          shell.locale.select(o.assets,"en");shell.capture("gamepads-two-en");
+          shell.locale.select(o.assets,"ru");
+        }
+      }
+      assert(shell.ui->controllers.size()==keys.size());
+      assert(gamepadColor(shell.store.data,keys[0])==1&&gamepadColor(shell.store.data,keys[1])==0);
+      shell.bt.devices.push_back({"02:00:00:00:00:99","8BitDo Micro fixture",true,true,false,true,true});
+      shell.refreshGamepads();
+      assert(shell.gamepadEntries().size()==keys.size()+2&&!shell.gamepadEntries().back().live);
+      shell.action("DOWN");shell.capture("gamepads-ten-ru");
+      shell.action("B");assert(shell.screen==Screen::Controls&&shell.row==0);
+      shell.action("DOWN");shell.action("A");assert(shell.screen==Screen::InputTest);
+      shell.sampleInput();
+      const auto id=SDL_JoystickInstanceID(pads[1]);
+      assert(SDL_JoystickSetVirtualButton(pads[1],0,1)==0);
+      SDL_GameControllerUpdate();shell.sampleInput();
+      assert(shell.testSource==id);shell.capture("gamepad-input-test-ru");
+      const uint16_t exit=(1<<RETRO_DEVICE_ID_JOYPAD_START)|(1<<RETRO_DEVICE_ID_JOYPAD_SELECT);
+      shell.testInput({{App::TestHandheld,{exit,{},{}}}});
+      assert(shell.screen==Screen::Controls&&shell.row==1);
+      shell.action("B");assert(shell.screen==Screen::Settings&&shell.settingsFocus==gamepadsFocus);
+      for(int i=int(pads.size())-1;i>=0;--i) {
+        SDL_JoystickClose(pads[i]);assert(SDL_JoystickDetachVirtual(i)==0);
+      }
+    }
+    // A tiny original NROM program records each controller's A bit in SRAM.
+    std::vector<uint8_t> rom(16+16384,0);
+    rom[0]='N';rom[1]='E';rom[2]='S';rom[3]=0x1a;rom[4]=1;rom[6]=2;
+    const std::vector<uint8_t> program{
+      0x78,0xd8,0xa2,0xff,0x9a,
+      0xa9,1,0x8d,0x16,0x40,0xa9,0,0x8d,0x16,0x40,
+      0xad,0x16,0x40,0x29,1,0x8d,0,0x60,
+      0xad,0x17,0x40,0x29,1,0x8d,1,0x60,0x4c,5,0x80};
+    std::copy(program.begin(),program.end(),rom.begin()+16);
+    for(size_t i:{16378u,16380u,16382u})rom[16+i+1]=0x80;
+    const auto romPath=root/"player-input.nes";
+    atomicWrite(romPath,rom);
+    Game game{"input-ports","TEST","NES","Port input fixture",romPath};
+    App runner(o,true,game);
+    auto *second=attach(runner,keys[1]),*first=attach(runner,keys[0]); // Reversed enumeration.
+    auto *fourth=attach(runner,keys[GamepadPlayerCount-1]);
+    assert(gamepadColor(runner.store.data,keys[0])==1&&gamepadColor(runner.store.data,keys[1])==0);
+    auto sample=[&] {
+      SDL_GameControllerUpdate();runner.sampleInput();
+      runner.ticks(4);runner.core->flushSram();
+    };
+    auto verify=[&](int p1,int p2) {
+      auto bytes=readBytes(runner.store.gameDir(game)/"sram.bin");
+      assert(bytes.at(0)==p1&&bytes.at(1)==p2);
+    };
+    assert(SDL_JoystickSetVirtualButton(second,0,1)==0);
+    sample();assert(!runner.gameInputBlocked);verify(0,0);
+    assert(SDL_JoystickSetVirtualButton(first,0,1)==0);sample();verify(1,0);
+    assert(SDL_JoystickSetVirtualButton(first,0,0)==0);
+    assert(SDL_JoystickSetVirtualButton(second,0,0)==0);sample();
+    assert(SDL_JoystickSetVirtualButton(second,0,1)==0);sample();verify(0,1);
+    assert(SDL_JoystickSetVirtualButton(first,0,1)==0);sample();verify(1,1);
+    assert(SDL_JoystickSetVirtualButton(fourth,0,1)==0);sample();verify(1,1);
+    assert(runner.core->otherPlayerButtons.back()==(1<<RETRO_DEVICE_ID_JOYPAD_A));
+    SDL_JoystickClose(fourth);assert(SDL_JoystickDetachVirtual(2)==0);
+    SDL_JoystickClose(second);assert(SDL_JoystickDetachVirtual(0)==0);
+    auto sync=[&]{SDL_PumpEvents();runner.ui->refreshControllers();runner.syncGamepadPlayers();};
+    sync();sample();verify(1,0);
+    SDL_JoystickClose(first);assert(SDL_JoystickDetachVirtual(0)==0);sync();
+
+    runner.store.data["gamepad_players"].erase(keys[0]);
+    runner.store.data["gamepad_players"].erase(keys[1]);
+    first=attach(runner,keys[0]);second=attach(runner,keys[1]);
+    auto *third=attach(runner,keys[2]);
+    fourth=attach(runner,keys[3]);
+    auto legacy=runner.store.data;
+    legacy["gamepad_players"][keys[4]]=9;
+    runner.store.commit(std::move(legacy));
+    assert(gamepadPlayer(runner.store.data,keys[4])==AutomaticGamepadPlayer);
+    auto *waiting=attach(runner,keys[4]);
+    const auto waitingId=SDL_JoystickInstanceID(waiting);
+    assert(runner.gamepadPort(waitingId)==0);
+    const auto secondId=SDL_JoystickInstanceID(second);
+    assert(runner.gamepadPort(SDL_JoystickInstanceID(first))==1 && runner.gamepadPort(secondId)==2);
+    SDL_JoystickClose(first);assert(SDL_JoystickDetachVirtual(0)==0);sync();
+    assert(runner.gamepadPort(secondId)==2 && runner.gamepadPort(waitingId)==1);
+    assert(SDL_JoystickSetVirtualButton(second,0,1)==0);
+    sample();verify(0,1);
+    const auto handoff=runner.gamepadPortHandoff();
+    runner.restoreGamepadPortHandoff(Json::object());
+    assert(runner.gamepadPort(secondId)==1);
+    runner.restoreGamepadPortHandoff(handoff);
+    assert(runner.gamepadPort(secondId)==2);
+    for(auto *pad:{waiting,fourth,third,second}) {
+      const int index=SDL_NumJoysticks()-1;
+      SDL_JoystickClose(pad);assert(SDL_JoystickDetachVirtual(index)==0);
+    }
+    sync();
+    second=attach(runner,keys[1]);
+    assert(runner.gamepadPort(SDL_JoystickInstanceID(second))==1);
+    SDL_JoystickClose(second);assert(SDL_JoystickDetachVirtual(0)==0);sync();
+    std::cout<<"PASS: ten controllers, four player ports, auto and fixed assignments, waiting for a free port, legacy roles, independent NES input and shell/runner handoff.\n";
   }
   std::cout<<"PASS: scrollable settings EN/RU, root focus restoration, nested back navigation, hidden lid-wake controls, fresh Power release, independent lid defaults/four combinations/persistence/failure/unavailable fallback, lid policy, inline volume/brightness with rollback, active-process ownership, paused core continuity, suspend failure, SRAM failure abort, compact preview integrity and binary states.\n";
 }

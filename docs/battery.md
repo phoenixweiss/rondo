@@ -2,7 +2,16 @@
 
 Settings → Power → Battery percentage changes whether the numeric percentage appears. Left/Right sets Off/On; A toggles. The battery icon remains visible. The default is On for existing and new configurations, preserving the previous numeric display. The boolean setting is show_battery_percent.
 
-The icon uses measured capacity from the RG34XXSP battery sysfs adapter. Fill reflects 0–100%, a large light bolt across the battery marks Charging and a slash marks unavailable/invalid data. Levels at or below 15% use the existing accent color; this is a display threshold, not battery calibration or an automatic shutdown policy. Missing capacity is never rendered as zero. There is no remaining-runtime prediction.
+Settings → Power → Battery level smoothing controls the displayed percentage and
+icon fill. It defaults to On. Changes larger than one point must persist in the
+same direction for 15 seconds, then the display moves one point every five
+seconds. After the driver reports Full at 100%, an already displayed 100% holds
+for up to one minute from the last such reading. A reading at or below 10% is
+shown immediately on a drop. Press X on the setting to see the explanation.
+Off uses the current driver reading directly. The filter starts from the
+current reading when a new frontend or game runner starts.
+
+The icon uses capacity reported by the RG34XXSP battery sysfs adapter. Fill reflects 0–100%, a large light bolt across the battery marks Charging and a slash marks unavailable/invalid data. Levels at or below 15% use the existing accent color; this is a display threshold, not battery calibration or an automatic shutdown policy. Missing capacity is never rendered as zero. There is no remaining-runtime prediction.
 
 The setting is shared with the runner through the existing settings authority and affects header bars in the library, settings and game menus. Fullscreen gameplay has no new permanent HUD. On macOS the device adapter has no handheld battery reading, so the honest result is the unknown icon, with a dash only when the numeric display is enabled.
 
@@ -17,7 +26,8 @@ Logging is **off by default**. Settings → Diagnostics enables debug mode and
 selects Errors, Events or Detailed using Left/Right. Errors records failed
 operations; Events adds controls, screen context and lifecycle/sleep markers;
 Detailed also samples raw battery/USB changes (five-second polling, otherwise
-one record per minute). No setting recalibrates or smooths the gauge.
+one record per minute). The journal records the raw driver reading and the
+submitted display value separately. In-game warnings use the raw reading.
 
 Ordinary events are short timestamped text lines in `RondoState/Logs/shell.log`
 and `runner.log`. Each includes monotonic time, role, event and a compact JSON

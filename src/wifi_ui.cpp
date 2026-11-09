@@ -5,6 +5,8 @@
 #include <iostream>
 namespace rondo {
 App::~App() {
+  if(storageCancel)storageCancel->store(true);
+  if(storageJob.valid())storageJob.wait();
   if(statistics)try {statistics->flush(monotonicMs(),false);}catch(...) {}
   if(soundTest)SDL_CloseAudioDevice(soundTest);
   if(motor)motor->stop();
@@ -388,6 +390,6 @@ void App::wifiDraw() {
     ui->hints({{"A", tr("wifi.choose")}, {"B", tr("action.back")}, {"X", tr("footer.info")}});
   }
   if (!wifi.error.empty())
-    ui->notice(tr("wifi.error." + wifi.error), "wifi");
+    ui->notice(tr("wifi.error." + wifi.error), "wifi", false, true);
 }
 } // namespace rondo

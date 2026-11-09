@@ -37,7 +37,7 @@ int main(int argc,char **argv) {
     }
   }
   VolumeFeedback feedback;feedback.confirmed=50;feedback.phase="confirmed";feedback.deadline=monotonicMs()+10000;
-  ui.frame("Library","", "Etc/UTC");ui.notice("Saving state", "save");
+  ui.frame("Library","", "Etc/UTC");ui.notice("Saving state", "save");ui.present();
   std::vector<Uint32> before(720*64);
   for(int y=76;y<140;++y) {
     auto *row=reinterpret_cast<Uint32 *>(static_cast<Uint8 *>(ui.surface->pixels)+y*ui.surface->pitch);

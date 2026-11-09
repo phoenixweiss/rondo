@@ -14,7 +14,10 @@ NavigationFrame App::navigationFrame() const {
   f.regionFocus=regionFocus;f.wifiFocus=wifiListFocus;f.wifiKeyRow=wifiKeyRow;f.wifiKeyColumn=wifiKeyColumn;f.btFocus=btFocus;f.btScroll=btScroll;
   f.infoPage=systemInfoPage;f.systemInfoRow=systemInfoRow;f.systemInfoScroll=systemInfoScroll;
   if(wifiListFocus>=0&&wifiListFocus<int(wifi.networks.size())){const auto &network=wifi.networks[wifiListFocus];f.wifiIdentity=network.ssid+"\n"+network.security;}
-  if(btFocus>=0&&btFocus<int(bt.devices.size()))f.btIdentity=bt.devices[btFocus].address;
+  if(screen==Screen::BluetoothDevices) {
+    const auto devices=btVisibleDevices();
+    if(row>=0 && row<int(devices.size()))f.btIdentity=bt.devices[devices[row]].address;
+  }
   return f;
 }
 void App::navigationRestore(const NavigationFrame &f) {
@@ -30,7 +33,11 @@ void App::navigationRestore(const NavigationFrame &f) {
   regionFocus=f.regionFocus;wifiListFocus=f.wifiFocus;wifiKeyRow=f.wifiKeyRow;wifiKeyColumn=f.wifiKeyColumn;btFocus=f.btFocus;btScroll=f.btScroll;
   systemInfoPage=f.infoPage;systemInfoRow=f.systemInfoRow;systemInfoScroll=f.systemInfoScroll;
   for(size_t i=0;i<wifi.networks.size();++i)if(wifi.networks[i].ssid+"\n"+wifi.networks[i].security==f.wifiIdentity)wifiListFocus=int(i);
-  for(size_t i=0;i<bt.devices.size();++i)if(bt.devices[i].address==f.btIdentity)btFocus=int(i);
+  if(screen==Screen::BluetoothDevices && !f.btIdentity.empty()) {
+    const auto devices=btVisibleDevices();
+    row=std::clamp(row,0,std::max(0,int(devices.size())-1));
+    for(size_t i=0;i<devices.size();++i)if(bt.devices[devices[i]].address==f.btIdentity)row=int(i);
+  }
   auto visibleGames=visible();for(size_t i=0;i<visibleGames.size();++i)if(games[visibleGames[i]].id==f.selectedGame)selected=int(i);
   selected=std::clamp(selected,0,std::max(0,int(visibleGames.size())-1));
   if(screen==Screen::Search)SDL_StartTextInput();
@@ -52,7 +59,7 @@ void App::navigationGameReturn() {
 }
 void App::startStatistics() {
   if(!core||statistics)return;
-  try {statistics=std::make_unique<GameStatistics>(store.gameDir(game)/"statistics.json",game.id,monotonicMs());statisticsTick();}
+  try {statistics=std::make_unique<GameStatistics>(store.gameDir(game,true)/"statistics.json",game.id,monotonicMs(),options.paths().guard("saves"));statisticsTick();}
   catch(const std::exception &error){std::cerr<<"Statistics: "<<error.what()<<"\n";}
 }
 void App::statisticsTick(bool flush) {
@@ -69,7 +76,7 @@ void App::openSystems() {
   navigation.clear();explicitSystemsRoot=true;screen=Screen::Systems;section="All";searchQuery.clear();navigationActions=false;systemsQuick=gamesQuick=false;++navigationRevision;
 }
 void App::openGameInfo() {
-  if(ui&&!ui->artworkCache)ui->artworkCache=std::make_unique<ArtworkCache>(options.state/"Cache/Artwork");
+  if(ui&&!ui->artworkCache)configureArtwork(true);
   if(screen!=Screen::GameMenu){auto v=visible();if(v.empty())return;game=games[v[std::clamp(selected,0,int(v.size())-1)]];}
   try {gameInfoStatistics=statistics?statistics->snapshot():GameStatistics::read(store.gameDir(game)/"statistics.json",game.id);}catch(...){gameInfoStatistics=Json::object();}
   navigationPush(Screen::GameDetails);
@@ -88,7 +95,8 @@ std::vector<App::NavigationAction> App::navigationItems() const {
     if(parentRoute==Screen::Clock)label=tr("clock.title");
     if(parentRoute==Screen::Wifi)label=tr("wifi.title");
     if(parentRoute==Screen::WifiNetworks)label=tr("wifi.networks");
-    if(parentRoute==Screen::Bluetooth)label=tr("bluetooth.title");
+    if(parentRoute==Screen::Bluetooth)label=tr("bt.title");
+    if(parentRoute==Screen::BluetoothDevices)label=tr(btShowDiscovered?"bt.devices":"bt.paired_devices");
     if(parentRoute==Screen::CoreSettings)label=tr("section.cores");
     if(parentRoute==Screen::PsxCoreSettings)label="PlayStation";
     if(parentRoute==Screen::SaveSlots)label=tr("screen.save_slots");
@@ -129,7 +137,7 @@ bool App::navigationAction(const std::string &a) {
     core->paused=true;return true;
   }
   if(screen==Screen::GameMenu&&a=="Y"){openGameInfo();return true;}
-  if(screen==Screen::GameMenu||screen==Screen::InputTest||screen==Screen::ScreenshotCapture)return false;
+  if(screen==Screen::GameMenu||screen==Screen::InputTest||screen==Screen::ScreenshotCapture||screen==Screen::BluetoothDevices||controlsRoute())return false;
   bool library=screen==Screen::Systems||gamesRoute(screen);
   if(a=="MENU"&&(library||screen==Screen::Search)){navigationSettings();return true;}
   if(screen==Screen::GameDetails) {
@@ -154,7 +162,7 @@ bool App::navigationAction(const std::string &a) {
       if(a=="A"){auto old=screen;actionImpl("B");if(screen!=old&&!navigation.empty())navigationBack();else navigationActions=false;return true;}
       return a=="UP"||a=="LEFT"||a=="RIGHT";
     }
-    bool top=screen==Screen::Settings?settingsFocus==0:screen==Screen::Wizard?wizardRow==0:screen==Screen::SystemInfo?systemInfoRow==0:screen==Screen::BluetoothDevices?btFocus==0:screen==Screen::WifiNetworks?wifiListFocus==0:row==0;
+    bool top=screen==Screen::Settings?settingsFocus==0:screen==Screen::Wizard?wizardRow==0:screen==Screen::SystemInfo?systemInfoRow==0:screen==Screen::WifiNetworks?wifiListFocus==0:row==0;
     if(top&&a=="UP"){navigationActions=true;navigationFocus=0;return true;}
     return false;
   }
@@ -189,6 +197,11 @@ bool App::navigationAction(const std::string &a) {
 }
 void App::action(const std::string &a) {
   if(restoreInputFence)return;
+  if(storageRoute()) {
+    try{actionImpl(a);}catch(const StorageError &e){storageError=e.code;}catch(const std::exception &e){notice=locale.tr("error.operation");std::cerr<<e.what()<<"\n";}
+    if(screen==Screen::Settings)navigation.resize(std::min(storageNavigationDepth,navigation.size()));
+    return;
+  }
   if(screen==Screen::ProgressBusy)return;
   if(screen==Screen::ProgressSources||screen==Screen::ProgressConfirm||screen==Screen::ProgressDone){progressAction(a);return;}
   if(screen==Screen::BackupBusy)return;
@@ -216,6 +229,7 @@ void App::navigationDraw() {
   if(screen==Screen::ProgressBusy||screen==Screen::ProgressSources||screen==Screen::ProgressConfirm||screen==Screen::ProgressDone)return;
   if(screen==Screen::BackupBusy||screen==Screen::BackupRestart)return;
   if(infoOpen||(screen==Screen::SystemInfo&&systemInfoSource)||screen==Screen::GameDetails||screen==Screen::Running||screen==Screen::GameMenu||screen==Screen::InputTest||screen==Screen::ScreenshotCapture||screen==Screen::SystemProgress||screen==Screen::SavingAutomatic)return;
+  if(controlsRoute())return;
   auto items=navigationItems();if(items.empty())return;
   ui->rect(20,76,680,46,ui->bg);
   int size=18,gap=6,padding=46,iconSize=20,textOffset=33;std::vector<int> widths;int total=0;

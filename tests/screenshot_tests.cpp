@@ -84,7 +84,7 @@ int main(int argc,char **argv) {
   auto *joystick=SDL_JoystickOpen(index);assert(joystick);
   char guid[64];SDL_JoystickGetGUIDString(SDL_JoystickGetGUID(joystick),guid,sizeof(guid));
   std::string mapping=std::string(guid)+",Screenshot physical test,a:b0,b:b1,back:b4,start:b6,leftstick:b7,rightstick:b8,leftx:a0,lefty:a1,rightx:a2,righty:a3,lefttrigger:a4,righttrigger:a5,";
-  assert(SDL_GameControllerAddMapping(mapping.c_str())>=0);SDL_PumpEvents();a.ui->refreshControllers();assert(a.ui->controllers.size()==1);
+  assert(SDL_GameControllerAddMapping(mapping.c_str())>=0);SDL_PumpEvents();a.ui->refreshControllers();a.syncGamepadPlayers();assert(a.ui->controllers.size()==1);
   auto sample=[&](int l,int r){SDL_JoystickSetVirtualButton(joystick,7,l);SDL_JoystickSetVirtualButton(joystick,8,r);SDL_GameControllerUpdate();a.sampleInput();};
   a.screen=Screen::Running;a.core->paused=false;a.gameInputBlocked=true;
   sample(0,0);assert(!a.gameInputBlocked);

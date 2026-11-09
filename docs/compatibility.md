@@ -35,10 +35,10 @@ retains a BaseOS 1.3.0 baseline. Other handheld models have not been tested.
 - Network time, localized time-zone selection, offline date/time setting and short
   power-off clock retention have been tested. Long-term RTC retention is unmeasured.
 - Shutdown and restart from the menu have been tested on the device.
-- Bluetooth remains experimental. The 8BitDo Micro in D mode can pair/connect,
-  but controller input is not working in the tested setup. Bluetooth audio and
-  PIN entry are not implemented.
-- Live TF1/TF2 integration has not been tested; current device checks use TF1.
+- Two 8BitDo Micro controllers in D mode were tested together in NES on
+  RG34XXSP / BaseOS 1.5.3. Bluetooth audio and PIN entry are unavailable.
+- TF2 formatting, booting with both cards and launching games from TF2 have
+  been tested on RG34XXSP / BaseOS 1.5.3. See [two-card setup](storage-layout.md).
 
 ## State format in 0.9.0
 
