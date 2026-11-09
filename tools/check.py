@@ -21,7 +21,8 @@ if args.work:
     work = args.work.resolve()
     work.mkdir(parents=True, exist_ok=False)
 else:
-    work = Path(tempfile.mkdtemp(prefix="rondo-check-")).resolve()
+    # Keep room for the AF_UNIX socket names used by the Wi-Fi fixture.
+    work = Path(tempfile.mkdtemp(prefix="rondo-")).resolve()
 environment = {k: v for k, v in os.environ.items() if not k.startswith("RONDO_")}
 environment.update(SDL_VIDEODRIVER="dummy", SDL_AUDIODRIVER="dummy",
                    RONDO_INPUT_HINTS="controller")
