@@ -41,19 +41,33 @@ outside the distributed package.
 requires two separate `--fresh` builds and checks their source inputs and outputs.
 The download cache remains available in either mode and is always hash-checked.
 
+## BaseOS compatibility matrix
+
+Run **BaseOS compatibility matrix** from GitHub Actions for the candidate ref.
+The workflow builds one H700 ZIP and shares it with all compatibility jobs.
+Each job downloads an official RG34XXSP update, verifies its SHA-256, extracts
+its rootfs without mounting the image, and checks the same ZIP in that userspace.
+Results include the BaseOS version and the common ZIP hash.
+
+The matrix is pinned in [baseos-matrix.json](baseos-matrix.json). Keep BaseOS
+1.3.0 and 1.4.0, and update the third entry to the latest RG34XXSP release
+(including upstream prereleases) when preparing a release candidate. Record the
+SHA-256 of that release's `.bosupd` asset. Pushes to `dev` that change the
+matrix or its verifier also start the workflow.
+
 ## Optional BaseOS verification
 
-Provide your own extracted BaseOS 1.5.2 RG34XXSP rootfs outside the repository:
+Provide your own extracted BaseOS RG34XXSP rootfs outside the repository. On Linux, `tools/prepare_baseos_rootfs.py` prepares a pinned version using `debugfs` and `unsquashfs`:
 
 ```sh
 python3 tools/check_h700_runtime.py --build build/h700-first \
   --rootfs /path/to/extracted-baseos-rootfs --work build/h700-preflight \
-  --baseos-version 1.5.2
+  --baseos-version 1.5.3
 ```
 
 The verifier checks target/version, ZIP integrity and complete checksums before extracting. It mounts the rootfs read-only, overlays tmpfs for /tmp, /sys and /dev, and substitutes a mixer stub only inside the container. No privileged container, host devices or real sysfs are exposed. The actual packaged preflight runs through the BaseOS loader, checks ELF dependencies (including dynamically opened EGL/GLES/ALSA), reports SDL capabilities and exercises NES save/resume and GB/GBC SRAM/RTC and GBA/SNES cartridge persistence, manual/automatic states and startup continuation. Freshly compiled tests also check inline settings, slot previews, power/lid policy and all 21 brightness steps against synthetic ioctl/sysfs fixtures. Captures and logs are retained under the chosen work directory. No rootfs content is included in the ZIP.
 
-Pass the selected BaseOS version explicitly as above. The extracted rootfs must carry that exact target/version and include `/usr/lib` from its `usr-lib.sqfs`, as mounted during a real boot. The report records the userspace version and package baseline separately. Boot and migration are checked on the device.
+Pass the selected BaseOS version explicitly as above. The extracted rootfs must carry that exact target/version and include `/usr/lib`. For releases that store libraries in `usr-lib.sqfs`, unpack that archive as BaseOS does at boot. The report records the userspace version and package baseline separately. Boot and migration are checked on the device.
 
 This is userspace/ABI and synthetic policy verification. Physical graphics, audio, controls, brightness and suspend still require an explicitly authorized device test. Building or verifying never installs to an SD card. See [installation and rollback](../docs/installation.md) for the separate manual operation.
 

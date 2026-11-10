@@ -2,6 +2,7 @@
 from pathlib import Path
 import argparse
 import json
+import re
 import subprocess
 import sys
 import zipfile
@@ -18,12 +19,14 @@ def main():
     parser.add_argument("--rootfs", type=Path, required=True,
                         help="Owner-supplied extracted BaseOS rootfs; mounted read-only")
     parser.add_argument("--work", type=Path, required=True, help="New validation directory")
-    parser.add_argument("--baseos-version", choices=["1.3.0", "1.5.2", "1.5.3"],
+    parser.add_argument("--baseos-version",
                         help="Explicit compatibility probe; defaults to the package baseline")
     args = parser.parse_args()
     build, rootfs, work = args.build.resolve(), args.rootfs.resolve(), args.work.resolve()
     lock = json.loads((build / "source/runtime/build-lock.json").read_text())
     expected_version = args.baseos_version or lock["baseos_version"]
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", expected_version):
+        parser.error("Expected a BaseOS version in X.Y.Z format")
     release = (rootfs / "etc/baseos-release").read_text().splitlines()
     for marker in ["BASEOS_PLATFORM=h700", "BASEOS_TARGET=" + lock["target"],
                    "BASEOS_VERSION=" + expected_version]:
