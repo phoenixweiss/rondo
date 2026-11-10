@@ -33,7 +33,7 @@ Rondo — оболочка для ретроигр на Anbernic RG34XXSP. Мн�
 
 | Система | Ядро | Особенности |
 | --- | --- | --- |
-| NES | FCEUmm | Сохранения картриджей и слоты |
+| NES | FCEUmm | [Управление, сохранения картриджей и слоты](docs/nes.md) |
 | Game Boy / Game Boy Color | Gambatte | [Сохранения картриджей, часы и слоты](docs/game-boy.md) |
 | Game Boy Advance | gpSP | [Ядро и совместимость](docs/game-boy-advance.md) |
 | Super Nintendo | Supafaust | [Ядро и совместимость](docs/super-nintendo.md) |

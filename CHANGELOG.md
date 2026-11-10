@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## [1.0.1] - 2026-11-10
+
+### Changed
+
+- Add a dedicated NES guide and link it from the game-system tables in both READMEs.
+
 ## [1.0.0] - 2026-11-10
 
 ### Changed

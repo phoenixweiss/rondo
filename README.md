@@ -33,7 +33,7 @@ BaseOS 1.3.0, 1.4.0 and 1.5.3 are covered by the automated compatibility matrix.
 
 | System | Core | Notes |
 | --- | --- | --- |
-| NES | FCEUmm | Cartridge saves and states |
+| NES | FCEUmm | [Controls, cartridge saves and states](docs/nes.md) |
 | Game Boy / Game Boy Color | Gambatte | [Cartridge saves, RTC and states](docs/game-boy.md) |
 | Game Boy Advance | gpSP | [Core and compatibility notes](docs/game-boy-advance.md) |
 | Super Nintendo | Supafaust | [Core and compatibility notes](docs/super-nintendo.md) |
