@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## [1.0.0] - 2026-11-10
+
+### Changed
+
+- Publish regular GitHub releases with an RG34XXSP download and English and Russian installation and update instructions.
+- Verify the exact release ZIP on BaseOS 1.3.0, 1.4.0 and 1.5.3 in isolated userspace before creating the release draft.
+
 ## [0.15.0] - 2026-11-10
 
 ### Added

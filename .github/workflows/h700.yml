@@ -16,6 +16,9 @@ jobs:
   build:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 40
+    outputs:
+      versions: ${{ steps.compatibility-inputs.outputs.versions }}
+      sha256: ${{ steps.compatibility-inputs.outputs.sha256 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -73,13 +76,40 @@ jobs:
           path: build/release-assets/
           if-no-files-found: error
           retention-days: 7
+      - name: Collect the verified ZIP and compatibility tests
+        id: compatibility-inputs
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          echo "versions=$(jq -c 'keys' runtime/baseos-matrix.json)" >> "$GITHUB_OUTPUT"
+          cd build/h700-first
+          echo "sha256=$(jq -er .sha256 output/build-result.json)" >> "$GITHUB_OUTPUT"
+          tar -czf ../baseos-candidate.tar.gz output source/runtime/build-lock.json \
+            source/runtime/preflight-isolated.sh programs/*-tests programs/rumble-fixture.so \
+            programs/test-fixtures
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: github.ref_type == 'tag'
+        with:
+          name: baseos-candidate
+          path: build/baseos-candidate.tar.gz
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 3
       - name: Show build diagnostics on failure
         if: failure()
         run: find build -name '*.log' -type f -exec tail -n 40 {} \;
 
+  compatibility:
+    if: github.ref_type == 'tag'
+    needs: build
+    uses: ./.github/workflows/baseos-check.yml
+    with:
+      versions: ${{ needs.build.outputs.versions }}
+      sha256: ${{ needs.build.outputs.sha256 }}
+
   draft:
     if: github.event_name == 'push' && github.ref_type == 'tag'
-    needs: build
+    needs: [build, compatibility]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -89,7 +119,7 @@ jobs:
         with:
           name: h700-verified-assets
           path: build/release-assets
-      - name: Create and verify a draft preview
+      - name: Create and verify a release draft
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -98,13 +128,13 @@ jobs:
         run: |
           cd build/release-assets
           sha256sum -c SHA256SUMS.txt
-          gh release create "$RELEASE_TAG" ./* --verify-tag --draft --prerelease --latest=false --title "Rondo $RELEASE_TAG — early development preview" --notes-file release-notes.md
+          gh release create "$RELEASE_TAG" ./* --verify-tag --draft --latest=false --title "Rondo $RELEASE_TAG" --notes-file release-notes.md
           gh release view "$RELEASE_TAG" --json isDraft,isPrerelease,tagName,assets > ../draft.json
           python - <<'PY'
           import json, os
           from pathlib import Path
           draft = json.loads(Path('../draft.json').read_text())
-          assert draft['isDraft'] and draft['isPrerelease'] and draft['tagName'] == os.environ['RELEASE_TAG']
+          assert draft['isDraft'] and not draft['isPrerelease'] and draft['tagName'] == os.environ['RELEASE_TAG']
           assert {a['name'] for a in draft['assets']} == {p.name for p in Path('.').iterdir() if p.is_file()}
           PY
           gh release download "$RELEASE_TAG" --dir ../draft-readback

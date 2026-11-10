@@ -1,0 +1,61 @@
+name: Check a built package on BaseOS
+
+on:
+  workflow_call:
+    inputs:
+      versions:
+        required: true
+        type: string
+      sha256:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  compatibility:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        baseos: ${{ fromJSON(inputs.versions) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: baseos-candidate
+          path: build
+      - name: Prepare pinned BaseOS userspace
+        env:
+          BASEOS_VERSION: ${{ matrix.baseos }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y e2fsprogs squashfs-tools
+          mkdir build/baseos-candidate
+          tar -xzf build/baseos-candidate.tar.gz -C build/baseos-candidate
+          python tools/prepare_baseos_rootfs.py --version "$BASEOS_VERSION" --work build/baseos-rootfs
+      - name: Verify the same H700 package on BaseOS
+        env:
+          BASEOS_VERSION: ${{ matrix.baseos }}
+          CANDIDATE_SHA256: ${{ inputs.sha256 }}
+        run: |
+          python tools/check_h700_runtime.py --build build/baseos-candidate \
+            --rootfs build/baseos-rootfs/rootfs --baseos-version "$BASEOS_VERSION" \
+            --work build/baseos-check
+          jq -e --arg sha "$CANDIDATE_SHA256" '.package_sha256 == $sha' build/baseos-check/summary.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: baseos-${{ matrix.baseos }}-results
+          path: |
+            build/baseos-check/baseos-preflight.log
+            build/baseos-check/summary.json
+          if-no-files-found: ignore
+          retention-days: 7

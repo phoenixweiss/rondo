@@ -1,6 +1,6 @@
 # Contributing to Rondo
 
-Rondo is a personal project in early development. The maintainer is currently working through a substantial backlog and shaping the core experience on their own handheld.
+Rondo is a personal project for the Anbernic RG34XXSP. Development follows the maintainer’s backlog and testing on the handheld.
 
 Bug reports are welcome. Include the device model, BaseOS and Rondo version or commit, steps to reproduce, expected and actual behavior, and relevant redacted logs. State whether the issue occurs in the desktop prototype or on physical hardware. Please do not upload ROMs, BIOS files, private saves or secrets.
 

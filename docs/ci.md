@@ -14,6 +14,9 @@ a successful documentation-only run; cancellation still cancels downstream work.
 
 Version-tag H700 builds and Bumpster pre-release checks retain their full gates,
 including independent builds, source/license audits and artifact verification.
+The tagged H700 workflow also runs the BaseOS matrix on the exact release ZIP
+before the release draft is created. The separate matrix workflow builds one
+candidate for branch and manual checks.
 The scope selector does not publish, push, install or alter branch protection.
 
 Run the lightweight commands locally with Python:

@@ -1,6 +1,15 @@
 # Installation and rollback
 
-Rondo targets Anbernic RG34XXSP with BaseOS 1.5.3 (upstream prerelease) as the current tested environment. Package metadata retains a BaseOS 1.3.0 baseline. A frontend ZIP does not prepare a bootable card. On a fresh BaseOS card, complete the first console boot before installing Rondo: BaseOS expands and formats its data partition during that boot. Shut down before removing the card.
+[Русский](installation_ru.md)
+
+Download the ZIP from the [latest Rondo release](https://github.com/phoenixweiss/rondo/releases/latest).
+Install it on a card that already boots BaseOS on the Anbernic RG34XXSP. The
+automated package matrix covers BaseOS 1.3.0, 1.4.0 and 1.5.3. See
+[compatibility](compatibility.md) for the on-device checks.
+
+On a freshly flashed BaseOS card, complete the first console boot so BaseOS can
+prepare the data partition. Shut down before removing the card. Use the same
+installer commands below for a clean install or an update.
 
 ## macOS installer
 
@@ -27,7 +36,13 @@ Before changing the card it copies and verifies existing files, including fronte
 
 Boot-logo replacement defaults to enabled. The installer preserves the first original as RondoState/BootLogo/original.bmp with original.sha256, never overwrites a valid original backup and writes/verifies the Rondo image in p2 before the console is switched on. An existing false replace_boot_logo preference is respected. Corrupt or incomplete original backups cause refusal. No second application splash or delay is added. The existing console setting still restores the original and controls subsequent launches.
 
-After installation, read back the files and bootlogo, check the FAT filesystem, flush writes and safely eject the whole physical disk. Then test initial boot branding, controls, an existing save/resume, audio, brightness and power/lid behavior on the console. Userspace preflight does not establish these hardware paths. Keep TF2 empty for the first TF1 boot check. To use a second card, follow [two-card setup](storage-layout.md#format-tf2). BaseOS can select TF2 at boot, so the second card needs a launcher that hands off to Rondo on TF1.
+After installation, read back the files and bootlogo, check the FAT filesystem, flush writes and safely eject the whole physical disk. Then test initial boot branding, controls, an existing save/resume, audio, brightness and power/lid behavior on the console. Userspace preflight does not establish these hardware paths. Put your game files in the data partition’s `RondoGames` directory. Keep TF2 empty for the first TF1 boot check. To use a second card, follow [two-card setup](storage-layout.md#format-tf2). BaseOS can select TF2 at boot, so the second card needs a launcher that hands off to Rondo on TF1.
+
+## Progress backups
+
+With the game closed, use **Settings → Backups** and copy the entire dated backup
+folder to your computer. The default location is `RondoState/Backups` on TF1.
+See [backups and restore](backups.md) for the contents and compatibility checks.
 
 ## Logo and frontend rollback
 

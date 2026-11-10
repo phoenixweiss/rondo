@@ -1,12 +1,10 @@
 # Maintainer releases
 
-Rondo is early development software. The first preview version is **0.0.1**. VERSION was initialized at **0.0.0** as an unreleased baseline; Bumpster advances it for a release. The baseline is not a published release. The initial preview has been published; later releases follow the same checked process.
+Rondo uses Bumpster for versioning and GitHub Releases for RG34XXSP packages. VERSION is updated in a separate commit by Bumpster.
 
 ## Contract
 
 - Frontend: root VERSION, vX.Y.Z annotated tags, dev → main → dev through Bumpster, no package.json synchronization.
-- A Bumpster patch from the initial baseline produces 0.0.1. Test-kit numbers are not product versions.
-- Website: no configured package or deployment. Its independent VERSION/package.json and website/vX.Y.Z profile belong to a later task.
 
 Use Bumpster 1.4.0 or a compatible version. Read-only inspection:
 
@@ -27,7 +25,7 @@ BUMPSTER_PREV_VERSION=0.2.0 BUMPSTER_NEW_VERSION=0.3.0 .venv/bin/python tools/re
 
 Substitute the actual versions. Commit and push the reviewed changes/changelog, then wait for their native CI. The executable `.bumpster/hooks/pre-bump` builds the pinned native core, runs `tools/check.py` and validates the prepared section without changing the index or working tree. Bumpster 1.4 requires that hook to be read-only. Bumpster updates VERSION in its separate version commit. A failed check aborts; inspect actual refs before retrying a partial release.
 
-Only after explicit maintainer authorization, run the selected Bumpster action from clean, synchronized dev (`bumpster --minor` for 0.0.1 → 0.1.0; `--patch` for a patch). This is a mutating release command: it creates commits, merges branches, tags and pushes. Do not use it to test readiness. Refuse an existing version/tag rather than rewriting it. The first release notes describe a development preview, not general device compatibility.
+Only after explicit maintainer authorization, run the selected Bumpster action from clean, synchronized dev (`bumpster --minor` for 0.0.1 → 0.1.0; `--patch` for a patch). This is a mutating release command: it creates commits, merges branches, tags and pushes. Do not use it to test readiness. Refuse an existing version/tag rather than rewriting it.
 
 ## Candidate workflow
 
@@ -39,17 +37,17 @@ bounded retries and the official mirrors recorded with each dependency. A checks
 mismatch stops the build instead of silently selecting another source. Source
 caching does not change the two independent `--fresh` compilations.
 
-The retained workflow artifact contains the source-complete frontend ZIP, verification.json, release-notes.md and SHA256SUMS.txt. It expires after seven days; download and preserve a candidate needed for physical testing. The ZIP is a frontend package for an existing RG34XXSP BaseOS installation, not firmware or a bootable SD image. Current device testing uses BaseOS 1.5.3; package metadata retains the older 1.3.0 baseline. A non-tag run is clearly named development, even after VERSION is initialized.
+The retained workflow artifact contains the source-complete frontend ZIP, verification.json, release-notes.md and SHA256SUMS.txt. It expires after seven days; download and preserve a candidate needed for physical testing. Install the frontend ZIP on a card that already boots BaseOS on an RG34XXSP. Manual candidate builds retain a development filename.
 
-The BaseOS rootfs is an external input and is never uploaded. Its isolated preflight is a separate local check; the hosted workflow does not claim to have run it. Physical graphics, audio, input, brightness, save/resume and suspend acceptance of the exact candidate remain separate checks. See [installation/rollback](installation.md) and [compatibility](compatibility.md).
+The BaseOS rootfs is an external input to isolated userspace checks and stays out of the ZIP. Physical graphics, audio, input, brightness and suspend are separate on-device checks. See [installation/rollback](installation.md) and [compatibility](compatibility.md).
 
 ## Tagged draft and publication
 
 A pushed vX.Y.Z tag starts the same build. It must be annotated, point at the checked-out commit reachable from origin/main, match VERSION and have one nonempty dated changelog section. The ZIP's embedded version must match as well. Website tags cannot enter this release path.
 
-Only the draft job has contents:write. After a successful build it creates a draft prerelease, uploads the four verified assets, reads back draft/tag/asset metadata, downloads the assets and verifies checksums. It does not publish the draft or mark it as latest. Existing releases are never overwritten, and a failed/ambiguous upload is not automatically retried.
+The tagged workflow sends the already verified ZIP through the BaseOS matrix. Each job checks the package SHA-256 against the build job output. Once all versions pass, the draft job creates a regular release draft, uploads the four verified assets, reads back draft/tag/asset metadata, downloads the assets and verifies checksums. Only the draft job has contents:write. It does not publish the draft or mark it as latest. Existing releases are never overwritten, and a failed/ambiguous upload is not automatically retried.
 
-After checking the exact draft assets and required device acceptance, authorize publication separately. Then verify the public tag/ref, Release metadata and the downloaded ZIP, including its source and license audit. A green build, a draft or a successful upload is not proof of public availability or physical device behavior.
+Check the exact draft assets and recorded on-device results before the authorized publication. Then verify the public tag/ref, Release metadata and the downloaded ZIP, including its source and license audit. A green build, a draft or a successful upload is not proof of public availability or physical device behavior.
 
 ## Ongoing changelog and website inputs
 

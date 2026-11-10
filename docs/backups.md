@@ -1,7 +1,8 @@
 # Back up and restore progress
 
 Open **Settings → Backups** with the game closed. **Create backup** saves a dated
-folder under `RondoState/Backups`. Copy the complete folder to your computer to
+folder under `RondoState/Backups` by default, or in the backup location selected
+in Settings → Storage locations. Copy the complete folder to your computer to
 protect it against loss of the card. No ROMs or BIOS files are needed for export.
 
 A copy contains Rondo preferences, favorites/recent history, per-game settings,
