@@ -50,4 +50,3 @@ the first deletion. It contains a planned-file list and one JSONL event per
 completed deletion, plus completion or failure. It does not copy ROM contents.
 An interrupted operation can leave a started log without a completion event;
 files already removed are not rolled back. Inspect the result before retrying.
-
