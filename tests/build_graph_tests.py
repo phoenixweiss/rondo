@@ -39,7 +39,7 @@ class BuildGraphTests(unittest.TestCase):
                 return [line for line in output.splitlines() if ' -c ' in line]
 
             output = make()
-            self.assertEqual(len(compiles(output)), 67, output)
+            self.assertEqual(len(compiles(output)), 71, output)
             self.assertEqual(sum(' -c src/model.cpp ' in line for line in compiles(output)), 1)
             self.assertEqual(make(), '')
             time.sleep(1.05)
@@ -54,9 +54,9 @@ class BuildGraphTests(unittest.TestCase):
             self.assertEqual(len(compiles(make())), 4)
             self.assertEqual(make(), '')
             time.sleep(1.05)
-            self.assertEqual(len(compiles(make('CXXFLAGS=-std=c++17 -O1'))), 67)
+            self.assertEqual(len(compiles(make('CXXFLAGS=-std=c++17 -O1'))), 71)
             time.sleep(1.05)
-            self.assertEqual(len(compiles(make())), 67)  # Switching back is a rebuild too.
+            self.assertEqual(len(compiles(make())), 71)  # Switching back is a rebuild too.
             time.sleep(1.05)
             linked = make('LDFLAGS=-s')
             self.assertEqual(compiles(linked), [])

@@ -1,12 +1,25 @@
 # Back up and restore progress
 
-Open **Settings → Backups** with the game closed. **Create backup** saves a dated
-folder under `RondoState/Backups` by default, or in the backup location selected
-in Settings → Storage locations. Copy the complete folder to your computer to
-protect it against loss of the card. No ROMs or BIOS files are needed for export.
+Open **Settings → Backups** with the game closed, then choose **Create backup**.
+Set **Game progress** to **All games**, **Selected** or **None**. Selected lets you
+mark games with A, use Y to select or clear the whole list and L1/R1 to page.
+Each entry shows its system and card when available. Marks stay selected while
+you browse and switch modes. The list includes games with saved progress,
+including entries whose ROM is currently missing.
 
-A copy contains Rondo preferences, favorites/recent history, per-game settings,
-SRAM/RTC, three manual save slots and the automatic save and game statistics. Valid previous generations are
+The creation screen shows the number of games included. Settings, favorites,
+recent history and per-game preferences are always included as a whole. None
+creates a settings-only copy. If saves are on an unavailable card, choose None
+to copy settings to an available backup location.
+
+Confirm **Create backup** on this screen to write a dated folder under
+`RondoState/Backups` by default, or in the backup location selected in
+Settings → Storage locations. Copy the complete folder to your computer to
+protect it against loss of the card.
+
+A copy contains Rondo preferences, favorites/recent history and per-game settings.
+For the included games it also contains SRAM/RTC, three manual save slots, the
+automatic save and game statistics. Valid previous generations are
 included. Logs, screenshots, artwork/cache, BIOS, ROMs, saved Wi-Fi passwords and
 Bluetooth pairing records are excluded. This is a progress backup, not an SD image.
 

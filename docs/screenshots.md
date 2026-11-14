@@ -49,3 +49,26 @@ The interface shortcut stays L3 + R3 independently of the game shortcut. F12
 captures the game frame during gameplay and the visible interface in menus.
 
 Screenshot sound is enabled by default and can be disabled in screenshot settings. A short shutter click plays after a successful PNG write, at the current game volume. During gameplay it is mixed into the existing audio stream; it does not open another audio device. Failed writes do not play the click. Interface captures follow the same sound and volume settings.
+
+
+## Gallery
+
+Open **Settings → Interface → Screenshots → Screenshot gallery**. Choose a game
+folder or Interface, then browse four thumbnails per page. Old title/hash folders
+are also listed. PNGs are read from the screenshot location selected in Storage
+locations, including TF2. Y refreshes the group list.
+
+Use the D-pad to move between thumbnails and L1/R1 to change pages. A opens
+the selected image. In the viewer, A switches between Fit and 1:1, keeping that
+mode as you browse. At 1:1, the D-pad moves a large image around the viewport.
+L1/R1 always selects the previous or next image. B returns one level.
+
+X opens a confirmation for the selected screenshot, with Cancel selected.
+Deletion checks that the file and storage location still match the reviewed
+entry. It removes only that PNG and flushes the directory. If a file changed
+or the card became unavailable, refresh the gallery before another attempt.
+Empty folders and their game-identity markers are kept for future captures.
+
+Directory scans and full-image decoding run in background workers. Thumbnail
+display uses the existing bounded artwork cache. The gallery skips symbolic
+links and hidden files. A damaged PNG can still be selected for deletion.

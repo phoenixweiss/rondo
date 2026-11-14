@@ -27,6 +27,7 @@ an upstream prerelease.
 
 ## Device features
 
+- Selective progress backups and restoration, screenshot gallery and game-file deletion have been tested on RG34XXSP / BaseOS 1.5.3.
 - Closing the lid sleeps; Power wakes the device. Wake-on-open is unavailable.
 - Brightness uses the vendor driver's supported range, including the 254 endpoint.
 - Battery level and charging status use vendor readings. Optional smoothing

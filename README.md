@@ -24,9 +24,10 @@ BaseOS 1.3.0, 1.4.0 and 1.5.3 are covered by the automated compatibility matrix.
 
 - Browse one library or group games by system. Switch between lists and cover tiles, search across systems, and keep favorites and recent games. [Library controls](docs/library.md)
 - Keep games on TF1, TF2 or both. Choose where saves, screenshots, BIOS files, backups, logs and artwork cache are stored. [Set up TF2 and move data](docs/storage-layout.md#format-tf2)
-- Resume from automatic saves, manage manual slots with previews and back up progress. [Saves](docs/autosave.md) · [Backups and restore](docs/backups.md)
+- Resume from automatic saves, manage manual slots with previews and back up progress for all or selected games. [Saves](docs/autosave.md) · [Backups and restore](docs/backups.md)
 - Pair Bluetooth gamepads and assign up to four player ports in supported games. The built-in controls stay on player 1. Two 8BitDo Micro controllers in D mode were tested together in NES. [Bluetooth](docs/bluetooth.md) · [Controls and vibration](docs/input-test.md)
-- Take screenshots with L3 + R3 or from the game menu. [Shortcuts and file locations](docs/screenshots.md)
+- Take screenshots with L3 + R3 or from the game menu, then browse, zoom and delete them in the gallery. [Screenshots and gallery](docs/screenshots.md)
+- Review and delete a game with optional related data. Shared files and unselected progress are kept. [Game files](docs/game-files.md)
 - Use the setup wizard in English or Russian. Adjust themes, display, power, Wi-Fi and network or manual time in Settings. [Setup](docs/setup.md) · [Preferences](docs/preferences.md) · [Display](docs/display.md) · [Power](docs/power.md) · [Wi-Fi](docs/wifi.md)
 
 ## Game systems

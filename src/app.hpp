@@ -10,6 +10,8 @@
 #include "ui.hpp"
 #include "system_info.hpp"
 #include "screenshots.hpp"
+#include "gallery.hpp"
+#include "removal.hpp"
 #include "game_statistics.hpp"
 #include "backup.hpp"
 #include "progress.hpp"
@@ -20,18 +22,18 @@ namespace rondo {
 enum class GameMenuItem { Resume, Save, Load, Screenshot, Settings, Info, Exit, Count };
 enum class Screen {
   Systems, LibraryPreferences, LibraryMenu,
-  ScreenshotSettings, ScreenshotCapture,
+  ScreenshotSettings, ScreenshotCapture, GalleryGroups, GalleryImages, GalleryView, GalleryDelete, GalleryDeleting,
   Storage, StorageFiles, StorageCards, StorageUsage, StorageDetails, StorageReview, StorageConflicts, StorageCompare, StorageConfirm, StorageBusy, StorageStop, StorageResult, StorageRecovery, StorageDiscard, StorageFormat, StorageFormatResult,
   Themes, CoreCatalog, MappingCores, Mapping, MappingReset, Wizard, WizardExit,
   Library,
-  Search, SearchResults, GameDetails,
+  Search, SearchResults, GameDetails, GameFiles, RemovalReview, RemovalFiles, RemovalPath, RemovalConfirm, RemovalBusy, RemovalResult, RemovalReport,
   Settings,
   SettingsSection,
   InputTest,
   Controls, Gamepads, GamepadFind, GamepadDetails, GamepadColor, GamepadPlayer,
   SystemInfo,
   ProgressBusy, ProgressSources, ProgressConfirm, ProgressDone,
-  Backups, BackupDetails, BackupGames, BackupDelete, BackupConfirm, BackupBusy, BackupRestart,
+  Backups, BackupCreate, BackupSelectGames, BackupDetails, BackupGames, BackupDelete, BackupConfirm, BackupBusy, BackupRestart,
   LogClear,
   SystemConfirm,
   SystemProgress,
@@ -334,11 +336,53 @@ public:
   void storageTick();
   void storageAction(const std::string &);
   void storageDraw(const std::string &);
+  std::string removalLoadingId;
+  RemovalPreview removalPreview;
+  std::future<RemovalPreview> removalScan;
+  std::future<RemovalResult> removalJob;
+  RemovalResult removalResult;
+  std::shared_ptr<std::atomic<size_t>> removalDone;
+  size_t removalTotal=0;
+  void removalStart();
+  void removalLibrary();
+  std::array<bool,size_t(RemovalCategory::Count)> removalChoices{{true,false,false,false,false,false,false,false}};
+  int removalCategory=0,removalIndex=0,removalPathScroll=0;
+  double removalScroll=0;
+  bool removalRoute() const;
+  void removalOpen();
+  void removalRefresh();
+  void removalTick();
+  void removalAction(const std::string &);
+  void removalDraw(const std::string &);
+  std::vector<const RemovalEntry *> removalFiles() const;
+  std::vector<GalleryGroup> galleryGroups;
+  std::future<std::vector<GalleryGroup>> galleryScan;
+  std::future<GalleryImage> galleryLoad;
+  std::future<void> galleryRemoval;
+  std::unique_ptr<SDL_Texture,decltype(&SDL_DestroyTexture)> galleryTexture{nullptr,SDL_DestroyTexture};
+  GalleryFile galleryDeletingFile,galleryLoadingFile;
+  Screen galleryDeleteReturn=Screen::GalleryImages;
+  int galleryGroup=0,galleryIndex=0,galleryWidth=0,galleryHeight=0;
+  int galleryPanX=0,galleryPanY=0;
+  double galleryScroll=0;
+  bool galleryActualSize=false;
+  std::string galleryError;
+  bool galleryRoute() const;
+  void galleryOpen();
+  void galleryRefresh();
+  void galleryShow();
+  void galleryTick();
+  void galleryAction(const std::string &);
+  void galleryDraw(const std::string &);
   std::future<Json> backupJob;
   std::shared_ptr<BackupProgress> backupProgress;
   std::vector<fs::path> backupList;
   fs::path backupSelected;
   Json backupSummary=Json::object(), backupGameList=Json::array();
+  Json backupCandidates=Json::array();
+  std::set<std::string> backupChosen;
+  int backupMode=0;
+  std::string backupCandidatesError;
   std::map<std::string,Json> backupMetadata;
   double backupScroll=0;
   bool backupDeleting=false, backupRestoring=false, restoreInputFence=false;

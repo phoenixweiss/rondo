@@ -297,6 +297,11 @@ std::string App::screenName() const {
   case Screen::Systems:return "systems";
   case Screen::LibraryPreferences:return "library_preferences";
   case Screen::LibraryMenu:return "library_menu";
+  case Screen::GalleryGroups:return "gallery_groups";
+  case Screen::GalleryImages:return "gallery_images";
+  case Screen::GalleryView:return "gallery_view";
+  case Screen::GalleryDelete:return "gallery_delete";
+  case Screen::GalleryDeleting:return "gallery_deleting";
   case Screen::ScreenshotSettings:return "screenshot_settings";
   case Screen::ScreenshotCapture:return "screenshot_capture";
   case Screen::Themes:return "themes";
@@ -319,6 +324,14 @@ std::string App::screenName() const {
   case Screen::Search: return "search";
   case Screen::SearchResults:return "search_results";
   case Screen::GameDetails:return "game_details";
+  case Screen::GameFiles:return "game_files";
+  case Screen::RemovalReview:return "removal_review";
+  case Screen::RemovalFiles:return "removal_files";
+  case Screen::RemovalPath:return "removal_path";
+  case Screen::RemovalConfirm:return "removal_confirm";
+  case Screen::RemovalBusy:return "removal_busy";
+  case Screen::RemovalResult:return "removal_result";
+  case Screen::RemovalReport:return "removal_report";
   case Screen::Library:
     return "library";
   case Screen::Settings:
@@ -346,6 +359,8 @@ std::string App::screenName() const {
   case Screen::ProgressConfirm:return "progress_confirm";
   case Screen::ProgressDone:return "progress_done";
   case Screen::Backups: return "backups";
+  case Screen::BackupCreate:return "backup_create";
+  case Screen::BackupSelectGames:return "backup_select_games";
   case Screen::BackupDetails:return "backup_details";
   case Screen::BackupGames:return "backup_games";
   case Screen::BackupDelete:return "backup_delete";
@@ -605,7 +620,7 @@ void App::actionImpl(const std::string &a) {
       record("info:open");
       return;
     }
-    if(screen==Screen::Backups||screen==Screen::BackupDetails||screen==Screen::BackupGames||screen==Screen::BackupDelete||screen==Screen::BackupConfirm){backupAction(a);return;}
+    if(screen==Screen::Backups||screen==Screen::BackupCreate||screen==Screen::BackupSelectGames||screen==Screen::BackupDetails||screen==Screen::BackupGames||screen==Screen::BackupDelete||screen==Screen::BackupConfirm){backupAction(a);return;}
     if(controlsRoute()){gamepadsAction(a);return;}
     if(screen==Screen::ScreenshotSettings){screenshotAction(a);return;}
     if(screen==Screen::Wizard||screen==Screen::WizardExit){wizardAction(a);record("setup:"+a);return;}
@@ -1155,7 +1170,7 @@ void App::actionImpl(const std::string &a) {
   record(a);
 }
 std::string App::infoKey() const {
-  if(screen==Screen::Backups||screen==Screen::BackupDetails||screen==Screen::BackupGames||screen==Screen::BackupDelete||screen==Screen::BackupConfirm||(screen==Screen::Settings&&settingsFocus==9))return "backup";
+  if(screen==Screen::Backups||screen==Screen::BackupCreate||screen==Screen::BackupSelectGames||screen==Screen::BackupDetails||screen==Screen::BackupGames||screen==Screen::BackupDelete||screen==Screen::BackupConfirm||(screen==Screen::Settings&&settingsFocus==9))return "backup";
   if((screen==Screen::CoreSettings&&row==3)||(screen==Screen::SettingsSection&&category==4&&row==3))return "input_test";
   if(screen==Screen::CoreSettings && row==2)return "rumble";
   if(screen==Screen::CoreSettings && row==1)return "left_stick";
@@ -1418,6 +1433,9 @@ void App::powerTick(uint64_t now) {
 }
 void App::ticks(unsigned n) {
   if(stop)return;
+  removalTick();
+  galleryTick();
+  if(screen==Screen::GalleryDeleting||screen==Screen::RemovalBusy)return;
   storageTick();
   if(screen==Screen::StorageBusy||screen==Screen::StorageStop)return;
   if(screen==Screen::ProgressBusy){progressTick();return;}
@@ -1637,8 +1655,12 @@ void App::draw() {
   if(storageRoute()) {storageDraw(zone);
   } else if(screen==Screen::ProgressBusy||screen==Screen::ProgressSources||screen==Screen::ProgressConfirm||screen==Screen::ProgressDone) {
     progressDraw(zone);
-  } else if(screen==Screen::Backups||screen==Screen::BackupDetails||screen==Screen::BackupGames||screen==Screen::BackupDelete||screen==Screen::BackupConfirm||screen==Screen::BackupBusy||screen==Screen::BackupRestart) {
+  } else if(screen==Screen::Backups||screen==Screen::BackupCreate||screen==Screen::BackupSelectGames||screen==Screen::BackupDetails||screen==Screen::BackupGames||screen==Screen::BackupDelete||screen==Screen::BackupConfirm||screen==Screen::BackupBusy||screen==Screen::BackupRestart) {
     backupDraw(zone);
+  } else if(removalRoute()) {
+    removalDraw(zone);
+  } else if(galleryRoute()) {
+    galleryDraw(zone);
   } else if(screen==Screen::ScreenshotSettings||screen==Screen::ScreenshotCapture) {
     screenshotSettingsDraw(zone);
   } else if(screen==Screen::Systems) {
@@ -1726,7 +1748,7 @@ void App::draw() {
     ui->text(duration,24,366,25,500,ui->cream,240);
     if(!game.available||!ui->artworkImage({{game.path.parent_path()/"cover.png",400,328,true}},296,84,400,328)) {ui->rect(296,84,400,328,ui->focus,8);ui->icon("image-off",472,212,48);}
     std::vector<std::pair<std::string,std::string>> hints;
-    if(core||game.available)hints.push_back({"A",tr(core?"action.resume":"action.play")});hints.push_back({"B",tr(core?"screen.game_menu":"screen.library")});if(!core)hints.push_back({"X",tr("nav.favorites")});if(!core&&game.available)hints.push_back({"Y",tr("progress.short")});ui->hints(hints);
+    if(core||game.available)hints.push_back({"A",tr(core?"action.resume":"action.play")});hints.push_back({"B",tr(core?"screen.game_menu":"action.back")});if(!core)hints.push_back({"X",tr("nav.favorites")});if(!core)hints.push_back({"MENU",tr("removal.files")});ui->hints(hints);
   } else if(screen==Screen::Search) {
     searchDraw();
   } else if(screen==Screen::Clock || screen==Screen::ClockEdit) {
@@ -2053,7 +2075,7 @@ void App::draw() {
   // Navigation belongs below transient feedback and modal information.
   if(!storageRoute())navigationDraw();
   if(storageRoute()&&!notice.empty()&&screen!=Screen::StorageBusy&&screen!=Screen::StorageStop)ui->notice(notice,"settings");
-  if (!storageRoute() && !notice.empty() && screen!=Screen::ProgressBusy&&screen!=Screen::ProgressDone&&screen!=Screen::ProgressSources&&screen!=Screen::ProgressConfirm && screen!=Screen::Recovery && screen!=Screen::BackupBusy && screen!=Screen::BackupRestart && screen!=Screen::Backups && screen!=Screen::BackupDetails && screen!=Screen::BackupGames && screen!=Screen::BackupDelete && screen!=Screen::BackupConfirm)
+  if (!storageRoute() && !notice.empty() && screen!=Screen::ProgressBusy&&screen!=Screen::ProgressDone&&screen!=Screen::ProgressSources&&screen!=Screen::ProgressConfirm && screen!=Screen::Recovery && screen!=Screen::BackupBusy && screen!=Screen::BackupRestart && screen!=Screen::Backups && screen!=Screen::BackupCreate && screen!=Screen::BackupSelectGames && screen!=Screen::BackupDetails && screen!=Screen::BackupGames && screen!=Screen::BackupDelete && screen!=Screen::BackupConfirm)
     ui->notice(notice,notice==tr("notice.saved")?"save":"settings",screen==Screen::Library);
   if (infoOpen) {
     auto key = infoKey();

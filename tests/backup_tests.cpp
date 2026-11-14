@@ -35,6 +35,31 @@ int main(int argc,char **argv) {
  assert(!fs::exists(target/"games"/id/"slot-2.state"));
  assert(readBytes(target/"games"/other/"sram.bin")==std::vector<uint8_t>{7});
  assert(fs::exists(target/"Screenshots/keep.png")&&!fs::exists(target/".restore-transaction"));
+ // Selection is keyed by game identity, including games with identical titles.
+ atomicWrite(source/"games"/other/"sram.bin",{42});
+ auto catalog=backupAvailableGames(source,{{id,"TF1","NES","Alien 3",{}},{other,"TF2","MD","Alien 3",{}}});
+ assert(catalog.size()==2&&catalog[0]["id"]!=catalog[1]["id"]&&catalog[0]["volume"]!=catalog[1]["volume"]);
+ auto selected=ctx;selected.selectedGames=std::set<std::string>{id};
+ atomicWrite(source/"games"/other/"slot-0.state",{0});
+ auto partial=createBackup(source,selected);
+ fs::remove(source/"games"/other/"slot-0.state");
+ assert(backupGames(partial).size()==1&&!fs::exists(partial/"data/games"/other));
+ atomicWrite(target/"games"/other/"sram.bin",{11});
+ restoreBackup(target,partial,ctx);
+ assert(readBytes(target/"games"/other/"sram.bin")==std::vector<uint8_t>{11});
+ selected.selectedGames=std::set<std::string>{};
+ auto settingsOnly=createBackup(source,selected);
+ assert(backupGames(settingsOnly).empty()&&!fs::exists(settingsOnly/"data/games"));
+ restoreBackup(target,settingsOnly,ctx);
+ assert(readBytes(target/"games"/other/"sram.bin")==std::vector<uint8_t>{11});
+ selected.selectedGames=std::set<std::string>{std::string(64,'f')};
+ bool missingRejected=false;
+ try{createBackup(source,selected);}catch(const BackupError &error){missingRejected=error.code=="backup.changed";}
+ assert(missingRejected);
+ selected.selectedGames=std::set<std::string>{"../invalid"};
+ bool invalidRejected=false;
+ try{createBackup(source,selected);}catch(const BackupError &error){invalidRejected=error.code=="backup.invalid";}
+ assert(invalidRejected);
  auto good=readBytes(target/"config.json");auto reject=[&](const BackupContext &inputs){bool failed=false;try{restoreBackup(target,copy,inputs);}catch(...){failed=true;}assert(failed&&readBytes(target/"config.json")==good);};
  std::string frozenHash;backupManifest(copy,&frozenHash);auto frozen=ctx;frozen.expectedManifest=frozenHash;
  auto changed=meta;changed["created_utc"]=changed["created_utc"].get<long long>()+1;manifest(copy,changed);reject(frozen);manifest(copy,meta);

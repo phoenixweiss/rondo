@@ -36,14 +36,17 @@ void App::backupStart(bool restore,bool deleting) {
   if(bootPending()||btJob.valid()||btQueued||wifiJob.valid()||wifiQueued||clockJob.valid()||clockQueued){notice=locale.tr("binary.applying");return;}
   volumeTick(true);
   backupProgress=std::make_shared<BackupProgress>();auto progress=backupProgress;
+  std::optional<std::set<std::string>> selection;
+  if (!restore && !deleting && screen == Screen::BackupCreate && backupMode != 0)
+    selection = backupMode == 1 ? backupChosen : std::set<std::string>{};
   auto opts=options;auto folder=backupSelected;auto expected=backupSummary.value("sha256",std::string());
   Json catalog=Json::array();for(const auto &game:games)catalog.push_back({{"id",game.id},{"title",game.title},{"system",game.system}});
   backupDeleting=deleting;backupRestoring=restore;backupError.clear();notice.clear();infoOpen=false;
-  backupJob=std::async(std::launch::async,[opts,folder,restore,deleting,progress,expected,catalog] {
+  backupJob=std::async(std::launch::async,[opts,folder,restore,deleting,progress,expected,catalog,selection] {
     auto reload=[&] {std::error_code error;bool pending=fs::exists(opts.state/".restore-transaction",error);return restore&&(progress->phase>=3||pending||bool(error));};
     try {
       if(deleting){progress->phase=5;deleteBackup(opts.paths(),folder,expected);return Json{{"ok",true},{"reload",false}};}
-      auto inputs=context(opts);inputs.expectedManifest=expected;inputs.games=catalog;
+      auto inputs=context(opts);inputs.expectedManifest=expected;inputs.games=catalog;inputs.selectedGames=selection;
       if(restore){restoreBackup(opts.paths(),folder,inputs,progress.get());return Json{{"ok",true},{"reload",true}};}
       return Json{{"ok",true},{"folder",createBackup(opts.paths(),inputs,progress.get()).string()}};
     }catch(const BackupError &error){return Json{{"ok",false},{"error",error.code},{"reload",reload()}};}
@@ -63,13 +66,43 @@ void App::backupTick() {
   screen=Screen::Backups;row=0;backupMetadata.clear();
   while(!navigation.empty()) {
     auto route=navigation.back().route;
-    if(route!=Screen::Backups&&route!=Screen::BackupDetails&&route!=Screen::BackupGames&&route!=Screen::BackupDelete&&route!=Screen::BackupConfirm)break;
+    if(route!=Screen::Backups&&route!=Screen::BackupCreate&&route!=Screen::BackupSelectGames&&route!=Screen::BackupDetails&&route!=Screen::BackupGames&&route!=Screen::BackupDelete&&route!=Screen::BackupConfirm)break;
     navigation.pop_back();
   }
   try {backupList=backupFolders(options.paths());}catch(...){backupError="backup.io";}
   notice=locale.tr(backupError.empty()?(backupDeleting?"backup.deleted":"backup.created"):backupError);noticeUntil=monotonicMs()+6000;
 }
 void App::backupAction(const std::string &action) {
+  if (screen == Screen::BackupCreate) {
+    if (action == "B") { screen=Screen::Backups; row=0; return; }
+    if (action == "UP") row=std::max(0,row-1);
+    if (action == "DOWN") row=std::min(2,row+1);
+    if (row == 0 && (action == "LEFT" || action == "RIGHT" || action == "A")) {
+      backupMode=(backupMode+(action=="LEFT"?2:1))%3;
+    } else if (action == "A" && row == 1 && backupMode == 1 && backupCandidatesError.empty()) {
+      screen=Screen::BackupSelectGames; row=0; backupScroll=0;
+    } else if (action == "A" && row == 2 && (backupMode == 2 || backupCandidatesError.empty())) {
+      backupStart(false);
+    }
+    return;
+  }
+  if (screen == Screen::BackupSelectGames) {
+    const int count=int(backupCandidates.size());
+    if (action == "B") { screen=Screen::BackupCreate; row=1; return; }
+    if (action == "UP") row=std::max(0,row-1);
+    if (action == "DOWN") row=std::min(std::max(0,count-1),row+1);
+    if (action == "L1") row=std::max(0,row-4);
+    if (action == "R1") row=std::min(std::max(0,count-1),row+4);
+    if (action == "A" && count) {
+      auto id=backupCandidates[row].at("id").get<std::string>();
+      if (!backupChosen.erase(id)) backupChosen.insert(id);
+    }
+    if (action == "Y") {
+      if (backupChosen.size() == backupCandidates.size()) backupChosen.clear();
+      else for (const auto &game : backupCandidates) backupChosen.insert(game.at("id").get<std::string>());
+    }
+    return;
+  }
   if(screen==Screen::BackupRestart){if(action=="A"){systemExitCode=66;stop=true;}return;}
   if(screen==Screen::BackupConfirm||screen==Screen::BackupDelete) {
     bool deleting=screen==Screen::BackupDelete;
@@ -103,7 +136,12 @@ void App::backupAction(const std::string &action) {
   if(action=="R1")row=std::min(int(backupList.size()),row+5);
   if(action=="B"){settingsFocus=9;row=9;screen=Screen::Settings;return;}
   if(action!="A")return;
-  if(row==0){backupStart(false);return;}
+  if(row==0) {
+    backupMode=0;backupChosen.clear();backupCandidates=Json::array();backupCandidatesError.clear();
+    try {volumeTick(true);backupCandidates=backupAvailableGames(options.paths(),games);}
+    catch(const std::exception &) {backupCandidatesError="backup.source_unavailable";}
+    screen=Screen::BackupCreate;row=0;notice.clear();return;
+  }
   try {
     backupSelected=backupList.at(row-1);backupSummary=Json::object();backupGameList=Json::array();
     try {backupSummary=summary(backupSelected);backupGameList=backupGames(backupSelected,games);}catch(...){}
@@ -112,7 +150,60 @@ void App::backupAction(const std::string &action) {
 }
 void App::backupDraw(const std::string &zone) {
   auto tr=[this](const std::string &key){return locale.tr(key);};
-  ui->frame(tr(screen==Screen::BackupConfirm?"backup.restore":screen==Screen::BackupDelete?"backup.delete":screen==Screen::BackupGames?"backup.games":"backup.title"),tr("screen.settings"),zone);
+  ui->frame(tr(screen==Screen::BackupConfirm?"backup.restore":screen==Screen::BackupDelete?"backup.delete":screen==Screen::BackupGames?"backup.games":screen==Screen::BackupSelectGames?"backup.select_games":screen==Screen::BackupCreate?"backup.create":"backup.title"),tr("screen.settings"),zone);
+  if (screen == Screen::BackupCreate) {
+    const char *modes[]={"backup.all_games","backup.selected_games","backup.no_games"};
+    bool available=backupCandidatesError.empty();
+    ui->valueRow(tr("backup.progress_scope"),128,row==0,672,tr(modes[backupMode]),true);
+    size_t count=backupMode==0?backupCandidates.size():backupMode==1?backupChosen.size():0;
+    ui->row(tr("backup.select_games"),182,row==1,672,
+            std::to_string(count),available&&backupMode==1,52,"chevron-right","gamepad-2");
+    ui->text(tr("backup.includes_settings"),32,252,22,500,ui->cream,656);
+    auto detail=backupMode!=2&&!available?tr(backupCandidatesError):
+                locale.tr("backup.progress_count",{{"games",count}});
+    ui->text(detail,32,287,23,500,ui->cream,656);
+    ui->text(tr("backup.progress_contents"),32,320,21,400,ui->secondary,656);
+    ui->row(tr("backup.create"),366,row==2,672,"",available||backupMode==2,52,"","save");
+    ui->hints({{"A",tr("action.select")},{"B",tr("action.back")},{"X",tr("footer.info")}});
+    return;
+  }
+  if (screen == Screen::BackupSelectGames) {
+    int count=int(backupCandidates.size()),viewport=264,content=0;
+    std::vector<int> offsets,heights;
+    for (const auto &entry : backupCandidates) {
+      auto title=entry.value("title",std::string());
+      if (title.empty()) title=tr("backup.unknown_game");
+      auto detail=entry.value("system",std::string())+" · "+entry.value("volume",std::string());
+      int available=552-ui->measure(detail,21,500);
+      offsets.push_back(content);
+      int height=ui->measure(title,23,700)>available?78:54;
+      heights.push_back(height);content+=height;
+    }
+    if (count) {
+      if (offsets[row]<backupScroll) backupScroll=offsets[row];
+      if (offsets[row]+heights[row]>backupScroll+viewport) backupScroll=offsets[row]+heights[row]-viewport;
+    }
+    backupScroll=std::clamp(backupScroll,0.0,double(std::max(0,content-viewport)));
+    SDL_Rect clip{16,128,688,viewport};SDL_RenderSetClipRect(ui->renderer,&clip);
+    for (int i=0;i<count;++i) {
+      int y=128+offsets[i]-int(backupScroll);
+      if (y+heights[i]<128||y>=392) continue;
+      const auto &entry=backupCandidates[i];
+      auto title=entry.value("title",std::string());
+      auto system=entry.value("system",std::string()),volume=entry.value("volume",std::string());
+      auto detail=system.empty()?volume:volume.empty()?system:system+" · "+volume;
+      bool checked=backupChosen.count(entry.at("id").get<std::string>());
+      ui->row(title.empty()?tr("backup.unknown_game"):title,y,row==i,672,detail,true,
+              heights[i],"",checked?"check":"gamepad-2");
+    }
+    SDL_RenderSetClipRect(ui->renderer,nullptr);
+    ui->scrollbar(content,viewport,backupScroll,false,128,392);
+    if (!count) ui->text(tr("backup.no_progress"),32,164,23,400,ui->secondary,656);
+    ui->text(locale.tr("backup.selected_count",{{"games",backupChosen.size()},{"total",backupCandidates.size()}}),
+             32,400,21,400,ui->secondary,656);
+    ui->hints({{"A",tr("backup.toggle_game")},{"B",tr("action.back")},{"Y",tr("backup.toggle_all")},{"L1/R1",tr("library.pages")}});
+    return;
+  }
   if(screen==Screen::BackupBusy) {
     const char *phases[]={"backup.preparing","backup.copying","backup.checking","backup.applying","backup.rolling_back","backup.deleting"};
     ui->text(tr(phases[std::clamp(backupProgress->phase.load(),0,5)]),32,164,26,600,ui->cream,656);

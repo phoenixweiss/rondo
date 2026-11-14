@@ -32,6 +32,36 @@ fs::path temporary(const fs::path &parent,const char *prefix) {
   if(!mkdtemp(name.data()))throw BackupError("backup.io");
   return fs::path(name.data());
 }
+std::vector<std::string> gameFiles(const StatePaths &root,
+                                   const std::optional<std::set<std::string>> &selection) {
+  std::vector<std::string> names;
+  if (selection && selection->empty()) return names;
+  if (selection) for (const auto &id : *selection)
+    if (!backupDataPath("games/" + id + "/sram.bin")) throw BackupError("backup.invalid");
+  auto games = backupSafePath(root, "games");
+  std::set<std::string> found;
+  if (fs::exists(games)) for (auto it = fs::recursive_directory_iterator(games);
+                             it != fs::recursive_directory_iterator(); ++it) {
+    auto relative = it->path().lexically_relative(games);
+    auto id = relative.begin()->string();
+    if (selection && !selection->count(id)) {
+      it.disable_recursion_pending();
+      continue;
+    }
+    if (it->is_directory()) {
+      if (it.depth() > 0 || !backupDataPath("games/" + id + "/sram.bin"))
+        it.disable_recursion_pending();
+    }
+    auto name = (fs::path("games") / relative).generic_string();
+    if (backupDataPath(name)) {
+      if (it->is_symlink() || !it->is_regular_file()) throw BackupError("backup.invalid");
+      names.push_back(name);
+      found.insert(id);
+    }
+  }
+  if (selection && found != *selection) throw BackupError("backup.changed");
+  return names;
+}
 void validateContent(const std::vector<uint8_t> &bytes,const std::string &name,const Store &validator,const BackupContext *context) try {
   if(name=="config.json"||name=="config.previous.json") {
     if(bytes.size()>4*1024*1024)throw BackupError("backup.invalid");
@@ -91,6 +121,32 @@ Json backupManifest(const fs::path &folder,std::string *manifestDigest) try {
   if(manifestDigest)*manifestDigest=hashBytes(bytes);
   return manifest;
 } catch(const BackupError &){throw;} catch(const std::exception &){throw BackupError("backup.invalid");}
+Json backupAvailableGames(const StatePaths &root,const std::vector<Game> &known) {
+  std::map<std::string,Json> entries;
+  for (const auto &name : gameFiles(root, std::nullopt)) {
+    auto id = fs::path(name).parent_path().filename().string();
+    entries[id] = {{"id",id},{"title",""},{"system",""},{"volume",""}};
+  }
+  auto merge = [&](const Json &game) {
+    auto id = game.value("id", std::string());
+    auto found = entries.find(id);
+    if (found == entries.end()) return;
+    found->second["title"] = game.value("title", std::string());
+    found->second["system"] = game.value("system", std::string());
+    found->second["volume"] = game.value("volume", std::string());
+  };
+  Store config(root);
+  for (const auto &recent : config.data.value("recent_games", Json::array())) merge(recent);
+  for (const auto &game : known)
+    merge({{"id",game.id},{"title",game.title},{"system",game.system},{"volume",game.volume}});
+  Json result = Json::array();
+  for (const auto &entry : entries) result.push_back(entry.second);
+  std::sort(result.begin(), result.end(), [](const Json &a,const Json &b) {
+    return std::make_tuple(searchFold(a["title"]),a["system"],a["volume"],a["id"]) <
+           std::make_tuple(searchFold(b["title"]),b["system"],b["volume"],b["id"]);
+  });
+  return result;
+}
 Json backupGames(const fs::path &folder,const std::vector<Game> &known) {
   auto manifest=backupManifest(folder);std::map<std::string,Json> entries;
   for(const auto &file:manifest["files"]) {
@@ -149,18 +205,8 @@ fs::path createBackup(const StatePaths &root,const BackupContext &context,Backup
   try {
     std::vector<std::string> names{"config.json"};
     try {validator.validateDocument(readJson(backupSafePath(root,"config.previous.json")));names.push_back("config.previous.json");}catch(...){}
-    auto games=backupSafePath(root,"games");
-    if(fs::exists(games))for(auto it=fs::recursive_directory_iterator(games);it!=fs::recursive_directory_iterator();++it) {
-      auto name=(fs::path("games")/it->path().lexically_relative(games)).generic_string();
-      if(it->is_directory()) {
-        auto id=it->path().filename().string();
-        if(it.depth()>0||id.size()!=64||id.find_first_not_of("0123456789abcdef")!=std::string::npos)it.disable_recursion_pending();
-      }
-      if(backupDataPath(name)) {
-        if(it->is_symlink()||!it->is_regular_file())throw BackupError("backup.invalid");
-        names.push_back(name);
-      }
-    }
+    auto progressFiles = gameFiles(root, context.selectedGames);
+    names.insert(names.end(), progressFiles.begin(), progressFiles.end());
     if(names.size()>maxFiles)throw BackupError("backup.invalid");
     uint64_t bytes=1024*1024+validator.data.dump(2).size();for(const auto &name:names)if(name!="config.json")bytes+=fs::file_size(backupSafePath(root,name));
     if(fs::space(folder).available<bytes)throw BackupError("backup.space");

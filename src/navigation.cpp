@@ -141,6 +141,7 @@ bool App::navigationAction(const std::string &a) {
   bool library=screen==Screen::Systems||gamesRoute(screen);
   if(a=="MENU"&&(library||screen==Screen::Search)){navigationSettings();return true;}
   if(screen==Screen::GameDetails) {
+    if(a=="MENU"&&!core){removalOpen();return true;}
     if(a=="Y"&&!core&&game.available){progressOpen();return true;}
     if(a=="B"){navigationBack();return true;}
     if(a=="A"&&(core||game.available)) {
@@ -151,6 +152,7 @@ bool App::navigationAction(const std::string &a) {
     else if(a=="X"&&!core){auto next=store.data;auto &favorites=next["favorites"];auto found=std::find(favorites.begin(),favorites.end(),game.id);if(found==favorites.end())favorites.push_back(game.id);else favorites.erase(found);persist(next);}
     return true;
   }
+  if(screen==Screen::BackupSelectGames)return false;
   // Editors and dialogs retain their service-specific cancellation handlers.
   // Their parent snapshots are restored by action() only after a real transition.
   if(!library&&screen!=Screen::Search) {
@@ -196,6 +198,16 @@ bool App::navigationAction(const std::string &a) {
   return false;
 }
 void App::action(const std::string &a) {
+  if(screen==Screen::RemovalBusy)return;
+  if(removalRoute()&&a!="SCREENSHOT"&&a!="SLEEP"&&a!="VOLUME_UP"&&a!="VOLUME_DOWN") {
+    if(!restoreInputFence&&!stop&&!activity())removalAction(a);
+    return;
+  }
+  if(screen==Screen::GalleryDeleting)return;
+  if(galleryRoute()&&a!="SCREENSHOT"&&a!="SLEEP"&&a!="VOLUME_UP"&&a!="VOLUME_DOWN") {
+    if(!restoreInputFence&&!stop&&!activity())galleryAction(a);
+    return;
+  }
   if(restoreInputFence)return;
   if(storageRoute()) {
     try{actionImpl(a);}catch(const StorageError &e){storageError=e.code;}catch(const std::exception &e){notice=locale.tr("error.operation");std::cerr<<e.what()<<"\n";}
@@ -226,6 +238,7 @@ void App::action(const std::string &a) {
   navigation.push_back(before);navigationActions=false;systemsQuick=gamesQuick=false;++navigationRevision;
 }
 void App::navigationDraw() {
+  if(galleryRoute()||removalRoute())return;
   if(screen==Screen::ProgressBusy||screen==Screen::ProgressSources||screen==Screen::ProgressConfirm||screen==Screen::ProgressDone)return;
   if(screen==Screen::BackupBusy||screen==Screen::BackupRestart)return;
   if(infoOpen||(screen==Screen::SystemInfo&&systemInfoSource)||screen==Screen::GameDetails||screen==Screen::Running||screen==Screen::GameMenu||screen==Screen::InputTest||screen==Screen::ScreenshotCapture||screen==Screen::SystemProgress||screen==Screen::SavingAutomatic)return;

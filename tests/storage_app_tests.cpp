@@ -23,16 +23,30 @@ int main(int argc,char **argv){
  atomicWrite(original.gameDir(game)/"sram.bin",std::vector<uint8_t>(8192,7));rememberProgress(paths,game,volumes,fingerprint);
  StateFile state;state.meta={{"core",fakeCore},{"rom",hashFile(game.path)},{"utc",10},{"save_sequence",1},{"preview_width",0},{"preview_height",0}};state.payload={1,2};writeState(original.gameDir(game)/"slot-0.state",state);
  atomicWrite(paths.category("bios")/"PSX/user.bin",{2});
- for(const auto *category:{"saves","bios","backups","logs","cache"})layout->copyCategory(category,"TF2",true);
+ for(const auto *category:{"saves","bios","logs","cache"})layout->copyCategory(category,"TF2",true);
  auto pristine=readBytes(two/"RondoState/games"/game.id/"sram.bin");
  // Retained TF1 originals are deliberately different: they must not be selected.
  atomicWrite(one/"RondoState/games"/game.id/"sram.bin",{99});
  Store routed(paths);assert(routed.gameDir(game)==two/"RondoState/games"/game.id);assert(hasProgress(paths,game.id));
- BackupContext context{"0.14.1",{fakeCore}};auto backup=createBackup(paths,context);assert(backup.parent_path()==two/"RondoState/Backups");
+ BackupContext context{"0.14.1",{fakeCore}};
+ // Settings-only backup uses TF1 even when the save category is on missing TF2.
+ auto settingsContext=context;settingsContext.selectedGames=std::set<std::string>{};
+ auto absentForBackup=cards.back();cards.pop_back();
+ auto settingsBackup=createBackup(paths,settingsContext);
+ assert(backupGames(settingsBackup).empty()&&settingsBackup.parent_path()==one/"RondoState/Backups");
+ cards.push_back(absentForBackup);deleteBackup(paths,settingsBackup);
+ layout->copyCategory("backups","TF2",true);
+ auto backup=createBackup(paths,context);assert(backup.parent_path()==two/"RondoState/Backups");
  assert(readBytes(backup/"data/games"/game.id/"sram.bin")==pristine);
  atomicWrite(routed.gameDir(game)/"sram.bin",{4});auto next=routed.data;next["locale"]="ru";routed.commit(next);
  restoreBackup(paths,backup,context);assert(readBytes(routed.gameDir(game)/"sram.bin")==pristine);assert(Store(paths).data["locale"]=="en");
  assert(readBytes(one/"RondoState/games"/game.id/"sram.bin")==std::vector<uint8_t>{99});
+ auto selected=context;selected.selectedGames=std::set<std::string>{game.id};
+ auto candidatesForBackup=backupAvailableGames(paths,{game});
+ assert(candidatesForBackup.size()==1&&candidatesForBackup[0]["id"]==game.id);
+ auto selectedBackup=createBackup(paths,selected);
+ assert(readBytes(selectedBackup/"data/games"/game.id/"sram.bin")==pristine);
+ deleteBackup(paths,selectedBackup);
  assert(backupFolders(paths).size()==1);deleteBackup(paths,backup);assert(backupFolders(paths).empty());
  // Relinking updates TF1 settings and TF2 progress in a single rollback transaction.
  auto moved=game.path.parent_path()/"renamed.nes";fs::rename(game.path,moved);auto library=scan(volumes);auto target=library.at(0);

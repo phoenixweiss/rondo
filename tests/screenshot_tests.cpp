@@ -9,6 +9,142 @@
 using namespace rondo;
 static void finish(App &a){for(int i=0;i<5000&&a.screenshotWriter.busy();++i){a.screenshotTick();SDL_Delay(1);}assert(!a.screenshotWriter.busy());}
 static std::vector<fs::path> images(const fs::path &root){std::vector<fs::path> out;if(fs::exists(root))for(const auto &p:fs::recursive_directory_iterator(root))if(p.path().extension()==".png")out.push_back(p.path());return out;}
+static void galleryChecks(const Options &base,const fs::path &work) {
+  auto options=base;
+  options.state=work/"gallery-state";
+  options.output=work/"gallery-renders";
+  Store config(options.state);config.commit(config.data);
+  auto root=options.state/"Screenshots";
+  auto emptyRoot=work/"no-gallery";
+  assert(screenshotGroups(StatePaths(emptyRoot)).empty()&&!fs::exists(emptyRoot));
+  ScreenshotWriter writer;
+  std::vector<uint32_t> pixels(900*600,0xff547789);
+  Game game{"gallery-one","TF1","NES","Battle City",{}};
+  auto write=[&](bool interface) {
+    bool submitted=interface?writer.submitInterface(root,pixels,900,600,"2026-11-14_20-30-00"):
+                             writer.submit(root,game,pixels,900,600,"2026-11-14_20-31-00");
+    assert(submitted);
+    std::optional<fs::path> result;
+    for(int i=0;i<5000&&!result;++i){result=writer.poll();if(!result)SDL_Delay(1);}
+    assert(result);return *result;
+  };
+  write(true);auto original=write(false);
+  for(int i=0;i<8;++i)
+    fs::copy_file(original,original.parent_path()/("2026-11-14_21-0"+std::to_string(i)+"-00.png"));
+  auto legacy=root/"Battle City-legacy/capture.PNG";
+  fs::create_directories(legacy.parent_path());fs::copy_file(original,legacy);
+  auto outside=work/"outside.png";fs::copy_file(original,outside);
+  fs::create_symlink(outside,root/"linked.png");
+  fs::create_directory_symlink(legacy.parent_path(),root/"linked-folder");
+  atomicWrite(original.parent_path()/".keep",{7});
+  auto groups=screenshotGroups(options.paths());
+  assert(groups.size()==3);
+  auto image=loadGalleryImage(options.paths(),groups[0].files[0]);
+  assert(image.width==900&&image.height==600&&image.rgba.size()==900*600*4);
+  auto candidate=groups[0].files[0];
+  auto escape=candidate;escape.relative="../../outside.png";
+  bool escaped=false;
+  try{deleteGalleryImage(options.paths(),escape);}catch(const std::exception &){escaped=true;}
+  assert(escaped&&fs::exists(outside));
+  auto linked=candidate;linked.relative="linked.png";
+  escaped=false;
+  try{deleteGalleryImage(options.paths(),linked);}catch(const std::exception &){escaped=true;}
+  assert(escaped&&fs::exists(outside));
+  atomicWrite(candidate.root/candidate.relative,{0});
+  bool rejected=false;
+  try{deleteGalleryImage(options.paths(),candidate);}catch(const GalleryError &e){rejected=std::string(e.what())=="gallery.changed";}
+  assert(rejected&&fs::exists(candidate.root/candidate.relative));
+  groups=screenshotGroups(options.paths());
+  auto damaged=groups[0].files[0];
+  rejected=false;
+  try{loadGalleryImage(options.paths(),damaged);}catch(const GalleryError &e){rejected=std::string(e.what())=="gallery.image_error";}
+  assert(rejected);deleteGalleryImage(options.paths(),damaged);
+  assert(fs::exists(original.parent_path()/".keep")&&fs::exists(outside));
+
+  // Split-card guards recheck the current destination before deletion.
+  groups=screenshotGroups(options.paths());candidate=groups[0].files[0];
+  auto routed=options.paths();bool readOnly=false,moved=false;
+  routed.resolve=[&](const std::string &category,bool writing) {
+    if(category=="screenshots") {
+      if(writing&&readOnly)throw StorageError("storage.readonly");
+      return moved?work/"other-card/Screenshots":root;
+    }
+    return options.state;
+  };
+  readOnly=true;rejected=false;
+  try{deleteGalleryImage(routed,candidate);}catch(const StorageError &){rejected=true;}
+  assert(rejected&&fs::exists(candidate.root/candidate.relative));
+  readOnly=false;moved=true;rejected=false;
+  try{deleteGalleryImage(routed,candidate);}catch(const GalleryError &){rejected=true;}
+  assert(rejected&&fs::exists(candidate.root/candidate.relative));
+
+  App app(options);
+  auto wait=[&] {
+    for(int i=0;i<5000&&(app.galleryScan.valid()||app.galleryLoad.valid()||app.galleryRemoval.valid());++i) {
+      app.ticks(0);SDL_Delay(1);
+    }
+    assert(!app.galleryScan.valid()&&!app.galleryLoad.valid()&&!app.galleryRemoval.valid());
+  };
+  // Enter through the public settings path, without substituting the route or row.
+  app.action("MENU");assert(app.screen==Screen::Settings);
+  app.action("A");assert(app.screen==Screen::SettingsSection);
+  for(int i=0;i<4;++i)app.action("DOWN");
+  app.action("A");assert(app.screen==Screen::ScreenshotSettings);
+  for(int i=0;i<3;++i)app.action("DOWN");
+  assert(app.screenshotWriter.submitInterface(root,{0xff111111},1,1,"busy-probe"));
+  app.action("A");assert(app.screen==Screen::ScreenshotSettings&&!app.notice.empty());
+  finish(app);
+  app.action("A");assert(app.screen==Screen::GalleryGroups);wait();
+  assert(app.galleryGroups.size()==3);
+  for(const auto *language:{"en","ru"}) {
+    app.locale.select(options.assets,language);app.capture(std::string("gallery-groups-")+language);
+  }
+  while(app.galleryGroups[app.galleryGroup].title!="Battle City")app.action("DOWN");
+  app.action("A");assert(app.screen==Screen::GalleryImages);
+  for(int i=0;i<80;++i){app.draw();SDL_Delay(5);}
+  for(const auto *language:{"en","ru"}) {
+    app.locale.select(options.assets,language);app.capture(std::string("gallery-images-")+language);
+  }
+  app.action("R1");assert(app.galleryIndex==4);app.action("L1");assert(app.galleryIndex==0);
+  app.action("UP");assert(app.screen==Screen::GalleryImages&&!app.navigationActions);
+  app.action("A");wait();assert(app.screen==Screen::GalleryView&&app.galleryTexture);
+  app.capture("gallery-fit-ru");
+  app.action("A");assert(app.galleryActualSize);
+  app.action("RIGHT");app.action("DOWN");assert(app.galleryPanX>0&&app.galleryPanY>0);
+  app.capture("gallery-actual-ru");
+  app.action("R1");assert(app.galleryLoad.valid());
+  app.action("X");assert(app.screen==Screen::GalleryDelete&&app.row==0);
+  wait();assert(app.galleryIndex==1&&app.galleryActualSize&&app.galleryTexture);
+  auto chosen=app.galleryDeletingFile;
+  for(const auto *language:{"en","ru"}) {
+    app.locale.select(options.assets,language);app.capture(std::string("gallery-delete-")+language);
+  }
+  app.action("A");assert(app.screen==Screen::GalleryView&&fs::exists(chosen.root/chosen.relative));
+  app.action("X");app.action("DOWN");app.action("A");assert(app.screen==Screen::GalleryDeleting);
+  app.action("B");assert(app.screen==Screen::GalleryDeleting);
+  wait();assert(app.screen==Screen::GalleryImages&&!fs::exists(chosen.root/chosen.relative));
+  assert(fs::exists(original.parent_path()/".keep")&&fs::exists(original.parent_path()/".game-id"));
+  app.action("B");assert(app.screen==Screen::GalleryGroups);
+  app.action("B");assert(app.screen==Screen::ScreenshotSettings&&app.row==3);
+  assert(fs::exists(outside));
+  // Existing empty directories and damaged PNGs remain manageable.
+  for(const auto &group:screenshotGroups(options.paths()))
+    for(const auto &file:group.files)deleteGalleryImage(options.paths(),file);
+  assert(fs::is_directory(legacy.parent_path()));
+  app.action("A");assert(app.screen==Screen::GalleryGroups);wait();
+  assert(app.galleryGroups.empty());
+  for(const auto *language:{"en","ru"}) {
+    app.locale.select(options.assets,language);app.capture(std::string("gallery-empty-")+language);
+  }
+  auto saved=root.parent_path()/"saved-screenshots";
+  fs::rename(root,saved);fs::create_directory_symlink(saved,root);
+  app.action("Y");wait();assert(!app.galleryError.empty());
+  app.capture("gallery-unavailable-ru");
+  fs::remove(root);fs::rename(saved,root);
+  app.action("Y");wait();assert(app.galleryError.empty()&&app.galleryGroups.empty());
+  app.action("B");assert(app.screen==Screen::ScreenshotSettings);
+  std::cout<<"PASS: gallery legacy groups, no linked files, corrupt/replaced/read-only/card guards, public settings navigation, thumbnails, paging, 1:1 pan, cancellation and confirmed single-file deletion.\n";
+}
 int main(int argc,char **argv) {
   assert(argc==4||argc==5);SDL_setenv("SDL_VIDEODRIVER","dummy",1);SDL_setenv("SDL_AUDIODRIVER","dummy",1);
   fs::path work=argv[2];fs::create_directories(work);auto root=work/"state";
@@ -162,5 +298,6 @@ int main(int argc,char **argv) {
     Game psx{"private-psx-capture","TF1","PSX","Display aspect check",{}};ScreenshotWriter exportWriter;assert(exportWriter.submit(work/"corrected-psx",psx,input,w,h,"test",4.0/3));
     std::optional<fs::path> file;for(int i=0;i<5000&&!file;++i){file=exportWriter.poll();if(!file)SDL_Delay(1);}assert(file);fs::copy_file(*file,work/"psx-corrected.png");
   }
+  galleryChecks(o,work);
   std::cout<<"PASS: raw PNG colors/dimensions, unique paths, no repeat/input leak, menu pause, presets/custom/persistence, rejected writes, EN/RU renders, asynchronous errors.\n";
 }

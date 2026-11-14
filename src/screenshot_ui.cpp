@@ -12,7 +12,7 @@ static const std::vector<std::string> shortcuts{"sticks","triggers","select_r1",
 void App::takeScreenshot(bool gameFrameOnly) {
   if(screen==Screen::StorageBusy||screen==Screen::StorageStop)return;
   if(screen==Screen::ProgressBusy||screen==Screen::ProgressDone)return;
-  if(screen==Screen::BackupBusy||screen==Screen::BackupRestart)return;
+  if(screen==Screen::BackupBusy||screen==Screen::BackupRestart||screen==Screen::GalleryDeleting||screen==Screen::RemovalBusy)return;
   if(stop||sleeping||screenBlank||screen==Screen::InputTest||screen==Screen::ScreenshotCapture||screen==Screen::SystemProgress||screen==Screen::SavingAutomatic)return;
   try {
     if(!screenshotWriter.busy()) {
@@ -61,13 +61,15 @@ void App::screenshotDraw() {
 }
 void App::screenshotAction(const std::string &a) {
   if(a=="B"){screen=Screen::SettingsSection;category=0;row=4;return;}
-  if(a=="UP")row=std::max(0,row-1);if(a=="DOWN")row=std::min(2,row+1);
+  if(a=="UP")row=std::max(0,row-1);if(a=="DOWN")row=std::min(3,row+1);
   if(row==0&&(a=="LEFT"||a=="RIGHT"||a=="A")) {
     auto next=store.data;auto current=next.value("screenshot_shortcut","sticks");
     size_t i=std::find(shortcuts.begin(),shortcuts.end(),current)-shortcuts.begin();
     next["screenshot_shortcut"]=shortcuts[(i+(a=="LEFT"?shortcuts.size()-1:1))%shortcuts.size()];persist(next);screenshotKeys.reset();
   } else if(row==2&&(a=="A"||a=="LEFT"||a=="RIGHT")) {
     auto next=store.data;next["screenshot_sound"]=a=="LEFT"?false:a=="RIGHT"?true:!next.value("screenshot_sound",true);persist(next);
+  } else if(row==3&&a=="A") {
+    galleryOpen();
   } else if(row==1&&a=="A") {
     screenshotRecordingArmed=false;screenshotRecording=0;screen=Screen::ScreenshotCapture;notice.clear();
   }
@@ -96,8 +98,8 @@ void App::screenshotSettingsDraw(const std::string &zone) {
   ui->valueRow(locale.tr("screenshot.shortcut"),128,row==0,672,label);
   ui->row(locale.tr("screenshot.custom"),182,row==1,672,"",true,52,"chevron-right");
   ui->binaryRow(locale.tr("screenshot.sound"),236,row==2,store.data.value("screenshot_sound",true),locale);
-  ui->text(locale.tr(ui->keyboardHints?"screenshot.interface_keyboard":"screenshot.interface_pad"),32,302,22,400,ui->cream,656);
-  ui->text(locale.tr("screenshot.folder"),32,346,22,400,ui->secondary,656);
+  ui->row(locale.tr("gallery.title"),290,row==3,672,"",true,52,"chevron-right","camera");
+  ui->text(locale.tr(ui->keyboardHints?"screenshot.interface_keyboard":"screenshot.interface_pad"),32,356,22,400,ui->cream,656);
   ui->hints({{"LEFT/RIGHT",locale.tr("footer.value")},{"A",locale.tr("action.select")},{"B",locale.tr("action.back")}});
 }
 } // namespace rondo

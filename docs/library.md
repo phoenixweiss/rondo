@@ -44,7 +44,7 @@ launched through search restores the results and selection.
 system layout. Left/Right no longer changes artwork while browsing a list.
 **L1/R1** changes pages in both lists and tiles. **L2/R2** additionally switches
 List/Tiles while retaining the selected game and image type. **X** changes
-Favorites. **Y** opens Game info for the selected game; it is also available from the pause menu. The showcase displays local artwork, title, system and recorded statistics. Missing statistics remain unknown.
+Favorites. **Y** opens Game info for the selected game; it is also available from the pause menu. The showcase displays local artwork, title, system and recorded statistics. Missing statistics remain unknown. Outside a running game, **MENU** opens [Files](game-files.md): review and delete the game or find existing progress. **Y** on Game info remains a shortcut to progress lookup.
 
 Search includes known recent games on an unavailable card while retaining their
 unavailable status. Queries are session-only. Confirmed view/theme settings

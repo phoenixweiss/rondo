@@ -4,8 +4,192 @@
 #include "stb_image_write.h"
 #include <cassert>
 #include <iostream>
+#include <fstream>
 using namespace rondo;
 struct MenuSleep:DeviceControl {int count=0;bool canSleep()const override{return true;}std::optional<bool> lidOpen()override{return true;}void sleep(bool,bool)override{++count;}};
+static void removalChecks(const Options &base,const fs::path &work) {
+  auto root=work/"removal";Options o=base;o.state=root/"state";o.output=root/"renders";
+  o.volumes={{"TF1",root/"roms"},{"TF2",root/"roms2"}};
+  auto folder=o.volumes[0].root/"NES"/"Same folder";fs::create_directories(folder);
+  for(const auto *name:{"one.nes","two.nes","cover.png","note.txt","scph5501.bin"})atomicWrite(folder/name,{1,2,3});
+  auto psx=o.volumes[0].root/"PSX"/"Discs";fs::create_directories(psx);
+  atomicWrite(psx/"shared.chd",{4});atomicWrite(psx/"own.chd",{5});
+  auto text=[](const std::string &s){return std::vector<uint8_t>(s.begin(),s.end());};
+  atomicWrite(psx/"first.m3u",text("shared.chd\nown.chd\n"));
+  atomicWrite(psx/"second.m3u",text("shared.chd\n"));
+  atomicWrite(o.volumes[1].root/"NES"/"other.nes",{9});
+  auto library=scan(o.volumes);auto game=*std::find_if(library.begin(),library.end(),[](const Game &g){return g.path.filename()=="one.nes";});
+  auto first=*std::find_if(library.begin(),library.end(),[](const Game &g){return g.path.filename()=="first.m3u";});
+  Store store(o.state);auto document=store.data;
+  document["favorites"]=Json::array({game.id});document["recent_games"]=recentAfterLaunch(Json::array(),game,o.volumes);
+  document["game_options"][game.id]={{"integer_scaling",true}};document["resume_game"]=game.id;
+  store.commit(document);
+  auto saves=store.gameDir(game);
+  for(const auto *name:{"sram.bin","rtc.bin.previous","slot-0.state","autosave.state.previous","statistics.json","identity.json","unknown.dat"})atomicWrite(saves/name,{6});
+  auto shots=o.state/"Screenshots"/"NES"/"Same folder";
+  atomicWrite(shots/".game-id",text(hashBytes({game.id.begin(),game.id.end()})+"\n"));
+  atomicWrite(shots/"capture.png",{7});atomicWrite(shots/"unrelated.txt",{8});
+  atomicWrite(o.state/"Screenshots"/"legacy"/"capture.png",{8});
+  auto outside=root/"outside.chd";atomicWrite(outside,{9});fs::create_symlink(outside,folder/"linked.chd");
+  atomicWrite(o.state/"Backups"/"keep"/"data.bin",{3});atomicWrite(o.state/"BIOS"/"keep.bin",{4});
+  auto snapshot=[&] {
+    std::map<std::string,std::string> result;
+    for(auto it=fs::recursive_directory_iterator(root);it!=fs::recursive_directory_iterator();++it) {
+      if(it->path()==o.output||it->path()==o.state/"Cache"){it.disable_recursion_pending();continue;}
+      if(!it->is_symlink()&&it->is_regular_file())result[it->path().string()]=hashFile(it->path());
+    }
+    return result;
+  };
+  auto before=snapshot();
+  auto preview=previewRemoval(game,library,o.volumes,o.paths(),document);
+  auto entry=[&](const RemovalPreview &plan,const fs::path &path)->const RemovalEntry&{auto found=std::find_if(plan.entries.begin(),plan.entries.end(),[&](const auto &e){return e.path==path;});assert(found!=plan.entries.end());return *found;};
+  assert(entry(preview,game.path).category==RemovalCategory::Rom);
+  assert(entry(preview,folder/"cover.png").reason=="removal.shared");
+  assert(entry(preview,folder/"two.nes").category==RemovalCategory::Kept);
+  assert(entry(preview,folder/"scph5501.bin").category==RemovalCategory::Kept);
+  assert(entry(preview,saves/"sram.bin").category==RemovalCategory::Memory);
+  assert(entry(preview,saves/"rtc.bin.previous").category==RemovalCategory::Memory);
+  assert(entry(preview,saves/"autosave.state.previous").category==RemovalCategory::Slots);
+  assert(entry(preview,saves/"statistics.json").category==RemovalCategory::Statistics);
+  assert(entry(preview,saves/"identity.json").category==RemovalCategory::Kept);
+  assert(entry(preview,shots/"capture.png").category==RemovalCategory::Screenshots);
+  assert(std::count_if(preview.entries.begin(),preview.entries.end(),[](const auto &e){return e.category==RemovalCategory::Library;})==4);
+  assert(std::none_of(preview.entries.begin(),preview.entries.end(),[&](const auto &e){return e.path==outside||e.path==shots/"unrelated.txt"||e.path==o.state/"Screenshots/legacy/capture.png";}));
+  auto discs=previewRemoval(first,library,o.volumes,o.paths(),document);
+  assert(entry(discs,psx/"shared.chd").reason=="removal.shared");
+  assert(entry(discs,psx/"own.chd").category==RemovalCategory::Rom);
+  atomicWrite(psx/"broken.m3u",text("missing.chd"));
+  discs=previewRemoval(first,library,o.volumes,o.paths(),document);
+  assert(entry(discs,psx/"own.chd").reason=="removal.uncertain");
+  fs::remove(psx/"broken.m3u");
+  auto routed=o.paths();routed.resolve=[&](const std::string &category,bool writing)->fs::path {assert(!writing);if(category=="screenshots")throw StorageError("storage.missing");return category=="config"?o.state:o.paths().category(category);};
+  auto missing=previewRemoval(game,library,o.volumes,routed,document);
+  assert(std::find(missing.warnings.begin(),missing.warnings.end(),"removal.screenshots_unavailable")!=missing.warnings.end());
+  assert(snapshot()==before);
+  // Reach the preview via public library input, including immediate A and B.
+  fs::remove(folder/"linked.chd");
+  App app(o);for(int i=0;i<20&&app.games[app.visible()[app.selected]].id!=game.id;++i)app.action("DOWN");
+  assert(app.games[app.visible()[app.selected]].id==game.id);
+  auto beforeUi=snapshot();
+  app.action("Y");assert(app.screen==Screen::GameDetails);
+  for(auto language:{"en","ru"}){app.locale.select(o.assets,language);app.capture(std::string("removal-entry-")+language);}
+  app.action("MENU");assert(app.screen==Screen::GameFiles);app.action("A");assert(app.screen==Screen::RemovalReview&&app.removalScan.valid());
+  app.action("A");assert(app.screen==Screen::RemovalReview);app.action("B");assert(app.screen==Screen::GameFiles);app.action("B");assert(app.screen==Screen::GameDetails);
+  for(int i=0;i<5000&&app.removalScan.valid();++i){app.ticks(0);SDL_Delay(1);}assert(!app.removalScan.valid());
+  app.action("MENU");app.action("A");for(int i=0;i<5000&&app.removalScan.valid();++i){app.ticks(0);SDL_Delay(1);}assert(!app.removalScan.valid());
+  for(int i=1;i<8;++i)assert(!app.removalChoices[i]);
+  for(auto language:{"en","ru"}){app.locale.select(o.assets,language);app.capture(std::string("removal-review-")+language);}
+  app.action("UP");assert(app.screen==Screen::RemovalReview&&app.removalCategory==0&&!app.navigationActions);
+  app.action("A");assert(app.screen==Screen::RemovalFiles);app.action("UP");assert(app.removalIndex==0);
+  app.capture("removal-rom-ru");app.action("A");assert(app.screen==Screen::RemovalPath);app.capture("removal-path-ru");app.action("B");app.action("B");
+  app.action("DOWN");app.action("DOWN");assert(app.removalCategory==2);app.action("X");assert(app.removalChoices[2]);
+  for(int i=0;i<5;++i)app.action("DOWN");assert(app.removalCategory==7);
+  app.capture("removal-kept-category-ru");app.action("X");assert(!app.removalChoices[7]);app.action("A");app.capture("removal-kept-files-ru");
+  app.action("R1");app.action("UP");assert(app.screen==Screen::RemovalFiles);
+  app.action("B");app.action("B");app.action("B");assert(app.screen==Screen::GameDetails);
+  app.action("MENU");
+  for(auto language:{"en","ru"}){app.locale.select(o.assets,language);app.capture(std::string("removal-menu-")+language);}
+  app.action("DOWN");app.action("A");assert(app.screen==Screen::ProgressBusy);
+  for(int i=0;i<5000&&app.screen==Screen::ProgressBusy;++i){app.ticks(0);SDL_Delay(1);}
+  assert(app.screen==Screen::ProgressSources);app.action("B");assert(app.screen==Screen::GameFiles&&app.row==1);app.action("B");
+  assert(snapshot()==beforeUi);
+  std::cout<<"PASS: read-only removal preview, shared CHD/artwork, unknown files and BIOS kept, split storage failures, record-level preferences, default selection and public navigation.\n";
+}
+static void removalExecutionChecks(const Options &base,const fs::path &work) {
+  auto root=work/"execution";
+  struct Fixture {Options options;Game game;std::vector<Game> games;Json preferences;fs::path folder,saves,shots;};
+  auto fixture=[&](const std::string &name) {
+    Fixture f;f.options=base;auto dir=root/name;f.options.state=dir/"state";f.options.output=dir/"renders";
+    f.options.volumes={{"TF1",dir/"roms"}};f.folder=dir/"roms/NES/One";
+    atomicWrite(f.folder/"game.nes",{1,2,3});atomicWrite(f.folder/"cover.png",{4,5});atomicWrite(f.folder/"note.txt",{6});
+    atomicWrite(dir/"roms/NES/Other/other.nes",{7});f.games=scan(f.options.volumes);
+    f.game=*std::find_if(f.games.begin(),f.games.end(),[&](const auto &g){return g.path==f.folder/"game.nes";});
+    Store settings(f.options.state);auto data=settings.data;data["favorites"]=Json::array({f.game.id,f.games[0].id});
+    data["recent_games"]=recentAfterLaunch(Json::array(),f.game,f.options.volumes);data["game_options"][f.game.id]={{"integer_scaling",true}};
+    settings.commit(data);f.preferences=settings.data;f.saves=settings.gameDir(f.game);
+    for(const auto *file:{"sram.bin","rtc.bin.previous","slot-0.state","autosave.state.previous","statistics.json","identity.json"})atomicWrite(f.saves/file,{8});
+    f.shots=f.options.state/"Screenshots/NES/One";auto owner=hashBytes({f.game.id.begin(),f.game.id.end()})+"\n";
+    atomicWrite(f.shots/".game-id",{owner.begin(),owner.end()});atomicWrite(f.shots/"shot.png",{9});atomicWrite(f.shots/"keep.txt",{10});
+    atomicWrite(f.options.state/"BIOS/scph5501.bin",{11});atomicWrite(f.options.state/"Backups/keep/data.bin",{12});
+    return f;
+  };
+  auto preview=[&](const Fixture &f){return previewRemoval(f.game,f.games,f.options.volumes,f.options.paths(),Store(f.options.state).data);};
+  RemovalChoices defaults{};defaults[0]=true;auto all=defaults;for(size_t i=1;i<7;++i)all[i]=true;
+  auto first=fixture("default");auto plan=preview(first);
+  auto result=executeRemoval(first.game,first.options.volumes,first.options.paths(),plan,defaults);
+  assert(result.completed&&result.removed==1&&result.bytes==3&&!fs::exists(first.game.path));
+  assert(fs::exists(first.folder/"cover.png")&&fs::exists(first.saves/"sram.bin")&&fs::exists(first.shots/"shot.png"));
+  assert(Store(first.options.state).data==first.preferences&&fs::exists(result.receipt));
+  auto complete=fixture("all");result=executeRemoval(complete.game,complete.options.volumes,complete.options.paths(),preview(complete),all);
+  assert(result.completed&&result.recordsApplied&&!fs::exists(complete.folder/"cover.png")&&!fs::exists(complete.saves/"sram.bin")&&!fs::exists(complete.shots/"shot.png"));
+  assert(fs::exists(complete.folder/"note.txt")&&fs::exists(complete.saves/"identity.json")&&fs::exists(complete.shots/".game-id")&&fs::exists(complete.shots/"keep.txt"));
+  assert(fs::exists(complete.options.state/"BIOS/scph5501.bin")&&fs::exists(complete.options.state/"Backups/keep/data.bin"));
+  auto restored=Store(complete.options.state).data;
+  assert(std::find(restored["favorites"].begin(),restored["favorites"].end(),Json(complete.game.id))==restored["favorites"].end());
+  assert(restored["recent_games"].empty()&&!restored["game_options"].contains(complete.game.id));
+  auto changed=fixture("changed");plan=preview(changed);atomicWrite(changed.game.path,{20,21});
+  result=executeRemoval(changed.game,changed.options.volumes,changed.options.paths(),plan,all);
+  assert(!result.completed&&!result.removed&&result.error=="removal.changed"&&result.receipt.empty()&&fs::exists(changed.saves/"sram.bin"));
+  auto readonly=fixture("readonly");auto paths=readonly.options.paths();auto plain=paths;
+  paths.resolve=[plain](const std::string &category,bool writing) {if(category=="saves"&&writing)throw StorageError("storage.readonly");return category=="config"?plain.config:plain.category(category);};
+  plan=previewRemoval(readonly.game,readonly.games,readonly.options.volumes,paths,readonly.preferences);
+  result=executeRemoval(readonly.game,readonly.options.volumes,paths,plan,all);
+  assert(!result.removed&&!result.completed&&result.error=="storage.readonly"&&fs::exists(readonly.game.path));
+  auto replaced=fixture("replaced");plan=preview(replaced);auto volume=replaced.options.volumes[0].root;
+  fs::rename(volume,volume.parent_path()/"old-card");atomicWrite(replaced.game.path,{1,2,3});
+  result=executeRemoval(replaced.game,replaced.options.volumes,replaced.options.paths(),plan,defaults);
+  assert(!result.removed&&!result.completed&&result.error=="removal.changed"&&fs::exists(replaced.game.path));
+  auto config=fixture("config");plan=preview(config);Store authority(config.options.state);auto next=authority.data;next["volume"]=35;authority.commit(next);
+  result=executeRemoval(config.game,config.options.volumes,config.options.paths(),plan,defaults);
+  assert(!result.removed&&!result.completed&&result.error=="removal.changed"&&Store(config.options.state).data["volume"]==35);
+  auto partial=fixture("partial");plan=preview(partial);auto media=defaults;media[1]=media[2]=true;
+  result=executeRemoval(partial.game,partial.options.volumes,partial.options.paths(),plan,media,[&](size_t removed){if(removed==1)atomicWrite(partial.folder/"cover.png",{30});});
+  assert(!result.completed&&result.removed==1&&result.error=="removal.changed"&&!fs::exists(partial.game.path));
+  assert(readBytes(partial.folder/"cover.png")==std::vector<uint8_t>{30}&&fs::exists(partial.saves/"sram.bin")&&fs::exists(result.receipt));
+  std::ifstream receipt(result.receipt);std::string line;std::vector<Json> events;while(std::getline(receipt,line))events.push_back(Json::parse(line));
+  assert(events.front()["event"]=="started"&&events.back()["event"]=="stopped"&&events.back()["removed"]==1);
+  auto parent=fixture("parent");plan=preview(parent);bool swapped=false;
+  result=executeRemoval(parent.game,parent.options.volumes,parent.options.paths(),plan,defaults,[&](size_t) {
+    if(!swapped){swapped=true;fs::rename(parent.folder,parent.folder.parent_path()/"original");atomicWrite(parent.game.path,{1,2,3});}
+  });
+  assert(!result.completed&&!result.removed&&result.error=="removal.changed"&&fs::exists(parent.game.path)&&fs::exists(parent.folder.parent_path()/"original/game.nes"));
+  auto badChoice=defaults;badChoice[7]=true;
+  result=executeRemoval(changed.game,changed.options.volumes,changed.options.paths(),preview(changed),badChoice);
+  assert(!result.completed&&!result.removed&&fs::exists(changed.game.path));
+  auto noJournal=fixture("no-journal");plan=preview(noJournal);atomicWrite(noJournal.options.state/"Operations",{1});
+  result=executeRemoval(noJournal.game,noJournal.options.volumes,noJournal.options.paths(),plan,defaults);
+  assert(!result.completed&&!result.removed&&fs::exists(noJournal.game.path));
+  // A fresh M3U can change ownership after review. Nothing may be deleted then.
+  auto psx=fixture("psx");auto dir=psx.options.volumes[0].root/"PSX/Discs";
+  atomicWrite(dir/"shared.chd",{1});atomicWrite(dir/"private.chd",{2});
+  auto writeText=[](const fs::path &p,const std::string &v){atomicWrite(p,{v.begin(),v.end()});};
+  writeText(dir/"first.m3u","shared.chd\nprivate.chd\n");writeText(dir/"second.m3u","shared.chd\n");
+  psx.games=scan(psx.options.volumes);psx.game=*std::find_if(psx.games.begin(),psx.games.end(),[&](const auto &g){return g.path==dir/"first.m3u";});
+  plan=preview(psx);writeText(dir/"new.m3u","private.chd\n");
+  result=executeRemoval(psx.game,psx.options.volumes,psx.options.paths(),plan,defaults);
+  assert(!result.removed&&fs::exists(dir/"private.chd"));fs::remove(dir/"new.m3u");
+  result=executeRemoval(psx.game,psx.options.volumes,psx.options.paths(),preview(psx),defaults);
+  assert(result.completed&&!fs::exists(dir/"first.m3u")&&!fs::exists(dir/"private.chd")&&fs::exists(dir/"shared.chd")&&fs::exists(dir/"second.m3u"));
+  // Full UI path, cancel as the default, changed-file refusal, then refresh/retry.
+  auto ui=fixture("ui");App app(ui.options);
+  while(app.games[app.visible()[app.selected]].id!=ui.game.id)app.action("DOWN");
+  app.action("Y");app.action("MENU");app.action("A");
+  auto wait=[&] {for(int i=0;i<5000&&(app.removalScan.valid()||app.removalJob.valid());++i){app.ticks(0);SDL_Delay(1);}assert(!app.removalScan.valid()&&!app.removalJob.valid());};wait();
+  app.action("START");assert(app.screen==Screen::RemovalConfirm&&app.row==0);
+  for(const auto *language:{"en","ru"}){app.locale.select(ui.options.assets,language);app.capture(std::string("removal-confirm-")+language);}
+  app.action("A");assert(app.screen==Screen::RemovalReview&&fs::exists(ui.game.path));
+  app.action("START");app.action("B");assert(app.screen==Screen::RemovalReview);
+  app.action("START");atomicWrite(ui.game.path,{40});app.action("DOWN");app.action("A");assert(app.screen==Screen::RemovalBusy);
+  app.action("B");app.action("SLEEP");app.action("SCREENSHOT");assert(app.screen==Screen::RemovalBusy&&!app.screenshotWriter.busy());wait();
+  assert(app.screen==Screen::RemovalResult&&!app.removalResult.completed&&!app.removalResult.removed&&fs::exists(ui.game.path));app.capture("removal-changed-ru");
+  app.action("A");assert(app.screen==Screen::RemovalReview);wait();app.action("START");assert(app.row==0);app.action("DOWN");app.action("A");app.capture("removal-busy-ru");wait();
+  assert(app.screen==Screen::RemovalResult&&app.removalResult.completed&&!fs::exists(ui.game.path));
+  assert(fs::exists(ui.saves/"sram.bin")&&fs::exists(ui.shots/"shot.png"));
+  for(const auto *language:{"en","ru"}){app.locale.select(ui.options.assets,language);app.capture(std::string("removal-success-")+language);}
+  app.action("Y");assert(app.screen==Screen::RemovalReport);app.capture("removal-receipt-ru");app.action("B");app.action("A");
+  assert(app.screen==Screen::Library&&std::none_of(app.games.begin(),app.games.end(),[&](const Game &g){return g.id==ui.game.id&&g.available;}));
+  std::cout<<"PASS: confirmed file-by-file removal, default data preservation, optional records, shared discs, changed file/card/config refusal, read-only and journal failure, partial result and public cancel/retry/busy/success path.\n";
+}
 int main(int argc,char **argv) {
   assert(argc==3);SDL_setenv("SDL_VIDEODRIVER","dummy",1);SDL_setenv("SDL_AUDIODRIVER","dummy",1);
   fs::path work=argv[2];Options o;o.assets=argv[1];o.state=work/"state";o.headless=true;o.output=work/"captures";
@@ -16,6 +200,8 @@ int main(int argc,char **argv) {
       std::vector<uint32_t> pixels(90*120,0xff4d8fb9u+unsigned(i)*0x070000);assert(stbi_write_png((dir/"cover.png").c_str(),90,120,4,pixels.data(),90*4));
     }
   }
+  removalChecks(o,work);
+  removalExecutionChecks(o,work);
   App a(o);assert(a.games.size()==63&&a.store.data["game_view"]=="list"&&a.screen==Screen::Library);
   a.selected=4;auto id=a.games[a.visible()[a.selected]].id;auto favorites=a.store.data["favorites"];
   a.action("R2");assert(a.store.data["game_view"]=="tiles"&&a.games[a.visible()[a.selected]].id==id);

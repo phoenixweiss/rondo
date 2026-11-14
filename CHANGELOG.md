@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## [1.1.0] - 2026-11-15
+
+### Added
+
+- Choose all games, selected games or settings only when creating a progress backup. Review the included games before writing and restore their progress without changing other games' progress.
+- Browse screenshots by game or interface in a gallery, with thumbnails, Fit and 1:1 viewing, panning, picture browsing and confirmed deletion.
+- Open the Files menu from game information to find existing progress or review a game's files before deletion.
+- Delete a game with separate choices for artwork, SRAM/RTC, save slots, screenshots, statistics and library records. Shared discs, shared artwork, BIOS and existing backups are kept. Cancel is selected on confirmation; changed files or storage stop the operation, and the result shows what was removed.
+
 ## [1.0.1] - 2026-11-10
 
 ### Changed

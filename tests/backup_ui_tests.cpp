@@ -21,14 +21,28 @@ int main(int argc,char **argv) {
  Store config(options.state);config.commit(config.data);
  const std::string game(64,'a');auto path=options.state/"games"/game;
  StateFile state;state.meta={{"core",hashFile(options.core)},{"rom",std::string(64,'b')},{"utc",10},{"save_sequence",1},{"preview_width",0},{"preview_height",0}};state.payload={1,2,3};writeState(path/"slot-0.state",state);
- App app(options);app.games.push_back({game,"TF1","NES","Battle City",{}});app.screen=Screen::Settings;app.settingsFocus=9;app.row=9;
+ App app(options);app.games.push_back({game,"TF1","NES","Battle City",{}});app.action("MENU");assert(app.screen==Screen::Settings);
+ for(int i=0;i<20&&app.settingsFocus!=9;++i)app.action("DOWN");
+ assert(app.settingsFocus==9);
  app.restoreInputFence=true;app.action("A");assert(app.screen==Screen::Settings);app.sampleInput();assert(!app.restoreInputFence);
  for(const auto *lang:{"en","ru"}){app.locale.select(options.assets,lang);app.capture(std::string("backup-entry-")+lang);}
  app.action("A");assert(app.screen==Screen::Backups);selectedRowVisible(app,128);for(const auto *lang:{"en","ru"}){app.locale.select(options.assets,lang);app.capture(std::string("backup-empty-")+lang);}app.action("X");assert(app.infoOpen);app.capture("backup-info-ru");app.action("B");
  app.btJob=std::async(std::launch::async,[]{return BluetoothState{};});
  app.backupStart(false);assert(app.screen==Screen::Backups&&!app.backupJob.valid());
  app.btJob.wait();app.btTick();
- app.action("A");assert(app.screen==Screen::BackupBusy);
+ app.action("A");assert(app.screen==Screen::BackupCreate&&app.row==0);
+ app.action("B");assert(app.screen==Screen::Backups);
+ app.action("A");assert(app.screen==Screen::BackupCreate);
+ for(const auto *lang:{"en","ru"}){app.locale.select(options.assets,lang);app.capture(std::string("backup-create-")+lang);}
+ app.action("RIGHT");assert(app.backupMode==1);app.action("DOWN");app.action("A");
+ assert(app.screen==Screen::BackupSelectGames&&app.backupCandidates.size()==1);
+ app.action("A");assert(app.backupChosen.count(game));
+ for(const auto *lang:{"en","ru"}){app.locale.select(options.assets,lang);app.capture(std::string("backup-select-")+lang);}
+ app.action("Y");assert(app.backupChosen.empty());app.action("Y");assert(app.backupChosen.count(game));
+ app.action("B");assert(app.screen==Screen::BackupCreate&&app.row==1);
+ app.action("UP");app.action("RIGHT");assert(app.backupMode==2&&app.backupChosen.count(game));
+ app.action("LEFT");assert(app.backupMode==1&&app.backupChosen.count(game));
+ app.action("DOWN");app.action("DOWN");app.action("A");assert(app.screen==Screen::BackupBusy);
  auto before=app.store.data;app.action("VOLUME_UP");app.action("MENU");app.action("SLEEP");assert(app.store.data==before&&app.screen==Screen::BackupBusy);
  app.capture("backup-progress-ru");wait(app);assert(app.screen==Screen::Backups&&app.backupList.size()==1);
  for(const auto *lang:{"en","ru"}){app.locale.select(options.assets,lang);app.capture(std::string("backup-list-")+lang);}
@@ -58,5 +72,30 @@ int main(int argc,char **argv) {
  manage.action("A");assert(manage.screen==Screen::BackupDetails&&fs::exists(app.backupList[0]));
  manage.action("A");manage.action("DOWN");manage.action("A");wait(manage);assert(manage.screen==Screen::Backups&&manage.backupList.empty());
  assert(fs::exists(options.state/"games"/game/"slot-0.state")&&fs::exists(options.state/"config.json"));
+ App choices(options);choices.action("MENU");
+ for(int i=0;i<20&&choices.settingsFocus!=9;++i)choices.action("DOWN");
+ choices.action("A");assert(choices.screen==Screen::Backups);
+ choices.action("A");assert(choices.screen==Screen::BackupCreate);
+ choices.action("RIGHT");choices.action("DOWN");choices.action("A");
+ assert(choices.screen==Screen::BackupSelectGames);
+ for(int i=0;i<25;++i) {
+   auto id=std::string(62,'d')+"0123456789abcdef"[i/16]+"0123456789abcdef"[i%16];
+   choices.backupCandidates.push_back({{"id",id},{"title",i==0?"A very long game title that needs two lines with the system and card label":"Alien 3"},{"system",i%2?"NES":"MD"},{"volume",i%2?"TF1":"TF2"}});
+ }
+ choices.action("A");auto selectedId=choices.backupCandidates[0]["id"].get<std::string>();
+ for(int i=0;i<30;++i)choices.action("DOWN");
+ choices.draw();assert(choices.backupScroll>0&&choices.backupChosen.count(selectedId));
+ for(const auto *lang:{"en","ru"}){choices.locale.select(options.assets,lang);choices.capture(std::string("backup-selection-bottom-")+lang);}
+ for(int i=0;i<30;++i)choices.action("UP");
+ assert(choices.row==0&&choices.screen==Screen::BackupSelectGames&&!choices.navigationActions);
+ choices.draw();assert(choices.backupScroll==0&&choices.backupChosen.count(selectedId));
+ choices.capture("backup-selection-top-ru");
+ choices.action("B");choices.action("B");assert(choices.screen==Screen::Backups);
+ // None creates a settings-only copy, through menu navigation and public actions.
+ choices.action("A");choices.action("LEFT");assert(choices.backupMode==2);
+ choices.capture("backup-settings-only-ru");
+ choices.action("DOWN");choices.action("DOWN");choices.action("A");wait(choices);
+ assert(choices.screen==Screen::Backups&&choices.backupList.size()==1);
+ assert(backupGames(choices.backupList[0]).empty());
  std::cout<<"PASS: backup detail/game navigation and confirmed isolated deletion; backup navigation, default cancellation, busy-input fencing, async progress, safe reload and localized failure states.\n";
 }
